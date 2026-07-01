@@ -1,0 +1,1 @@
+export type AdminModuleKey = "companies" | "users" | "settings";

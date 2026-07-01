@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+
+  --chart-primary: #0f172a;
+  --chart-secondary: #64748b;
+  --chart-muted: #cbd5e1;
+  --chart-grid: #e2e8f0;
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-border: #e2e8f0;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --chart-primary: #f8fafc;
+  --chart-secondary: #94a3b8;
+  --chart-muted: #334155;
+  --chart-grid: #1e293b;
+  --chart-tooltip-bg: #020617;
+  --chart-tooltip-border: #1e293b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(99, 102, 241, 0.08), transparent 32rem),
+    radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 30rem),
+    #f8fafc;
+  color: #0f172a;
+}
+
+.dark body {
+  background:
+    radial-gradient(circle at top left, rgba(99, 102, 241, 0.16), transparent 32rem),
+    radial-gradient(circle at top right, rgba(14, 165, 233, 0.12), transparent 30rem),
+    #020617;
+  color: #e2e8f0;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.dark ::selection {
+  background: #ffffff;
+  color: #020617;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
