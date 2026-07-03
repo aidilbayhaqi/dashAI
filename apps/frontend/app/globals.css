@@ -5,23 +5,39 @@
 :root {
   color-scheme: light;
 
-  --chart-primary: #0f172a;
-  --chart-secondary: #64748b;
+  --app-bg: #f8fafc;
+  --app-surface: #ffffff;
+  --app-surface-soft: #f1f5f9;
+  --app-border: #e2e8f0;
+
+  --brand-primary: #020617;
+  --brand-secondary: #0f2a5f;
+  --brand-secondary-soft: #dbeafe;
+
+  --chart-primary: #0f2a5f;
+  --chart-secondary: #475569;
   --chart-muted: #cbd5e1;
   --chart-grid: #e2e8f0;
   --chart-tooltip-bg: #ffffff;
-  --chart-tooltip-border: #e2e8f0;
 }
 
 .dark {
   color-scheme: dark;
 
-  --chart-primary: #f8fafc;
+  --app-bg: #02040a;
+  --app-surface: #050816;
+  --app-surface-soft: #0b1120;
+  --app-border: #111827;
+
+  --brand-primary: #ffffff;
+  --brand-secondary: #1d4ed8;
+  --brand-secondary-soft: rgba(29, 78, 216, 0.14);
+
+  --chart-primary: #3b82f6;
   --chart-secondary: #94a3b8;
-  --chart-muted: #334155;
-  --chart-grid: #1e293b;
-  --chart-tooltip-bg: #020617;
-  --chart-tooltip-border: #1e293b;
+  --chart-muted: #1e293b;
+  --chart-grid: #111827;
+  --chart-tooltip-bg: #050816;
 }
 
 * {
@@ -35,17 +51,17 @@ html {
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(99, 102, 241, 0.08), transparent 32rem),
-    radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 30rem),
-    #f8fafc;
+    radial-gradient(circle at top left, rgba(15, 42, 95, 0.08), transparent 34rem),
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 32rem),
+    var(--app-bg);
   color: #0f172a;
 }
 
 .dark body {
   background:
-    radial-gradient(circle at top left, rgba(99, 102, 241, 0.16), transparent 32rem),
-    radial-gradient(circle at top right, rgba(14, 165, 233, 0.12), transparent 30rem),
-    #020617;
+    radial-gradient(circle at top left, rgba(29, 78, 216, 0.16), transparent 34rem),
+    radial-gradient(circle at top right, rgba(2, 6, 23, 0.85), transparent 34rem),
+    #02040a;
   color: #e2e8f0;
 }
 
@@ -54,13 +70,13 @@ button {
 }
 
 ::selection {
-  background: #0f172a;
+  background: #0f2a5f;
   color: #ffffff;
 }
 
 .dark ::selection {
-  background: #ffffff;
-  color: #020617;
+  background: #3b82f6;
+  color: #ffffff;
 }
 
 ::-webkit-scrollbar {
@@ -78,5 +94,5 @@ button {
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #1e293b;
 }

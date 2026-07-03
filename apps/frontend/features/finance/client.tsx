@@ -1,6 +1,6 @@
 "use client";
 
-import { ModulePage } from "@/components/modules/module-page";
+import { FinanceModulePage } from "@/components/modules/finance-module-page";
 import { financeModuleConfig } from "./config";
 import { useFinanceModule } from "./hook";
 import type { FinanceModuleKey } from "./types";
@@ -14,8 +14,9 @@ export function FinanceModuleClient({
   const { data, isLoading, isError } = useFinanceModule(moduleKey);
 
   return (
-    <ModulePage
+    <FinanceModulePage
       {...config}
+      moduleKey={moduleKey}
       metrics={data?.metrics ?? []}
       rows={data?.rows ?? []}
       aiNotes={data?.aiNotes ?? []}

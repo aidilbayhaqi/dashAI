@@ -16,6 +16,7 @@ export function ProductModuleClient({
   return (
     <ModulePage
       {...config}
+      moduleKey={moduleKey}
       metrics={data?.metrics ?? []}
       rows={data?.rows ?? []}
       aiNotes={data?.aiNotes ?? []}
