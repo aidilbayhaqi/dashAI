@@ -15,7 +15,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { login } from "@/features/auth/api";
-import { saveTokens } from "@/lib/auth";
+import Link from "next/link";
 
 const highlights = [
   {
@@ -43,12 +43,11 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   const loginMutation = useMutation({
-    mutationFn: login,
-    onSuccess: (data) => {
-      saveTokens(data.access_token, data.refresh_token);
-      router.push("/dashboard");
-    },
-  });
+  mutationFn: login,
+  onSuccess: () => {
+    router.push("/dashboard");
+  },
+});
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -151,6 +150,9 @@ export default function LoginPage() {
                 <p className="mt-2 text-sm leading-6 text-slate-500">
                   Masuk untuk mengelola dashboard ERP DashAI.
                 </p>
+                <div className="mt-5 text-center text-sm font-semibold text-slate-500">
+               
+              </div>
               </div>
 
               {loginMutation.isError ? (
@@ -230,7 +232,12 @@ export default function LoginPage() {
                     className="transition group-hover:translate-x-0.5"
                   />
                 </button>
+                 Belum punya akun?{" "}
+                <Link href="/register" className="font-black text-blue-400 hover:text-blue-300">
+                  Daftar sekarang
+                </Link>
               </div>
+              
             </form>
 
             <p className="mt-6 text-center text-xs font-semibold text-slate-600">

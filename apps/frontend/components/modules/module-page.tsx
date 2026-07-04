@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import * as XLSX from "xlsx";
 import {
@@ -13,6 +13,7 @@ import {
   Search,
   Upload,
 } from "lucide-react";
+
 import type {
   ModuleAction,
   ModuleColumn,
@@ -21,6 +22,7 @@ import type {
   ModuleMetric,
   ModuleRow,
 } from "@/types/modules";
+
 import { cn } from "@/lib/utils";
 import {
   exportFinancialReportToPDF,
@@ -28,19 +30,23 @@ import {
   exportRowsToExcel,
   exportRowsToPDF,
 } from "@/lib/export";
+
 import { ModuleLoading } from "./module-loading";
 import { ModuleError } from "./module-error";
 import { ModuleEmpty } from "./module-empty";
 import { RecordModal } from "./record-modal";
 
 type ModulePageProps = ModuleConfig &
-  ModuleData & {
+  Partial<ModuleData> & {
     isLoading?: boolean;
     isError?: boolean;
     emptyMessage?: string;
     actions?: ModuleAction[];
     moduleKey?: string;
     topContent?: ReactNode;
+
+    onCreateRecord?: (row: ModuleRow) => Promise<void> | void;
+    isCreating?: boolean;
   };
 
 function getStatusClass(value: string) {
@@ -65,7 +71,8 @@ function getStatusClass(value: string) {
     normalized.includes("progress") ||
     normalized.includes("scheduled") ||
     normalized.includes("probation") ||
-    normalized.includes("hot")
+    normalized.includes("hot") ||
+    normalized.includes("draft")
   ) {
     return "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/70";
   }
@@ -76,7 +83,8 @@ function getStatusClass(value: string) {
     normalized.includes("low") ||
     normalized.includes("failed") ||
     normalized.includes("risk") ||
-    normalized.includes("late")
+    normalized.includes("late") ||
+    normalized.includes("inactive")
   ) {
     return "bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900/70";
   }
@@ -91,7 +99,7 @@ function isAttentionStatus(row: ModuleRow) {
 
   if (!status) return false;
 
-  const normalized = status.toLowerCase();
+  const normalized = String(status).toLowerCase();
 
   return [
     "pending",
@@ -102,7 +110,42 @@ function isAttentionStatus(row: ModuleRow) {
     "critical",
     "late",
     "failed",
+    "inactive",
+    "draft",
   ].some((keyword) => normalized.includes(keyword));
+}
+
+function isImageColumn(column: ModuleColumn) {
+  const key = column.key.toLowerCase();
+  const label = column.label.toLowerCase();
+
+  return (
+    key.includes("photo") ||
+    key.includes("image") ||
+    key.includes("avatar") ||
+    label.includes("photo") ||
+    label.includes("image") ||
+    label.includes("avatar")
+  );
+}
+
+function isUrlImage(value: string) {
+  return (
+    value.startsWith("http://") ||
+    value.startsWith("https://") ||
+    value.startsWith("/")
+  );
+}
+
+function makeRowKey(row: ModuleRow, index: number) {
+  return (
+    row.id ||
+    row.sku ||
+    row.email ||
+    row.name ||
+    row.product_id ||
+    `${Object.values(row).join("-")}-${index}`
+  );
 }
 
 function ModuleMetricCard({ metric }: { metric: ModuleMetric }) {
@@ -131,52 +174,118 @@ function ModuleMetricCard({ metric }: { metric: ModuleMetric }) {
   );
 }
 
+function TableCellValue({
+  column,
+  value,
+  isPrimary,
+}: {
+  column: ModuleColumn;
+  value: string;
+  isPrimary: boolean;
+}) {
+  if (isImageColumn(column)) {
+    return (
+      <div className="flex items-center gap-3">
+        {isUrlImage(value) ? (
+          <img
+            src={value}
+            alt={column.label}
+            className="h-10 w-10 rounded-2xl object-cover"
+          />
+        ) : (
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#0f2a5f] text-xs font-black text-white dark:bg-blue-700">
+            {value && value !== "-" ? value.slice(0, 2).toUpperCase() : "DA"}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <span
+      className={cn(
+        "block max-w-[260px] truncate text-sm",
+        isPrimary
+          ? "font-black text-slate-950 dark:text-white"
+          : "font-semibold text-slate-500 dark:text-slate-500"
+      )}
+    >
+      {value}
+    </span>
+  );
+}
+
 export function ModulePage({
   badge,
   title,
   description,
   icon: Icon,
   columns,
-  metrics,
-  rows,
+  metrics = [],
+  rows = [],
   isLoading,
   isError,
-  emptyMessage,
+  emptyMessage = "Belum ada data.",
   moduleKey,
   topContent,
+  onCreateRecord,
+  isCreating = false,
   tableTitle = "Data Records",
   tableDescription = "Kelola data module, import Excel, export Excel/PDF, dan lakukan aksi data secara cepat.",
 }: ModulePageProps) {
-  const [tableRows, setTableRows] = useState<ModuleRow[]>(rows);
+  const [localRows, setLocalRows] = useState<ModuleRow[]>([]);
   const [search, setSearch] = useState("");
   const [showAttentionOnly, setShowAttentionOnly] = useState(false);
   const [recordModalOpen, setRecordModalOpen] = useState(false);
 
-  useEffect(() => {
-    setTableRows(rows);
+  const baseRows = useMemo(() => {
+    return Array.isArray(rows) ? rows : [];
   }, [rows]);
+
+  const tableRows = useMemo(() => {
+    const rowMap = new Map<string, ModuleRow>();
+
+    [...localRows, ...baseRows].forEach((row, index) => {
+      const key = makeRowKey(row, index);
+
+      if (!rowMap.has(key)) {
+        rowMap.set(key, row);
+      }
+    });
+
+    return Array.from(rowMap.values());
+  }, [baseRows, localRows]);
 
   const normalizedTitle = `${title} ${moduleKey ?? ""}`.toLowerCase();
 
   const isInvoice = normalizedTitle.includes("invoice");
+
   const isFinanceReport =
     normalizedTitle.includes("finance") ||
     normalizedTitle.includes("tax") ||
     normalizedTitle.includes("ledger") ||
-    normalizedTitle.includes("cashflow");
+    normalizedTitle.includes("cashflow") ||
+    normalizedTitle.includes("report");
 
   const filteredRows = useMemo(() => {
     return tableRows.filter((row) => {
-      const values = Object.values(row).join(" ").toLowerCase();
-      const matchesSearch = values.includes(search.toLowerCase());
+      const rowText = Object.values(row).join(" ").toLowerCase();
+      const matchesSearch = rowText.includes(search.toLowerCase());
       const matchesFilter = showAttentionOnly ? isAttentionStatus(row) : true;
 
       return matchesSearch && matchesFilter;
     });
   }, [tableRows, search, showAttentionOnly]);
 
-  function handleAddRecord(row: ModuleRow) {
-    setTableRows((current) => [row, ...current]);
+  async function handleAddRecord(row: ModuleRow) {
+    if (onCreateRecord) {
+      await onCreateRecord(row);
+      setRecordModalOpen(false);
+      return;
+    }
+
+    setLocalRows((current) => [row, ...current]);
+    setRecordModalOpen(false);
   }
 
   function handleImportExcel(file: File | null) {
@@ -186,8 +295,14 @@ export function ModulePage({
 
     reader.onload = (event) => {
       const data = event.target?.result;
+
+      if (!data) return;
+
       const workbook = XLSX.read(data, { type: "array" });
       const firstSheetName = workbook.SheetNames[0];
+
+      if (!firstSheetName) return;
+
       const worksheet = workbook.Sheets[firstSheetName];
 
       const jsonRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
@@ -207,7 +322,7 @@ export function ModulePage({
         return row;
       });
 
-      setTableRows((current) => [...importedRows, ...current]);
+      setLocalRows((current) => [...importedRows, ...current]);
     };
 
     reader.readAsArrayBuffer(file);
@@ -277,6 +392,7 @@ export function ModulePage({
                   <h1 className="text-3xl font-black tracking-tight text-slate-950 dark:text-white">
                     {title}
                   </h1>
+
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500 dark:text-slate-500">
                     {description}
                   </p>
@@ -308,6 +424,7 @@ export function ModulePage({
               <h2 className="text-xl font-black tracking-tight text-slate-950 dark:text-white">
                 {tableTitle}
               </h2>
+
               <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-500">
                 {tableDescription}
               </p>
@@ -330,6 +447,7 @@ export function ModulePage({
               </label>
 
               <button
+                type="button"
                 onClick={handleExportExcel}
                 className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 dark:border-slate-900 dark:bg-[#02040a] dark:text-slate-300 dark:hover:bg-[#0b1120]"
               >
@@ -338,6 +456,7 @@ export function ModulePage({
               </button>
 
               <button
+                type="button"
                 onClick={handleExportPDF}
                 className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 dark:border-slate-900 dark:bg-[#02040a] dark:text-slate-300 dark:hover:bg-[#0b1120]"
               >
@@ -347,6 +466,7 @@ export function ModulePage({
 
               {isInvoice ? (
                 <button
+                  type="button"
                   onClick={handleExportInvoice}
                   className="inline-flex h-10 items-center gap-2 rounded-2xl bg-[#0f2a5f] px-4 text-sm font-bold text-white shadow-lg shadow-blue-950/10 transition hover:-translate-y-0.5 hover:bg-blue-950 dark:bg-blue-700 dark:hover:bg-blue-600"
                 >
@@ -357,6 +477,7 @@ export function ModulePage({
 
               {isFinanceReport ? (
                 <button
+                  type="button"
                   onClick={handleExportReport}
                   className="inline-flex h-10 items-center gap-2 rounded-2xl bg-[#0f2a5f] px-4 text-sm font-bold text-white shadow-lg shadow-blue-950/10 transition hover:-translate-y-0.5 hover:bg-blue-950 dark:bg-blue-700 dark:hover:bg-blue-600"
                 >
@@ -367,17 +488,23 @@ export function ModulePage({
             </div>
 
             <button
+              type="button"
               onClick={() => setRecordModalOpen(true)}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-bold text-white shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:bg-[#0f2a5f] dark:bg-white dark:text-slate-950 dark:hover:bg-blue-100"
+              disabled={isCreating}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-bold text-white shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:bg-[#0f2a5f] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-950 dark:hover:bg-blue-100"
             >
               <Plus size={16} />
-              New Record
+              {isCreating ? "Saving..." : "New Record"}
             </button>
           </div>
 
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex h-11 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 dark:border-slate-900 dark:bg-[#02040a]">
-              <Search size={17} className="text-slate-400 dark:text-slate-600" />
+              <Search
+                size={17}
+                className="text-slate-400 dark:text-slate-600"
+              />
+
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -387,6 +514,7 @@ export function ModulePage({
             </div>
 
             <button
+              type="button"
               onClick={() => setShowAttentionOnly((current) => !current)}
               className={cn(
                 "inline-flex h-11 items-center gap-2 rounded-2xl border px-4 text-sm font-bold transition",
@@ -427,18 +555,22 @@ export function ModulePage({
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-900">
                   {filteredRows.map((row, rowIndex) => (
                     <tr
-                      key={rowIndex}
+                      key={makeRowKey(row, rowIndex)}
                       className="group transition hover:bg-slate-50/80 dark:hover:bg-[#050816]"
                     >
                       {columns.map((column, columnIndex) => {
-                        const value = row[column.key] ?? "-";
+                        const rawValue = row[column.key] ?? "-";
+                        const value = String(rawValue);
 
                         const isStatus =
                           column.key.toLowerCase().includes("status") ||
                           column.label.toLowerCase().includes("status");
 
                         return (
-                          <td key={column.key} className="px-5 py-4 align-middle">
+                          <td
+                            key={column.key}
+                            className="px-5 py-4 align-middle"
+                          >
                             {isStatus ? (
                               <span
                                 className={cn(
@@ -449,16 +581,11 @@ export function ModulePage({
                                 {value}
                               </span>
                             ) : (
-                              <span
-                                className={cn(
-                                  "block max-w-[260px] truncate text-sm",
-                                  columnIndex === 0
-                                    ? "font-black text-slate-950 dark:text-white"
-                                    : "font-semibold text-slate-500 dark:text-slate-500"
-                                )}
-                              >
-                                {value}
-                              </span>
+                              <TableCellValue
+                                column={column}
+                                value={value}
+                                isPrimary={columnIndex === 0}
+                              />
                             )}
                           </td>
                         );
@@ -467,6 +594,7 @@ export function ModulePage({
                       <td className="px-5 py-4 text-right">
                         <div className="inline-flex items-center gap-2">
                           <button
+                            type="button"
                             onClick={() => handleDetail(row)}
                             className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-50 dark:border-slate-900 dark:bg-[#050816] dark:text-slate-400 dark:hover:bg-[#0b1120]"
                           >
@@ -475,6 +603,7 @@ export function ModulePage({
 
                           {isInvoice ? (
                             <button
+                              type="button"
                               onClick={() => exportInvoiceToPDF(row)}
                               className="rounded-xl bg-[#0f2a5f] px-3 py-2 text-xs font-black text-white transition hover:bg-blue-950 dark:bg-blue-700 dark:hover:bg-blue-600"
                             >
@@ -482,6 +611,7 @@ export function ModulePage({
                             </button>
                           ) : (
                             <button
+                              type="button"
                               onClick={() =>
                                 exportRowsToPDF({
                                   filename: `${title} Row`,
@@ -497,6 +627,7 @@ export function ModulePage({
                           )}
 
                           <button
+                            type="button"
                             onClick={() => handleDetail(row)}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 dark:border-slate-900 dark:bg-[#050816] dark:text-slate-500 dark:hover:bg-[#0b1120]"
                           >

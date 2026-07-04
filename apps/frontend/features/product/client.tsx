@@ -11,7 +11,16 @@ export function ProductModuleClient({
   moduleKey: ProductModuleKey;
 }) {
   const config = productModuleConfig[moduleKey];
-  const { data, isLoading, isError } = useProductModule(moduleKey);
+
+  const {
+    data,
+    isLoading,
+    isPending,
+    isFetching,
+    isError,
+  } = useProductModule(moduleKey);
+
+  const shouldShowSkeleton = isLoading || isPending || (isFetching && !data);
 
   return (
     <ModulePage
@@ -20,7 +29,7 @@ export function ProductModuleClient({
       metrics={data?.metrics ?? []}
       rows={data?.rows ?? []}
       aiNotes={data?.aiNotes ?? []}
-      isLoading={isLoading}
+      isLoading={shouldShowSkeleton}
       isError={isError}
       emptyMessage="Belum ada data product."
     />
