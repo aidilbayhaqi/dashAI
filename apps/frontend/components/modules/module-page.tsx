@@ -4,14 +4,22 @@ import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import * as XLSX from "xlsx";
 import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
   Download,
   FileSpreadsheet,
   FileText,
   Filter,
+  ImageIcon,
   MoreHorizontal,
+  Pencil,
   Plus,
+  RotateCcw,
   Search,
+  Trash2,
   Upload,
+  X,
 } from "lucide-react";
 
 import type {
@@ -19,6 +27,7 @@ import type {
   ModuleColumn,
   ModuleConfig,
   ModuleData,
+  ModuleField,
   ModuleMetric,
   ModuleRow,
 } from "@/types/modules";
@@ -36,6 +45,19 @@ import { ModuleError } from "./module-error";
 import { ModuleEmpty } from "./module-empty";
 import { RecordModal } from "./record-modal";
 
+import {
+  getCurrentCompanyId,
+  isCurrentUserSuperAdmin,
+} from "@/lib/auth-scope";
+
+type BasicFilterKey =
+  | "all"
+  | "attention"
+  | "active"
+  | "pending"
+  | "problem"
+  | "with-image";
+
 type ModulePageProps = ModuleConfig &
   Partial<ModuleData> & {
     isLoading?: boolean;
@@ -46,7 +68,12 @@ type ModulePageProps = ModuleConfig &
     topContent?: ReactNode;
 
     onCreateRecord?: (row: ModuleRow) => Promise<void> | void;
+    onUpdateRecord?: (id: string, row: ModuleRow) => Promise<void> | void;
+    onDeleteRecord?: (id: string) => Promise<void> | void;
+
     isCreating?: boolean;
+    isUpdating?: boolean;
+    isDeleting?: boolean;
   };
 
 function getStatusClass(value: string) {
@@ -60,7 +87,8 @@ function getStatusClass(value: string) {
     normalized.includes("done") ||
     normalized.includes("ready") ||
     normalized.includes("balanced") ||
-    normalized.includes("positive")
+    normalized.includes("positive") ||
+    normalized.includes("posted")
   ) {
     return "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/70";
   }
@@ -72,7 +100,8 @@ function getStatusClass(value: string) {
     normalized.includes("scheduled") ||
     normalized.includes("probation") ||
     normalized.includes("hot") ||
-    normalized.includes("draft")
+    normalized.includes("draft") ||
+    normalized.includes("sent")
   ) {
     return "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/70";
   }
@@ -84,7 +113,10 @@ function getStatusClass(value: string) {
     normalized.includes("failed") ||
     normalized.includes("risk") ||
     normalized.includes("late") ||
-    normalized.includes("inactive")
+    normalized.includes("inactive") ||
+    normalized.includes("cancelled") ||
+    normalized.includes("canceled") ||
+    normalized.includes("archived")
   ) {
     return "bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900/70";
   }
@@ -92,14 +124,18 @@ function getStatusClass(value: string) {
   return "bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700";
 }
 
-function isAttentionStatus(row: ModuleRow) {
-  const status = Object.entries(row).find(([key]) =>
+function getStatusValue(row: ModuleRow) {
+  const statusEntry = Object.entries(row).find(([key]) =>
     key.toLowerCase().includes("status")
-  )?.[1];
+  );
 
-  if (!status) return false;
+  return String(statusEntry?.[1] ?? "").toLowerCase();
+}
 
-  const normalized = String(status).toLowerCase();
+function isAttentionStatus(row: ModuleRow) {
+  const normalized = getStatusValue(row);
+
+  if (!normalized) return false;
 
   return [
     "pending",
@@ -112,10 +148,65 @@ function isAttentionStatus(row: ModuleRow) {
     "failed",
     "inactive",
     "draft",
+    "cancelled",
+    "canceled",
+    "archived",
   ].some((keyword) => normalized.includes(keyword));
 }
 
-function isImageColumn(column: ModuleColumn) {
+function isActiveStatus(row: ModuleRow) {
+  const normalized = getStatusValue(row);
+
+  if (!normalized) return false;
+
+  return [
+    "active",
+    "ready",
+    "paid",
+    "approved",
+    "completed",
+    "done",
+    "posted",
+    "balanced",
+  ].some((keyword) => normalized.includes(keyword));
+}
+
+function isPendingStatus(row: ModuleRow) {
+  const normalized = getStatusValue(row);
+
+  if (!normalized) return false;
+
+  return [
+    "pending",
+    "draft",
+    "review",
+    "progress",
+    "scheduled",
+    "sent",
+    "process",
+  ].some((keyword) => normalized.includes(keyword));
+}
+
+function isProblemStatus(row: ModuleRow) {
+  const normalized = getStatusValue(row);
+
+  if (!normalized) return false;
+
+  return [
+    "failed",
+    "inactive",
+    "cancelled",
+    "canceled",
+    "critical",
+    "overdue",
+    "low",
+    "risk",
+    "late",
+    "archived",
+  ].some((keyword) => normalized.includes(keyword));
+}
+
+function isImageColumn(column: ModuleColumn | ModuleField) {
   const key = column.key.toLowerCase();
   const label = column.label.toLowerCase();
 
@@ -123,9 +214,11 @@ function isImageColumn(column: ModuleColumn) {
     key.includes("photo") ||
     key.includes("image") ||
     key.includes("avatar") ||
+    key.includes("logo") ||
     label.includes("photo") ||
     label.includes("image") ||
-    label.includes("avatar")
+    label.includes("avatar") ||
+    label.includes("logo")
   );
 }
 
@@ -137,15 +230,52 @@ function isUrlImage(value: string) {
   );
 }
 
+function hasImageValue(row: ModuleRow) {
+  return Object.entries(row).some(([key, value]) => {
+    const normalizedKey = key.toLowerCase();
+    const stringValue = String(value ?? "");
+
+    const isPossibleImageKey =
+      normalizedKey.includes("photo") ||
+      normalizedKey.includes("image") ||
+      normalizedKey.includes("avatar") ||
+      normalizedKey.includes("logo");
+
+    return isPossibleImageKey && isUrlImage(stringValue);
+  });
+}
+
+function matchesBasicFilter(row: ModuleRow, filter: BasicFilterKey) {
+  if (filter === "all") return true;
+  if (filter === "attention") return isAttentionStatus(row);
+  if (filter === "active") return isActiveStatus(row);
+  if (filter === "pending") return isPendingStatus(row);
+  if (filter === "problem") return isProblemStatus(row);
+  if (filter === "with-image") return hasImageValue(row);
+
+  return true;
+}
+
 function makeRowKey(row: ModuleRow, index: number) {
   return (
     row.id ||
     row.sku ||
     row.email ||
     row.name ||
+    row.code ||
+    row.transaction_no ||
+    row.invoice_no ||
+    row.journal_no ||
     row.product_id ||
     `${Object.values(row).join("-")}-${index}`
   );
+}
+
+function formatFieldLabel(key: string) {
+  return key
+    .replaceAll("_", " ")
+    .replaceAll("-", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function ModuleMetricCard({ metric }: { metric: ModuleMetric }) {
@@ -215,12 +345,108 @@ function TableCellValue({
   );
 }
 
+function DetailModal({
+  open,
+  title,
+  row,
+  fields,
+  onClose,
+}: {
+  open: boolean;
+  title: string;
+  row: ModuleRow | null;
+  fields?: ModuleField[];
+  onClose: () => void;
+}) {
+  if (!open || !row) return null;
+
+  const visibleFields =
+    fields && fields.length > 0
+      ? fields
+      : Object.keys(row).map((key) => ({
+          key,
+          label: formatFieldLabel(key),
+        }));
+
+  return (
+    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-900 dark:bg-[#050816]">
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700 dark:text-blue-400">
+              Detail Record
+            </p>
+
+            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950 dark:text-white">
+              Detail {title}
+            </h2>
+
+            <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-500">
+              Informasi lengkap data yang dipilih dari table.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 dark:border-slate-900 dark:hover:bg-[#02040a]"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {visibleFields.map((field) => {
+            const rawValue = row[field.key] ?? "-";
+            const value = String(rawValue || "-");
+
+            return (
+              <div
+                key={field.key}
+                className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-900 dark:bg-[#02040a]"
+              >
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                  {field.label}
+                </p>
+
+                {isImageColumn(field) && isUrlImage(value) ? (
+                  <img
+                    src={value}
+                    alt={field.label}
+                    className="mt-3 h-32 w-32 rounded-2xl object-cover"
+                  />
+                ) : (
+                  <p className="mt-2 break-words text-sm font-bold leading-6 text-slate-900 dark:text-white">
+                    {value}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-7 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-2xl bg-[#0f2a5f] px-5 py-2.5 text-sm font-black text-white transition hover:bg-blue-950 dark:bg-blue-700 dark:hover:bg-blue-600"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ModulePage({
   badge,
   title,
   description,
   icon: Icon,
   columns,
+  formFields,
+  detailFields,
   metrics = [],
   rows = [],
   isLoading,
@@ -229,14 +455,23 @@ export function ModulePage({
   moduleKey,
   topContent,
   onCreateRecord,
+  onUpdateRecord,
+  onDeleteRecord,
   isCreating = false,
+  isUpdating = false,
+  isDeleting = false,
   tableTitle = "Data Records",
   tableDescription = "Kelola data module, import Excel, export Excel/PDF, dan lakukan aksi data secara cepat.",
 }: ModulePageProps) {
   const [localRows, setLocalRows] = useState<ModuleRow[]>([]);
   const [search, setSearch] = useState("");
-  const [showAttentionOnly, setShowAttentionOnly] = useState(false);
+  const [basicFilter, setBasicFilter] = useState<BasicFilterKey>("all");
   const [recordModalOpen, setRecordModalOpen] = useState(false);
+  const [editingRow, setEditingRow] = useState<ModuleRow | null>(null);
+  const [detailRow, setDetailRow] = useState<ModuleRow | null>(null);
+
+  const currentCompanyId = getCurrentCompanyId();
+  const canShowCompanyFilter = isCurrentUserSuperAdmin() || !currentCompanyId;
 
   const baseRows = useMemo(() => {
     return Array.isArray(rows) ? rows : [];
@@ -245,12 +480,9 @@ export function ModulePage({
   const tableRows = useMemo(() => {
     const rowMap = new Map<string, ModuleRow>();
 
-    [...localRows, ...baseRows].forEach((row, index) => {
+    [...baseRows, ...localRows].forEach((row, index) => {
       const key = makeRowKey(row, index);
-
-      if (!rowMap.has(key)) {
-        rowMap.set(key, row);
-      }
+      rowMap.set(String(key), row);
     });
 
     return Array.from(rowMap.values());
@@ -271,21 +503,121 @@ export function ModulePage({
     return tableRows.filter((row) => {
       const rowText = Object.values(row).join(" ").toLowerCase();
       const matchesSearch = rowText.includes(search.toLowerCase());
-      const matchesFilter = showAttentionOnly ? isAttentionStatus(row) : true;
+      const matchesFilter = matchesBasicFilter(row, basicFilter);
 
       return matchesSearch && matchesFilter;
     });
-  }, [tableRows, search, showAttentionOnly]);
+  }, [tableRows, search, basicFilter]);
 
-  async function handleAddRecord(row: ModuleRow) {
-    if (onCreateRecord) {
-      await onCreateRecord(row);
-      setRecordModalOpen(false);
+  const basicFilterButtons: Array<{
+    key: BasicFilterKey;
+    label: string;
+    icon: typeof RotateCcw;
+  }> = [
+    {
+      key: "all",
+      label: "All",
+      icon: RotateCcw,
+    },
+    {
+      key: "attention",
+      label: "Attention",
+      icon: Filter,
+    },
+    {
+      key: "active",
+      label: "Active",
+      icon: CheckCircle2,
+    },
+    {
+      key: "pending",
+      label: "Pending",
+      icon: Clock3,
+    },
+    {
+      key: "problem",
+      label: "Problem",
+      icon: AlertTriangle,
+    },
+    {
+      key: "with-image",
+      label: "With Image",
+      icon: ImageIcon,
+    },
+  ];
+
+  function openCreateModal() {
+    setEditingRow(null);
+    setRecordModalOpen(true);
+  }
+
+  function openEditModal(row: ModuleRow) {
+    setEditingRow(row);
+    setRecordModalOpen(true);
+  }
+
+  function closeRecordModal() {
+    setEditingRow(null);
+    setRecordModalOpen(false);
+  }
+
+  async function handleSubmitRecord(row: ModuleRow) {
+    if (editingRow) {
+      const id = editingRow.id;
+
+      if (onUpdateRecord) {
+        if (!id) {
+          window.alert("Data ini tidak punya ID, jadi tidak bisa update ke backend.");
+          return;
+        }
+
+        await onUpdateRecord(id, row);
+        closeRecordModal();
+        return;
+      }
+
+      const editingKey = makeRowKey(editingRow, 0);
+
+      setLocalRows((current) =>
+        current.map((item) =>
+          makeRowKey(item, 0) === editingKey ? { ...item, ...row } : item
+        )
+      );
+
+      closeRecordModal();
       return;
     }
 
-    setLocalRows((current) => [row, ...current]);
-    setRecordModalOpen(false);
+    if (onCreateRecord) {
+      await onCreateRecord(row);
+      closeRecordModal();
+      return;
+    }
+
+    setLocalRows((current) => [{ ...row, id: crypto.randomUUID() }, ...current]);
+    closeRecordModal();
+  }
+
+  async function handleDeleteRecord(row: ModuleRow, rowIndex: number) {
+    const confirmed = window.confirm("Yakin ingin menghapus data ini?");
+
+    if (!confirmed) return;
+
+    if (onDeleteRecord) {
+      if (!row.id) {
+        window.alert("Data ini tidak punya ID, jadi tidak bisa delete ke backend.");
+        return;
+      }
+
+      await onDeleteRecord(row.id);
+      return;
+    }
+
+    const rowKey = makeRowKey(row, rowIndex);
+
+    setLocalRows((current) =>
+      current.filter((item, index) => makeRowKey(item, index) !== rowKey)
+    );
   }
 
   function handleImportExcel(file: File | null) {
@@ -318,6 +650,8 @@ export function ModulePage({
 
           row[column.key] = String(byKey ?? byLabel ?? "");
         });
+
+        row.id = crypto.randomUUID();
 
         return row;
       });
@@ -366,10 +700,6 @@ export function ModulePage({
     exportInvoiceToPDF(firstInvoice);
   }
 
-  function handleDetail(row: ModuleRow) {
-    window.alert(JSON.stringify(row, null, 2));
-  }
-
   if (isLoading) return <ModuleLoading />;
   if (isError) return <ModuleError />;
 
@@ -406,29 +736,29 @@ export function ModulePage({
           </div>
         </div>
 
-        <div className="p-6">
-          <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {metrics.map((metric) => (
-              <ModuleMetricCard key={metric.label} metric={metric} />
-            ))}
-          </section>
-        </div>
+        {metrics.length > 0 ? (
+          <div className="p-6">
+            <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {metrics.map((metric) => (
+                <ModuleMetricCard key={metric.label} metric={metric} />
+              ))}
+            </section>
+          </div>
+        ) : null}
       </section>
 
-      {topContent ? <section>{topContent}</section> : null}
+      {topContent && canShowCompanyFilter ? <section>{topContent}</section> : null}
 
       <section className="rounded-[2rem] border border-slate-200/80 bg-white/80 p-6 shadow-sm backdrop-blur-2xl dark:border-slate-900 dark:bg-[#050816]/90">
         <div className="mb-5 flex flex-col gap-5">
-          <div className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
-            <div>
-              <h2 className="text-xl font-black tracking-tight text-slate-950 dark:text-white">
-                {tableTitle}
-              </h2>
+          <div>
+            <h2 className="text-xl font-black tracking-tight text-slate-950 dark:text-white">
+              {tableTitle}
+            </h2>
 
-              <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-500">
-                {tableDescription}
-              </p>
-            </div>
+            <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-500">
+              {tableDescription}
+            </p>
           </div>
 
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -489,8 +819,8 @@ export function ModulePage({
 
             <button
               type="button"
-              onClick={() => setRecordModalOpen(true)}
-              disabled={isCreating}
+              onClick={openCreateModal}
+              disabled={isCreating || isUpdating}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-bold text-white shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:bg-[#0f2a5f] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-950 dark:hover:bg-blue-100"
             >
               <Plus size={16} />
@@ -498,7 +828,7 @@ export function ModulePage({
             </button>
           </div>
 
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-3">
             <div className="flex h-11 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 dark:border-slate-900 dark:bg-[#02040a]">
               <Search
                 size={17}
@@ -509,23 +839,33 @@ export function ModulePage({
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search records..."
-                className="w-full bg-transparent text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400 dark:text-slate-200 dark:placeholder:text-slate-700 lg:w-96"
+                className="w-full bg-transparent text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400 dark:text-slate-200 dark:placeholder:text-slate-700"
               />
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowAttentionOnly((current) => !current)}
-              className={cn(
-                "inline-flex h-11 items-center gap-2 rounded-2xl border px-4 text-sm font-bold transition",
-                showAttentionOnly
-                  ? "border-blue-700 bg-blue-700 text-white"
-                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-900 dark:bg-[#02040a] dark:text-slate-300 dark:hover:bg-[#0b1120]"
-              )}
-            >
-              <Filter size={16} />
-              {showAttentionOnly ? "Showing Attention" : "Filter Attention"}
-            </button>
+            <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-900 dark:bg-[#02040a]/70">
+              {basicFilterButtons.map((item) => {
+                const ButtonIcon = item.icon;
+                const active = basicFilter === item.key;
+
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setBasicFilter(item.key)}
+                    className={cn(
+                      "inline-flex h-10 items-center gap-2 rounded-2xl border px-4 text-sm font-black transition",
+                      active
+                        ? "border-blue-700 bg-blue-700 text-white"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-900 dark:bg-[#050816] dark:text-slate-300 dark:hover:bg-[#0b1120]"
+                    )}
+                  >
+                    <ButtonIcon size={16} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -595,10 +935,30 @@ export function ModulePage({
                         <div className="inline-flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => handleDetail(row)}
+                            onClick={() => setDetailRow(row)}
                             className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-50 dark:border-slate-900 dark:bg-[#050816] dark:text-slate-400 dark:hover:bg-[#0b1120]"
                           >
                             Detail
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(row)}
+                            disabled={isUpdating}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-900/70 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/50"
+                          >
+                            <Pencil size={13} />
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRecord(row, rowIndex)}
+                            disabled={isDeleting}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50"
+                          >
+                            <Trash2 size={13} />
+                            Delete
                           </button>
 
                           {isInvoice ? (
@@ -628,7 +988,7 @@ export function ModulePage({
 
                           <button
                             type="button"
-                            onClick={() => handleDetail(row)}
+                            onClick={() => setDetailRow(row)}
                             className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 dark:border-slate-900 dark:bg-[#050816] dark:text-slate-500 dark:hover:bg-[#0b1120]"
                           >
                             <MoreHorizontal size={15} />
@@ -647,10 +1007,22 @@ export function ModulePage({
       <RecordModal
         open={recordModalOpen}
         title={title}
+        mode={editingRow ? "edit" : "create"}
         moduleKey={moduleKey}
         columns={columns}
-        onClose={() => setRecordModalOpen(false)}
-        onSubmit={handleAddRecord}
+        fields={formFields}
+        initialRow={editingRow}
+        isSubmitting={isCreating || isUpdating}
+        onClose={closeRecordModal}
+        onSubmit={handleSubmitRecord}
+      />
+
+      <DetailModal
+        open={Boolean(detailRow)}
+        title={title}
+        row={detailRow}
+        fields={detailFields}
+        onClose={() => setDetailRow(null)}
       />
     </div>
   );

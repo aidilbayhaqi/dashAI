@@ -2,196 +2,103 @@ import type { ModuleData } from "@/types/modules";
 import type { CRMModuleKey } from "./types";
 
 export const crmDummyData: Record<CRMModuleKey, ModuleData> = {
-  overview: {
+  leads: {
     metrics: [
       {
         label: "Active Leads",
-        value: "184",
-        helper: "27 leads masuk minggu ini",
-        trend: "+14.3%",
+        value: "0",
+        helper: "Total lead aktif dari CRM.",
       },
       {
-        label: "Conversion Rate",
-        value: "18.6%",
-        helper: "+4.2% dibanding bulan lalu",
+        label: "Need Follow Up",
+        value: "0",
+        helper: "Lead yang perlu ditindaklanjuti.",
+      },
+      {
+        label: "Converted",
+        value: "0",
+        helper: "Lead yang berhasil dikonversi.",
+      },
+    ],
+    rows: [],
+    aiNotes: [
+      "Belum ada data leads.",
+      "Tambahkan lead baru untuk mulai tracking pipeline customer.",
+    ],
+  },
+
+  contacts: {
+    metrics: [
+      {
+        label: "Total Contacts",
+        value: "0",
+        helper: "Total kontak customer.",
+      },
+      {
+        label: "Linked Leads",
+        value: "0",
+        helper: "Kontak yang sudah terhubung dengan lead.",
+      },
+      {
+        label: "Active PIC",
+        value: "0",
+        helper: "PIC customer yang aktif.",
+      },
+    ],
+    rows: [],
+    aiNotes: [
+      "Belum ada data contacts.",
+      "Tambahkan contact untuk menyimpan PIC customer.",
+    ],
+  },
+
+  deals: {
+    metrics: [
+      {
+        label: "Open Deals",
+        value: "0",
+        helper: "Deal yang masih berjalan.",
+      },
+      {
+        label: "Won Deals",
+        value: "0",
+        helper: "Deal yang berhasil dimenangkan.",
       },
       {
         label: "Pipeline Value",
-        value: "Rp 2.4 M",
-        helper: "Estimasi deal aktif",
+        value: "Rp 0",
+        helper: "Estimasi nilai pipeline CRM.",
       },
     ],
-    rows: [
-      {
-        lead: "Budi Santoso",
-        company: "PT Retail Maju",
-        value: "Rp 240.000.000",
-        stage: "Proposal",
-        status: "Hot",
-      },
-      {
-        lead: "Sinta Dewi",
-        company: "CV Digital Prima",
-        value: "Rp 85.000.000",
-        stage: "Discovery",
-        status: "Review",
-      },
-      {
-        lead: "Raka Putra",
-        company: "PT Global Karya",
-        value: "Rp 180.000.000",
-        stage: "Negotiation",
-        status: "Active",
-      },
-    ],
+    rows: [],
     aiNotes: [
-      "Lead enterprise punya peluang conversion tertinggi bulan ini.",
-      "Follow-up cepat disarankan untuk lead dengan stage Proposal dan Negotiation.",
-      "Pipeline CRM bisa dipakai untuk forecasting finance.",
+      "Belum ada data deals.",
+      "Tambahkan deal untuk mulai tracking opportunity.",
     ],
   },
 
-  leads: {
+  activities: {
     metrics: [
-      { label: "New Leads", value: "27", helper: "Minggu ini" },
-      { label: "Hot Leads", value: "12", helper: "High priority" },
-      { label: "Avg Score", value: "78", helper: "Lead scoring rata-rata" },
-    ],
-    rows: [
       {
-        name: "Budi Santoso",
-        source: "Website",
-        score: "92",
-        owner: "Sales A",
-        status: "Hot",
+        label: "Total Activities",
+        value: "0",
+        helper: "Total aktivitas CRM.",
       },
       {
-        name: "Sinta Dewi",
-        source: "Instagram",
-        score: "76",
-        owner: "Sales B",
-        status: "Review",
+        label: "Planned",
+        value: "0",
+        helper: "Aktivitas yang masih direncanakan.",
       },
       {
-        name: "Raka Putra",
-        source: "Referral",
-        score: "88",
-        owner: "Sales A",
-        status: "Active",
+        label: "Done",
+        value: "0",
+        helper: "Aktivitas yang sudah selesai.",
       },
     ],
+    rows: [],
     aiNotes: [
-      "Lead dari Website punya score paling tinggi dan harus difollow-up lebih cepat.",
-      "Referral lead memiliki conversion probability stabil.",
-      "Lead score nanti bisa dihitung otomatis oleh AI.",
-    ],
-  },
-
-  customers: {
-    metrics: [
-      { label: "Customers", value: "536", helper: "Customer aktif" },
-      { label: "Enterprise", value: "84", helper: "Segment high value" },
-      { label: "Retention", value: "91%", helper: "Simulasi retention rate" },
-    ],
-    rows: [
-      {
-        customer: "PT Retail Maju",
-        segment: "Enterprise",
-        revenue: "Rp 840.000.000",
-        lastActivity: "Today",
-        status: "Active",
-      },
-      {
-        customer: "CV Digital Prima",
-        segment: "SMB",
-        revenue: "Rp 120.000.000",
-        lastActivity: "2 days ago",
-        status: "Active",
-      },
-      {
-        customer: "PT Global Karya",
-        segment: "Enterprise",
-        revenue: "Rp 520.000.000",
-        lastActivity: "7 days ago",
-        status: "Review",
-      },
-    ],
-    aiNotes: [
-      "Customer enterprise perlu program retention khusus.",
-      "Customer dengan last activity rendah bisa masuk campaign reactivation.",
-      "Segmentasi customer akan membantu campaign lebih presisi.",
-    ],
-  },
-
-  pipeline: {
-    metrics: [
-      { label: "Pipeline Value", value: "Rp 2.4 M", helper: "Total active deals" },
-      { label: "Win Probability", value: "42%", helper: "Forecast rata-rata" },
-      { label: "Negotiation", value: "18", helper: "Deal di tahap negotiation" },
-    ],
-    rows: [
-      {
-        deal: "ERP Enterprise Rollout",
-        client: "PT Retail Maju",
-        value: "Rp 840.000.000",
-        stage: "Proposal",
-        status: "Hot",
-      },
-      {
-        deal: "AI Reporting Add-on",
-        client: "PT Global Karya",
-        value: "Rp 260.000.000",
-        stage: "Negotiation",
-        status: "Active",
-      },
-      {
-        deal: "CRM Implementation",
-        client: "CV Prima",
-        value: "Rp 120.000.000",
-        stage: "Discovery",
-        status: "Review",
-      },
-    ],
-    aiNotes: [
-      "Deal proposal bernilai tinggi sebaiknya diberi executive follow-up.",
-      "Pipeline bisa dipakai untuk forecast cashflow di modul finance.",
-      "Deal stage perlu tracking activity agar tidak stuck.",
-    ],
-  },
-
-  campaigns: {
-    metrics: [
-      { label: "Active Campaigns", value: "8", helper: "Campaign berjalan" },
-      { label: "Leads Generated", value: "327", helper: "Bulan ini" },
-      { label: "Cost per Lead", value: "Rp 42k", helper: "Rata-rata CPL" },
-    ],
-    rows: [
-      {
-        campaign: "ERP Awareness Q3",
-        channel: "LinkedIn",
-        budget: "Rp 18.000.000",
-        leads: "84",
-        status: "Active",
-      },
-      {
-        campaign: "AI Agent Launch",
-        channel: "Instagram",
-        budget: "Rp 12.000.000",
-        leads: "146",
-        status: "Active",
-      },
-      {
-        campaign: "Enterprise Webinar",
-        channel: "Email",
-        budget: "Rp 8.000.000",
-        leads: "97",
-        status: "Scheduled",
-      },
-    ],
-    aiNotes: [
-      "Instagram menghasilkan lead terbanyak namun perlu dicek kualitas score-nya.",
-      "LinkedIn cocok untuk enterprise campaign bernilai tinggi.",
-      "Campaign performance harus dikaitkan dengan conversion pipeline.",
+      "Belum ada data activities.",
+      "Tambahkan activity untuk mencatat follow up customer.",
     ],
   },
 };

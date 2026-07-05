@@ -33,18 +33,4 @@ export const adminModuleConfig: Record<AdminModuleKey, ModuleConfig> = {
     ],
   },
 
-  settings: {
-    badge: "Administration / Settings",
-    title: "Settings",
-    description:
-      "Kelola konfigurasi sistem, workspace, notification, branding, dan integrasi.",
-    icon: Settings,
-    columns: [
-      { key: "setting", label: "Setting" },
-      { key: "category", label: "Category" },
-      { key: "value", label: "Value" },
-      { key: "updated", label: "Updated" },
-      { key: "status", label: "Status" },
-    ],
-  },
 };

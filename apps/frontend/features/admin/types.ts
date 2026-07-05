@@ -1,1 +1,1 @@
-export type AdminModuleKey = "companies" | "users" | "settings";
+export type AdminModuleKey = "companies" | "users";

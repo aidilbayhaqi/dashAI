@@ -1,10 +1,46 @@
-import { useQuery } from "@tanstack/react-query";
-import type { HRModuleKey } from "./types";
-import { getHRModuleData } from "./api";
+"use client";
 
-export function useHRModule(moduleKey: HRModuleKey) {
+import { useQuery } from "@tanstack/react-query";
+
+import {
+  getCurrentCompanyId,
+  isCurrentUserSuperAdmin,
+} from "@/lib/auth-scope";
+import { getSelectedCompanyId, useCompanyScope } from "@/lib/company-scope";
+
+import { getHRModuleData } from "./api";
+import type { HRModuleKey } from "./types";
+import { normalizeHRModuleKey } from "./types";
+
+function getHRCompanyId() {
+  const currentCompanyId = getCurrentCompanyId();
+  const selectedCompanyId = getSelectedCompanyId();
+
+  const isSuperAdmin = isCurrentUserSuperAdmin() || !currentCompanyId;
+
+  if (isSuperAdmin && selectedCompanyId && selectedCompanyId !== "all") {
+    return selectedCompanyId;
+  }
+
+  if (!isSuperAdmin && currentCompanyId) {
+    return currentCompanyId;
+  }
+
+  return undefined;
+}
+
+export function useHRModule(moduleKey: HRModuleKey | string) {
+  const { selectedCompanyId } = useCompanyScope();
+
+  const safeModuleKey = normalizeHRModuleKey(String(moduleKey));
+  const companyId = getHRCompanyId();
+
   return useQuery({
-    queryKey: ["hr", moduleKey],
-    queryFn: () => getHRModuleData(moduleKey),
+    queryKey: ["hr", safeModuleKey, selectedCompanyId, companyId],
+    queryFn: () =>
+      getHRModuleData({
+        moduleKey: safeModuleKey,
+        companyId,
+      }),
   });
 }

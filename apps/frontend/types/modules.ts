@@ -12,6 +12,29 @@ export type ModuleColumn = {
   label: string;
 };
 
+export type ModuleFieldOption = {
+  label: string;
+  value: string;
+};
+
+export type ModuleField = {
+  key: string;
+  label: string;
+  type?:
+    | "text"
+    | "number"
+    | "date"
+    | "datetime-local"
+    | "textarea"
+    | "select"
+    | "email"
+    | "password"
+    | "file";
+  placeholder?: string;
+  required?: boolean;
+  options?: ModuleFieldOption[];
+};
+
 export type ModuleRow = Record<string, string>;
 
 export type ModuleConfig = {
@@ -20,6 +43,8 @@ export type ModuleConfig = {
   description: string;
   icon: LucideIcon;
   columns: ModuleColumn[];
+  formFields?: ModuleField[];
+  detailFields?: ModuleField[];
   tableTitle?: string;
   tableDescription?: string;
 };

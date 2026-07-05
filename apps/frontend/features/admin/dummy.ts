@@ -74,39 +74,4 @@ export const adminDummyData: Record<AdminModuleKey, ModuleData> = {
     ],
   },
 
-  settings: {
-    metrics: [
-      { label: "Integrations", value: "6", helper: "Connected service" },
-      { label: "Notifications", value: "Active", helper: "System alert enabled" },
-      { label: "Security", value: "Good", helper: "Basic security active" },
-    ],
-    rows: [
-      {
-        setting: "Company Branding",
-        category: "Workspace",
-        value: "DashAI",
-        updated: "Today",
-        status: "Active",
-      },
-      {
-        setting: "Email Notification",
-        category: "Notification",
-        value: "Enabled",
-        updated: "Yesterday",
-        status: "Active",
-      },
-      {
-        setting: "AI Reporting",
-        category: "Intelligence",
-        value: "Beta",
-        updated: "Today",
-        status: "Review",
-      },
-    ],
-    aiNotes: [
-      "Settings nanti perlu dibagi antara global config dan tenant config.",
-      "AI Reporting sebaiknya bisa diaktifkan per company/module.",
-      "Integrasi eksternal seperti email, payment, dan WhatsApp bisa masuk di sini.",
-    ],
-  },
 };

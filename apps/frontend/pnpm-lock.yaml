@@ -49,16 +49,16 @@ importers:
         specifier: ^5.101.2
         version: 5.101.2(@tanstack/react-query@5.101.2(react@19.2.4))(react@19.2.4)
       '@types/node':
-        specifier: ^20
+        specifier: ^20.19.43
         version: 20.19.43
       '@types/react':
-        specifier: ^19
+        specifier: ^19.2.17
         version: 19.2.17
       '@types/react-dom':
-        specifier: ^19
+        specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.17)
       eslint:
-        specifier: ^9
+        specifier: ^9.39.4
         version: 9.39.4(jiti@2.7.0)
       eslint-config-next:
         specifier: 16.2.9
@@ -67,7 +67,7 @@ importers:
         specifier: ^4
         version: 4.3.2
       typescript:
-        specifier: ^5
+        specifier: ^5.9.3
         version: 5.9.3
 
 packages:

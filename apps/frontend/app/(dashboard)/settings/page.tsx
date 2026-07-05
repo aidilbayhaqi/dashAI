@@ -1,5 +1,5 @@
-import { AdminModuleClient } from "@/features/admin/client";
+import { SettingsClient } from "@/features/settings/client";
 
 export default function SettingsPage() {
-  return <AdminModuleClient moduleKey="settings" />;
+  return <SettingsClient />;
 }
