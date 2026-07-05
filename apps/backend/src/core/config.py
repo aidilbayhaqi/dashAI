@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     # Realtime
     ENABLE_REALTIME_LISTENER: bool = True
 
+     # Uploads
+    UPLOAD_DIR: str = "uploads"
+    UPLOAD_URL_PREFIX: str = "/uploads"
+    MAX_UPLOAD_SIZE_MB: int = 5
+
     @field_validator("REDIS_PASSWORD", mode="before")
     @classmethod
     def empty_redis_password_to_none(cls, value: str | None) -> str | None:

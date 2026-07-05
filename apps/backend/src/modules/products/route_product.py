@@ -7,6 +7,7 @@ from src.modules.products.model_product import (
     Product,
     ProductCategory,
     ProductStock,
+    ProductSupplier
 )
 from src.modules.products.schema_product import (
     ProductCategoryCreate,
@@ -20,6 +21,9 @@ from src.modules.products.schema_product import (
     ProductStockResponse,
     ProductStockMovementCreate,
     ProductStockMovementResponse,
+    ProductSupplierCreate,
+    ProductSupplierUpdate,
+    ProductSupplierResponse,
 )
 from src.modules.products.service_product import ProductStockService
 from src.security.dependencies import CurrentUser, require_permission
@@ -65,6 +69,19 @@ router.include_router(
         response_schema=ProductStockResponse,
         search_fields=[],
         date_filter_field="updated_at",
+    )
+)
+
+router.include_router(
+    create_crud_router(
+        prefix="/products/suppliers",
+        tags=["Product Suppliers"],
+        permission_prefix="products.suppliers",
+        model_class=ProductSupplier,
+        create_schema=ProductSupplierCreate,
+        update_schema=ProductSupplierUpdate,
+        response_schema=ProductSupplierResponse,
+        search_fields=["name", "category", "contact_person", "email", "phone"],
     )
 )
 

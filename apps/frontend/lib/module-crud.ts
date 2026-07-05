@@ -70,6 +70,9 @@ const numericKeys = new Set([
   "actual_value",
   "weight_percent",
   "lead_time_days",
+  "estimated_value",
+  "expected_value",
+  "probability_percent",
 ]);
 
 const booleanKeys = new Set([
@@ -96,6 +99,8 @@ const uuidKeys = new Set([
   "customer_id",
   "lead_id",
   "deal_id",
+  "contact_id",
+  "owner_user_id",
 ]);
 
 const readonlyKeys = new Set([
@@ -106,7 +111,6 @@ const readonlyKeys = new Set([
   "created_by_id",
 
   "photo",
-  "category",
   "stock",
   "price",
   "products",
@@ -124,7 +128,45 @@ function isValidUuid(value: string) {
   );
 }
 
-function cleanValue(key: string, value: string) {
+function parseNumberValue(value: unknown) {
+  const text = String(value ?? "").trim();
+
+  if (!text) return undefined;
+
+  const cleaned = text
+    .replaceAll("Rp", "")
+    .replaceAll("IDR", "")
+    .replaceAll(" ", "")
+    .replace(/[^\d.,-]/g, "");
+
+  if (!cleaned) return undefined;
+
+  const hasComma = cleaned.includes(",");
+  const hasDot = cleaned.includes(".");
+
+  let normalized = cleaned;
+
+  if (hasComma && hasDot) {
+    const lastCommaIndex = cleaned.lastIndexOf(",");
+    const lastDotIndex = cleaned.lastIndexOf(".");
+
+    if (lastCommaIndex > lastDotIndex) {
+      normalized = cleaned.replaceAll(".", "").replace(",", ".");
+    } else {
+      normalized = cleaned.replaceAll(",", "");
+    }
+  } else if (hasComma) {
+    normalized = cleaned.replace(",", ".");
+  }
+
+  const numberValue = Number(normalized);
+
+  if (Number.isNaN(numberValue)) return undefined;
+
+  return numberValue;
+}
+
+function cleanValue(key: string, value: unknown) {
   const trimmedValue = String(value ?? "").trim();
 
   if (trimmedValue === "") return undefined;
@@ -139,14 +181,55 @@ function cleanValue(key: string, value: string) {
   }
 
   if (numericKeys.has(key)) {
-    const numberValue = Number(trimmedValue);
-
-    if (Number.isNaN(numberValue)) return undefined;
-
-    return numberValue;
+    return parseNumberValue(value);
   }
 
   return trimmedValue;
+}
+
+function normalizePayloadAliases({
+  featureKey,
+  moduleKey,
+  payload,
+}: {
+  featureKey: FeatureKey;
+  moduleKey?: string;
+  payload: ModuleRow;
+}) {
+  const clone: ModuleRow = {
+    ...payload,
+  };
+
+  if (featureKey === "product" && moduleKey === "stock") {
+    if (
+      clone.quantity_on_hand === undefined &&
+      clone.stock !== undefined &&
+      clone.stock !== null &&
+      String(clone.stock).trim() !== ""
+    ) {
+      clone.quantity_on_hand = clone.stock;
+    }
+
+    if (
+      clone.reserved_quantity === undefined &&
+      clone.reserved !== undefined &&
+      clone.reserved !== null &&
+      String(clone.reserved).trim() !== ""
+    ) {
+      clone.reserved_quantity = clone.reserved;
+    }
+
+    if (
+      clone.reorder_point === undefined &&
+      clone.reorder !== undefined &&
+      clone.reorder !== null &&
+      String(clone.reorder).trim() !== ""
+    ) {
+      clone.reorder_point = clone.reorder;
+    }
+  }
+
+  return clone;
 }
 
 function cleanPayload(payload: ModuleRow) {
@@ -185,54 +268,6 @@ export function getModuleEndpoint(featureKey: FeatureKey, moduleKey?: string) {
   return endpoint;
 }
 
-function getActiveCompanyIdForRead() {
-  if (isCurrentUserSuperAdmin()) {
-    const selectedCompanyId = getSelectedCompanyId();
-
-    if (
-      selectedCompanyId &&
-      selectedCompanyId !== "all" &&
-      isValidUuid(selectedCompanyId)
-    ) {
-      return selectedCompanyId;
-    }
-
-    return null;
-  }
-
-  const currentCompanyId = getCurrentCompanyId();
-
-  if (currentCompanyId && isValidUuid(currentCompanyId)) {
-    return currentCompanyId;
-  }
-
-  return null;
-}
-
-function getActiveCompanyIdForWrite() {
-  if (isCurrentUserSuperAdmin()) {
-    const selectedCompanyId = getSelectedCompanyId();
-
-    if (
-      selectedCompanyId &&
-      selectedCompanyId !== "all" &&
-      isValidUuid(selectedCompanyId)
-    ) {
-      return selectedCompanyId;
-    }
-
-    return null;
-  }
-
-  const currentCompanyId = getCurrentCompanyId();
-
-  if (currentCompanyId && isValidUuid(currentCompanyId)) {
-    return currentCompanyId;
-  }
-
-  return null;
-}
-
 export function getScopedQueryParams(
   featureKey: FeatureKey,
   params: Record<string, unknown> = {}
@@ -244,11 +279,6 @@ export function getScopedQueryParams(
   const currentCompanyId = getCurrentCompanyId();
   const selectedCompanyId = getSelectedCompanyId();
 
-  /**
-   * Owner/admin/user company:
-   * kalau punya company_id dan bukan superadmin,
-   * data wajib fixed ke company dia.
-   */
   if (
     currentCompanyId &&
     isValidUuid(currentCompanyId) &&
@@ -260,10 +290,6 @@ export function getScopedQueryParams(
     };
   }
 
-  /**
-   * Superadmin:
-   * kalau pilih company tertentu dari filter.
-   */
   if (
     selectedCompanyId &&
     selectedCompanyId !== "all" &&
@@ -275,10 +301,6 @@ export function getScopedQueryParams(
     };
   }
 
-  /**
-   * Superadmin + All Companies:
-   * tidak kirim company_id.
-   */
   return params;
 }
 
@@ -292,10 +314,6 @@ function withCompanyId(featureKey: FeatureKey, payload: ModuleRow) {
   const currentCompanyId = getCurrentCompanyId();
   const selectedCompanyId = getSelectedCompanyId();
 
-  /**
-   * Owner/admin/user company:
-   * new record otomatis masuk company dia.
-   */
   if (
     currentCompanyId &&
     isValidUuid(currentCompanyId) &&
@@ -307,10 +325,6 @@ function withCompanyId(featureKey: FeatureKey, payload: ModuleRow) {
     };
   }
 
-  /**
-   * Superadmin:
-   * kalau filter company aktif, pakai company dari filter.
-   */
   if (
     selectedCompanyId &&
     selectedCompanyId !== "all" &&
@@ -322,10 +336,6 @@ function withCompanyId(featureKey: FeatureKey, payload: ModuleRow) {
     };
   }
 
-  /**
-   * Superadmin:
-   * kalau company dipilih dari modal.
-   */
   if (
     typeof cleaned.company_id === "string" &&
     isValidUuid(cleaned.company_id)
@@ -346,7 +356,14 @@ export async function createModuleRecord({
   payload: ModuleRow;
 }) {
   const endpoint = getModuleEndpoint(featureKey, moduleKey);
-  const body = stripReadonlyFields(withCompanyId(featureKey, payload));
+
+  const normalizedPayload = normalizePayloadAliases({
+    featureKey,
+    moduleKey,
+    payload,
+  });
+
+  const body = stripReadonlyFields(withCompanyId(featureKey, normalizedPayload));
 
   const response = await api.post(endpoint, body);
   return response.data;
@@ -364,7 +381,14 @@ export async function updateModuleRecord({
   payload: ModuleRow;
 }) {
   const endpoint = getModuleEndpoint(featureKey, moduleKey);
-  const body = stripReadonlyFields(cleanPayload(payload));
+
+  const normalizedPayload = normalizePayloadAliases({
+    featureKey,
+    moduleKey,
+    payload,
+  });
+
+  const body = stripReadonlyFields(cleanPayload(normalizedPayload));
 
   const response = await api.patch(`${endpoint}/${id}`, body);
   return response.data;

@@ -42,6 +42,12 @@ class CRMActivityStatus(str, enum.Enum):
     CANCELLED = "cancelled"
     OVERDUE = "overdue"
 
+class CampaignStatus(str, enum.Enum):
+    DRAFT = "draft"
+    ACTIVE = "active"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
 
 class CRMLead(Base):
     __tablename__ = "crm_leads"
@@ -163,7 +169,41 @@ class CRMDealItem(Base):
     deal = relationship("CRMDeal", back_populates="items")
     product = relationship("Product")
 
+class CRMCampaign(Base):
+    __tablename__ = "crm_campaigns"
 
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True)
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("company_branches.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    name: Mapped[str] = mapped_column(String(150), nullable=False, index=True)
+    channel: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    budget_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=Decimal("0.00"))
+    leads_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    status: Mapped[CampaignStatus] = mapped_column(
+        Enum(CampaignStatus, name="crm_campaign_status_enum"),
+        nullable=False,
+        default=CampaignStatus.DRAFT,
+    )
+
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    company = relationship("Company")
+    branch = relationship("CompanyBranch")
+
+    __table_args__ = (
+        Index("ix_crm_campaigns_company_status", "company_id", "status"),
+    )
+    
 class CRMActivity(Base):
     __tablename__ = "crm_activities"
 
@@ -194,3 +234,4 @@ class CRMActivity(Base):
         Index("ix_crm_activities_company_status_due", "company_id", "status", "due_at"),
         Index("ix_crm_activities_assigned_due", "assigned_user_id", "due_at"),
     )
+

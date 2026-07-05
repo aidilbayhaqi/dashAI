@@ -8,6 +8,7 @@ from src.modules.finance.model_finance import (
     AccountType,
     BudgetStatus,
     CashflowActivity,
+    InvoiceStatus,
     JournalStatus,
     NormalBalance,
     PeriodStatus,
@@ -15,6 +16,7 @@ from src.modules.finance.model_finance import (
     TaxType,
     TransactionStatus,
     TransactionType,
+    InvoiceStatus,
 )
 
 
@@ -170,6 +172,8 @@ class FinanceTransactionCreate(BaseModel):
     status: TransactionStatus = TransactionStatus.DRAFT
     counterparty_name: str | None = None
     reference_no: str | None = None
+    proof_url: str | None = None
+    attachment_url: str | None = None
     source_module: str | None = None
     source_id: UUID | None = None
     subtotal_amount: Decimal = Decimal("0.00")
@@ -191,6 +195,8 @@ class FinanceTransactionUpdate(BaseModel):
     status: TransactionStatus | None = None
     counterparty_name: str | None = None
     reference_no: str | None = None
+    proof_url: str | None = None
+    attachment_url: str | None = None
     source_module: str | None = None
     source_id: UUID | None = None
     subtotal_amount: Decimal | None = None
@@ -541,3 +547,46 @@ class FinanceBalanceSheetSnapshotUpdate(BaseModel):
 class FinanceBalanceSheetSnapshotResponse(FinanceBalanceSheetSnapshotCreate, ORMBase):
     id: UUID
     generated_at: datetime
+
+# =========================================================
+# 16. INVOICE STATUS
+# =========================================================
+class FinanceInvoiceCreate(BaseModel):
+    company_id: UUID
+    branch_id: UUID | None = None
+    invoice_no: str
+    client_name: str
+    invoice_date: date
+    due_date: date | None = None
+    subtotal_amount: Decimal = Decimal("0.00")
+    tax_amount: Decimal = Decimal("0.00")
+    total_amount: Decimal = Decimal("0.00")
+    paid_amount: Decimal = Decimal("0.00")
+    status: InvoiceStatus = InvoiceStatus.DRAFT
+    source_module: str | None = None
+    source_id: UUID | None = None
+    attachment_url: str | None = None
+    notes: str | None = None
+
+
+class FinanceInvoiceUpdate(BaseModel):
+    branch_id: UUID | None = None
+    invoice_no: str | None = None
+    client_name: str | None = None
+    invoice_date: date | None = None
+    due_date: date | None = None
+    subtotal_amount: Decimal | None = None
+    tax_amount: Decimal | None = None
+    total_amount: Decimal | None = None
+    paid_amount: Decimal | None = None
+    status: InvoiceStatus | None = None
+    source_module: str | None = None
+    source_id: UUID | None = None
+    attachment_url: str | None = None
+    notes: str | None = None
+
+
+class FinanceInvoiceResponse(FinanceInvoiceCreate, ORMBase):
+    id: UUID
+    created_at: datetime
+    updated_at: datetime

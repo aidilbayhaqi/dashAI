@@ -25,6 +25,11 @@ except Exception:
 from src.realtime.listener import start_realtime_listener
 from src.realtime.router_realtime import router as realtime_router
 
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+from src.modules.files.route_file import router as file_router
+from src.modules.admin.route_admin import router as admin_router
+
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL),
@@ -79,6 +84,14 @@ def create_app() -> FastAPI:
         openapi_url=settings.openapi_url,
     )
 
+    Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
+
+    app.mount(
+        settings.UPLOAD_URL_PREFIX,
+        StaticFiles(directory=settings.UPLOAD_DIR),
+        name="uploads",
+    )
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins_list,
@@ -107,6 +120,8 @@ def register_routes(app: FastAPI) -> None:
     app.include_router(hr_router, prefix=settings.API_PREFIX)
     app.include_router(crm_router, prefix=settings.API_PREFIX)
     app.include_router(finance_router, prefix=settings.API_PREFIX)
+    app.include_router(file_router, prefix=settings.API_PREFIX)
+    app.include_router(admin_router, prefix=settings.API_PREFIX)
 
     if dashboard_router is not None:
         app.include_router(dashboard_router, prefix=settings.API_PREFIX)

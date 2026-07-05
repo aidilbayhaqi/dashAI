@@ -17,6 +17,7 @@ from src.modules.users.model_user import (
 )
 from src.seeds.context import CompanySeedContext
 from src.seeds.data import (
+    COMPANY_LABELS,
     PERMISSION_MATRIX,
     ROLE_ALLOWED_MODULES,
     ROLES,
@@ -126,7 +127,10 @@ async def seed_users_and_access(
             user_objects.append(
                 User(
                     id=user_id,
-                    full_name=user["full_name"],
+                    full_name=user["full_name"].format(
+    company=ctx.code,
+    company_label=COMPANY_LABELS.get(ctx.code, ctx.code.upper()),
+),
                     email=user["email"].format(company=ctx.code),
                     phone=user["phone"],
                     password_hash=password_hash,

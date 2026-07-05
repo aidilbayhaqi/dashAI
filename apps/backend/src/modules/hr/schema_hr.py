@@ -11,6 +11,8 @@ from src.modules.hr.model_hr import (
     EmploymentType,
     PayrollStatus,
     TaskStatus,
+    KPIIndicator,
+    KPIReview,
 )
 
 
@@ -26,6 +28,7 @@ class EmployeeCreate(BaseModel):
     full_name: str
     email: str | None = None
     phone: str | None = None
+    photo_url: str | None = None
     department_name: str | None = None
     job_title: str | None = None
     employment_type: EmploymentType = EmploymentType.FULL_TIME
@@ -42,6 +45,7 @@ class EmployeeUpdate(BaseModel):
     full_name: str | None = None
     email: str | None = None
     phone: str | None = None
+    photo_url: str | None = None
     department_name: str | None = None
     job_title: str | None = None
     employment_type: EmploymentType | None = None
@@ -170,3 +174,54 @@ class PayrollRunResponse(PayrollRunCreate, ORMBase):
     finance_transaction_id: UUID | None
     created_at: datetime
     paid_at: datetime | None
+
+class KPIIndicatorCreate(BaseModel):
+    company_id: UUID
+    branch_id: UUID | None = None
+    code: str
+    name: str
+    category: str | None = None
+    weight_percent: Decimal = Decimal("0.0000")
+    target_value: Decimal = Decimal("0.0000")
+    is_active: bool = True
+
+
+class KPIIndicatorUpdate(BaseModel):
+    branch_id: UUID | None = None
+    code: str | None = None
+    name: str | None = None
+    category: str | None = None
+    weight_percent: Decimal | None = None
+    target_value: Decimal | None = None
+    is_active: bool | None = None
+
+
+class KPIIndicatorResponse(KPIIndicatorCreate, ORMBase):
+    id: UUID
+
+
+class KPIReviewCreate(BaseModel):
+    company_id: UUID
+    branch_id: UUID | None = None
+    employee_id: UUID
+    reviewer_user_id: UUID | None = None
+    period_start: date
+    period_end: date
+    total_score: Decimal = Decimal("0.0000")
+    rating: str | None = None
+    status: ApprovalStatus = ApprovalStatus.DRAFT
+
+
+class KPIReviewUpdate(BaseModel):
+    branch_id: UUID | None = None
+    reviewer_user_id: UUID | None = None
+    period_start: date | None = None
+    period_end: date | None = None
+    total_score: Decimal | None = None
+    rating: str | None = None
+    status: ApprovalStatus | None = None
+
+
+class KPIReviewResponse(KPIReviewCreate, ORMBase):
+    id: UUID
+    created_at: datetime

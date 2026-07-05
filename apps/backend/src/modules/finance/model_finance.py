@@ -95,6 +95,14 @@ class BudgetStatus(str, enum.Enum):
     CLOSED = "closed"
     CANCELLED = "cancelled"
 
+class InvoiceStatus(str, enum.Enum):
+    DRAFT = "draft"
+    SENT = "sent"
+    PARTIALLY_PAID = "partially_paid"
+    PAID = "paid"
+    OVERDUE = "overdue"
+    CANCELLED = "cancelled"
+
 
 class FinanceAccountingPeriod(Base):
     __tablename__ = "finance_accounting_periods"
@@ -398,6 +406,8 @@ class FinanceTransaction(Base):
     counterparty_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
 
     reference_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    proof_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    attachment_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     source_module: Mapped[str | None] = mapped_column(String(100), nullable=True)
     source_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
@@ -466,7 +476,64 @@ class FinanceTransaction(Base):
         ),
     )
 
+class FinanceInvoice(Base):
+    __tablename__ = "finance_invoices"
 
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    branch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("company_branches.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    invoice_no: Mapped[str] = mapped_column(String(100), nullable=False)
+    client_name: Mapped[str] = mapped_column(String(150), nullable=False)
+
+    invoice_date: Mapped[date] = mapped_column(Date, nullable=False)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    subtotal_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=Decimal("0.00"))
+    tax_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=Decimal("0.00"))
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=Decimal("0.00"))
+    paid_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=Decimal("0.00"))
+
+    status: Mapped[InvoiceStatus] = mapped_column(
+        Enum(InvoiceStatus, name="finance_invoice_status_enum"),
+        nullable=False,
+        default=InvoiceStatus.DRAFT,
+    )
+
+    source_module: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    source_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+    attachment_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    company = relationship("Company")
+    branch = relationship("CompanyBranch")
+
+    __table_args__ = (
+        UniqueConstraint("company_id", "invoice_no", name="uq_finance_invoice_company_no"),
+        Index("ix_finance_invoices_company_status", "company_id", "status"),
+        Index("ix_finance_invoices_company_due", "company_id", "due_date"),
+    )
+    
 class FinanceTransactionLine(Base):
     __tablename__ = "finance_transaction_lines"
 

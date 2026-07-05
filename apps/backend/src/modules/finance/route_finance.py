@@ -18,6 +18,7 @@ from src.modules.finance.model_finance import (
     FinanceCashflowSnapshot,
     FinanceMarginSnapshot,
     FinanceBalanceSheetSnapshot,
+    FinanceInvoice,
 )
 
 from src.modules.finance.schema_finance import (
@@ -66,6 +67,9 @@ from src.modules.finance.schema_finance import (
     FinanceBalanceSheetSnapshotCreate,
     FinanceBalanceSheetSnapshotUpdate,
     FinanceBalanceSheetSnapshotResponse,
+    FinanceInvoiceCreate,
+    FinanceInvoiceUpdate,
+    FinanceInvoiceResponse,
 )
 
 
@@ -278,5 +282,19 @@ router.include_router(
         response_schema=FinanceBalanceSheetSnapshotResponse,
         search_fields=[],
         date_filter_field="report_date",
+    )
+)
+
+router.include_router(
+    create_crud_router(
+        prefix="/finance/invoices",
+        tags=["Finance - Invoices"],
+        permission_prefix="finance.invoices",
+        model_class=FinanceInvoice,
+        create_schema=FinanceInvoiceCreate,
+        update_schema=FinanceInvoiceUpdate,
+        response_schema=FinanceInvoiceResponse,
+        search_fields=["invoice_no", "client_name", "source_module", "notes"],
+        date_filter_field="invoice_date",
     )
 )

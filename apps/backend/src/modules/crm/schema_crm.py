@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from src.modules.crm.model_crm import CRMActivityStatus, CRMActivityType, DealStage, LeadStatus
+from src.modules.crm.model_crm import CRMActivityStatus, CRMActivityType, DealStage, LeadStatus, CampaignStatus
 
 
 class ORMBase(BaseModel):
@@ -133,3 +133,33 @@ class CRMActivityResponse(CRMActivityCreate, ORMBase):
     status: CRMActivityStatus
     completed_at: datetime | None
     created_at: datetime
+
+class CRMCampaignCreate(BaseModel):
+    company_id: UUID
+    branch_id: UUID | None = None
+    name: str
+    channel: str | None = None
+    budget_amount: Decimal = Decimal("0.00")
+    leads_count: int = 0
+    start_date: date | None = None
+    end_date: date | None = None
+    status: CampaignStatus = CampaignStatus.DRAFT
+    notes: str | None = None
+
+
+class CRMCampaignUpdate(BaseModel):
+    branch_id: UUID | None = None
+    name: str | None = None
+    channel: str | None = None
+    budget_amount: Decimal | None = None
+    leads_count: int | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    status: CampaignStatus | None = None
+    notes: str | None = None
+
+
+class CRMCampaignResponse(CRMCampaignCreate, ORMBase):
+    id: UUID
+    created_at: datetime
+    updated_at: datetime

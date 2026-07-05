@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -106,7 +105,11 @@ function isSelectField(field: InputField) {
     field.key === "branch_id" ||
     field.key === "cash_account_id" ||
     field.key === "account_id" ||
-    field.key === "accounts_id"
+    field.key === "accounts_id" ||
+    field.key === "category_id" ||
+    field.key === "parent_category_id" ||
+    field.key === "supplier_id" ||
+    field.key === "product_id"
   );
 }
 
@@ -149,6 +152,10 @@ function normalizeRows(data: unknown): RawRow[] {
   if (Array.isArray(record.branches)) return record.branches as RawRow[];
   if (Array.isArray(record.cash_accounts)) return record.cash_accounts as RawRow[];
 
+  if (Array.isArray(record.categories)) return record.categories as RawRow[];
+  if (Array.isArray(record.suppliers)) return record.suppliers as RawRow[];
+  if (Array.isArray(record.products)) return record.products as RawRow[];
+
   return [];
 }
 
@@ -169,10 +176,21 @@ function getOptionId(row: RawRow) {
     "id",
     "uuid",
     "value",
+
     "branch_id",
     "company_branch_id",
+
     "cash_account_id",
     "account_id",
+
+    "category_id",
+    "parent_category_id",
+    "product_category_id",
+
+    "supplier_id",
+    "product_supplier_id",
+
+    "product_id",
   ]);
 }
 
@@ -181,16 +199,28 @@ function getOptionLabel(row: RawRow) {
     pickString(row, [
       "name",
       "company_name",
+
+      "category_name",
+      "product_category_name",
+
+      "supplier_name",
+      "product_supplier_name",
+
+      "product_name",
+
       "branch_name",
       "company_branch_name",
       "outlet_name",
       "store_name",
       "warehouse_name",
       "location_name",
+
       "account_name",
       "cash_account_name",
       "bank_name",
+
       "title",
+      "sku",
       "code",
       "email",
       "id",
@@ -246,6 +276,24 @@ function rowsToCashAccountOptions(rows: RawRow[]): ModuleFieldOption[] {
       return {
         value: id,
         label,
+      };
+    })
+    .filter((item): item is ModuleFieldOption => Boolean(item));
+}
+
+function rowsToProductOptions(rows: RawRow[]): ModuleFieldOption[] {
+  return rows
+    .map((row) => {
+      const id = getOptionId(row);
+
+      if (!id) return null;
+
+      const sku = pickString(row, ["sku", "code"]);
+      const name = pickString(row, ["name", "product_name", "title"]) || id;
+
+      return {
+        value: id,
+        label: sku ? `${sku} - ${name}` : name,
       };
     })
     .filter((item): item is ModuleFieldOption => Boolean(item));
@@ -360,6 +408,134 @@ async function fetchCashAccountsByCompany(companyId: string) {
       endpoint: "/api/v1/accounts",
       params: {
         company_id: companyId,
+      },
+    },
+  ];
+
+  for (const candidate of candidates) {
+    const rows = await fetchApiRows(candidate.endpoint, candidate.params, {
+      silent: true,
+    });
+
+    if (rows.length > 0) {
+      return rows;
+    }
+  }
+
+  return [];
+}
+
+async function fetchProductCategoriesByCompany(companyId: string) {
+  if (!companyId || !isValidUuid(companyId)) return [];
+
+  const candidates: Array<{
+    endpoint: string;
+    params?: Record<string, unknown>;
+  }> = [
+    {
+      endpoint: "/api/v1/products/categories",
+      params: {
+        company_id: companyId,
+        limit: 100,
+        sort_by: "name",
+        sort_order: "asc",
+      },
+    },
+    {
+      endpoint: "/api/v1/product-categories",
+      params: {
+        company_id: companyId,
+        limit: 100,
+      },
+    },
+    {
+      endpoint: "/api/v1/categories",
+      params: {
+        company_id: companyId,
+        limit: 100,
+      },
+    },
+  ];
+
+  for (const candidate of candidates) {
+    const rows = await fetchApiRows(candidate.endpoint, candidate.params, {
+      silent: true,
+    });
+
+    if (rows.length > 0) {
+      return rows;
+    }
+  }
+
+  return [];
+}
+
+async function fetchProductSuppliersByCompany(companyId: string) {
+  if (!companyId || !isValidUuid(companyId)) return [];
+
+  const candidates: Array<{
+    endpoint: string;
+    params?: Record<string, unknown>;
+  }> = [
+    {
+      endpoint: "/api/v1/products/suppliers",
+      params: {
+        company_id: companyId,
+        limit: 100,
+        sort_by: "name",
+        sort_order: "asc",
+      },
+    },
+    {
+      endpoint: "/api/v1/suppliers",
+      params: {
+        company_id: companyId,
+        limit: 100,
+      },
+    },
+    {
+      endpoint: "/api/v1/product-suppliers",
+      params: {
+        company_id: companyId,
+        limit: 100,
+      },
+    },
+  ];
+
+  for (const candidate of candidates) {
+    const rows = await fetchApiRows(candidate.endpoint, candidate.params, {
+      silent: true,
+    });
+
+    if (rows.length > 0) {
+      return rows;
+    }
+  }
+
+  return [];
+}
+
+async function fetchProductsByCompany(companyId: string) {
+  if (!companyId || !isValidUuid(companyId)) return [];
+
+  const candidates: Array<{
+    endpoint: string;
+    params?: Record<string, unknown>;
+  }> = [
+    {
+      endpoint: "/api/v1/products",
+      params: {
+        company_id: companyId,
+        limit: 100,
+        sort_by: "name",
+        sort_order: "asc",
+      },
+    },
+    {
+      endpoint: "/api/v1/products/items",
+      params: {
+        company_id: companyId,
+        limit: 100,
       },
     },
   ];
@@ -665,9 +841,17 @@ export function RecordModal({
     ModuleFieldOption[]
   >([]);
 
+  const [categoryOptions, setCategoryOptions] = useState<ModuleFieldOption[]>([]);
+  const [supplierOptions, setSupplierOptions] = useState<ModuleFieldOption[]>([]);
+  const [productOptions, setProductOptions] = useState<ModuleFieldOption[]>([]);
+
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
   const [isLoadingCashAccounts, setIsLoadingCashAccounts] = useState(false);
+
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
 
   const currentCompanyId = getCurrentCompanyId();
   const isSuperAdmin = isCurrentUserSuperAdmin();
@@ -680,6 +864,13 @@ export function RecordModal({
     hasField(inputFields, "cash_account_id") ||
     hasField(inputFields, "account_id") ||
     hasField(inputFields, "accounts_id");
+
+  const shouldFetchCategories =
+    hasField(inputFields, "category_id") ||
+    hasField(inputFields, "parent_category_id");
+
+  const shouldFetchSuppliers = hasField(inputFields, "supplier_id");
+  const shouldFetchProducts = hasField(inputFields, "product_id");
 
   function getModalCompanyId() {
     if (canChooseCompany) {
@@ -710,6 +901,10 @@ export function RecordModal({
     setUploadingKey(null);
     setBranchOptions([]);
     setCashAccountOptions([]);
+
+    setCategoryOptions([]);
+    setSupplierOptions([]);
+    setProductOptions([]);
   }, [open, initialValues]);
 
   useEffect(() => {
@@ -728,24 +923,24 @@ export function RecordModal({
         const options = rowsToOptions(rows);
 
         if (!canChooseCompany && currentCompanyId) {
-  const existing = options.find(
-    (option) => option.value === currentCompanyId
-  );
+          const existing = options.find(
+            (option) => option.value === currentCompanyId
+          );
 
-  const fixedCompanyOption = existing ?? {
-    label: "Company sedang login",
-    value: currentCompanyId,
-  };
+          const fixedCompanyOption = existing ?? {
+            label: "Company sedang login",
+            value: currentCompanyId,
+          };
 
-  setCompanyOptions([fixedCompanyOption]);
+          setCompanyOptions([fixedCompanyOption]);
 
-  setValues((current) => ({
-    ...current,
-    company_id: currentCompanyId,
-  }));
+          setValues((current) => ({
+            ...current,
+            company_id: currentCompanyId,
+          }));
 
-  return;
-}
+          return;
+        }
 
         setCompanyOptions(options);
       } finally {
@@ -865,6 +1060,135 @@ export function RecordModal({
     currentCompanyId,
   ]);
 
+  useEffect(() => {
+    if (!open || !shouldFetchCategories) return;
+
+    const companyId = getModalCompanyId();
+
+    if (!companyId) {
+      setCategoryOptions([]);
+      setIsLoadingCategories(false);
+      return;
+    }
+
+    let ignore = false;
+
+    async function loadCategories() {
+      try {
+        setIsLoadingCategories(true);
+
+        const rows = await fetchProductCategoriesByCompany(companyId);
+        const options = rowsToOptions(rows);
+
+        if (ignore) return;
+
+        setCategoryOptions(options);
+      } finally {
+        if (!ignore) {
+          setIsLoadingCategories(false);
+        }
+      }
+    }
+
+    void loadCategories();
+
+    return () => {
+      ignore = true;
+    };
+  }, [
+    open,
+    shouldFetchCategories,
+    values.company_id,
+    canChooseCompany,
+    currentCompanyId,
+  ]);
+
+  useEffect(() => {
+    if (!open || !shouldFetchSuppliers) return;
+
+    const companyId = getModalCompanyId();
+
+    if (!companyId) {
+      setSupplierOptions([]);
+      setIsLoadingSuppliers(false);
+      return;
+    }
+
+    let ignore = false;
+
+    async function loadSuppliers() {
+      try {
+        setIsLoadingSuppliers(true);
+
+        const rows = await fetchProductSuppliersByCompany(companyId);
+        const options = rowsToOptions(rows);
+
+        if (ignore) return;
+
+        setSupplierOptions(options);
+      } finally {
+        if (!ignore) {
+          setIsLoadingSuppliers(false);
+        }
+      }
+    }
+
+    void loadSuppliers();
+
+    return () => {
+      ignore = true;
+    };
+  }, [
+    open,
+    shouldFetchSuppliers,
+    values.company_id,
+    canChooseCompany,
+    currentCompanyId,
+  ]);
+
+  useEffect(() => {
+    if (!open || !shouldFetchProducts) return;
+
+    const companyId = getModalCompanyId();
+
+    if (!companyId) {
+      setProductOptions([]);
+      setIsLoadingProducts(false);
+      return;
+    }
+
+    let ignore = false;
+
+    async function loadProducts() {
+      try {
+        setIsLoadingProducts(true);
+
+        const rows = await fetchProductsByCompany(companyId);
+        const options = rowsToProductOptions(rows);
+
+        if (ignore) return;
+
+        setProductOptions(options);
+      } finally {
+        if (!ignore) {
+          setIsLoadingProducts(false);
+        }
+      }
+    }
+
+    void loadProducts();
+
+    return () => {
+      ignore = true;
+    };
+  }, [
+    open,
+    shouldFetchProducts,
+    values.company_id,
+    canChooseCompany,
+    currentCompanyId,
+  ]);
+
   function updateValue(key: string, value: string) {
     setValues((current) => {
       const next: ModuleRow = {
@@ -872,15 +1196,24 @@ export function RecordModal({
         [key]: value,
       };
 
-     if (key === "company_id") {
-    setBranchOptions([]);
-    setCashAccountOptions([]);
+      if (key === "company_id") {
+        setBranchOptions([]);
+        setCashAccountOptions([]);
 
-    next.branch_id = "";
-    next.cash_account_id = "";
-    next.account_id = "";
-    next.accounts_id = "";
-  }
+        setCategoryOptions([]);
+        setSupplierOptions([]);
+        setProductOptions([]);
+
+        next.branch_id = "";
+        next.cash_account_id = "";
+        next.account_id = "";
+        next.accounts_id = "";
+
+        next.category_id = "";
+        next.parent_category_id = "";
+        next.supplier_id = "";
+        next.product_id = "";
+      }
 
       if (
         key === "amount" &&
@@ -917,6 +1250,18 @@ export function RecordModal({
       field.key === "accounts_id"
     ) {
       return cashAccountOptions;
+    }
+
+    if (field.key === "category_id" || field.key === "parent_category_id") {
+      return categoryOptions;
+    }
+
+    if (field.key === "supplier_id") {
+      return supplierOptions;
+    }
+
+    if (field.key === "product_id") {
+      return productOptions;
     }
 
     return getStaticOptions(field);
@@ -961,44 +1306,87 @@ export function RecordModal({
       return "Pilih Cash Account";
     }
 
+    if (field.key === "category_id" || field.key === "parent_category_id") {
+      const companyId = getModalCompanyId();
+
+      if (!companyId) return "Pilih company dulu";
+      if (isLoadingCategories) return "Loading categories...";
+
+      if (categoryOptions.length === 0) {
+        return "Category belum tersedia";
+      }
+
+      return field.key === "parent_category_id"
+        ? "Pilih Parent Category"
+        : "Pilih Category";
+    }
+
+    if (field.key === "supplier_id") {
+      const companyId = getModalCompanyId();
+
+      if (!companyId) return "Pilih company dulu";
+      if (isLoadingSuppliers) return "Loading suppliers...";
+
+      if (supplierOptions.length === 0) {
+        return "Supplier belum tersedia";
+      }
+
+      return "Pilih Supplier";
+    }
+
+    if (field.key === "product_id") {
+      const companyId = getModalCompanyId();
+
+      if (!companyId) return "Pilih company dulu";
+      if (isLoadingProducts) return "Loading products...";
+
+      if (productOptions.length === 0) {
+        return "Product belum tersedia";
+      }
+
+      return "Pilih Product";
+    }
+
     return `Pilih ${field.label}`;
   }
 
   function getSelectDisabled(field: InputField) {
-  if (isSubmitting || Boolean(uploadingKey)) return true;
+    if (isSubmitting || Boolean(uploadingKey)) return true;
 
-  if (field.key === "company_id") {
-    return isLoadingCompanies || !canChooseCompany;
+    if (field.key === "company_id") {
+      return isLoadingCompanies || !canChooseCompany;
+    }
+
+    if (field.key === "branch_id") {
+      const companyId = getModalCompanyId();
+
+      return !companyId || isLoadingBranches;
+    }
+
+    if (
+      field.key === "cash_account_id" ||
+      field.key === "account_id" ||
+      field.key === "accounts_id"
+    ) {
+      const companyId = getModalCompanyId();
+
+      return !companyId || isLoadingCashAccounts;
+    }
+
+    if (field.key === "category_id" || field.key === "parent_category_id") {
+      return isLoadingCategories;
+    }
+
+    if (field.key === "supplier_id") {
+      return isLoadingSuppliers;
+    }
+
+    if (field.key === "product_id") {
+      return isLoadingProducts;
+    }
+
+    return false;
   }
-
-  /**
-   * Branch:
-   * - Kalau superadmin belum pilih company => disable
-   * - Kalau owner/user biasa => tetap aktif karena company sudah fixed dari akun
-   */
-  if (field.key === "branch_id") {
-    const companyId = getModalCompanyId();
-
-    return !companyId || isLoadingBranches;
-  }
-
-  /**
-   * Account Name / Cash Account:
-   * - Kalau superadmin belum pilih company => disable
-   * - Kalau owner/user biasa => tetap aktif karena company sudah fixed dari akun
-   */
-  if (
-    field.key === "cash_account_id" ||
-    field.key === "account_id" ||
-    field.key === "accounts_id"
-  ) {
-    const companyId = getModalCompanyId();
-
-    return !companyId || isLoadingCashAccounts;
-  }
-
-  return false;
-}
 
   async function handleUpload(field: InputField, file: File | null) {
     if (!file) {
@@ -1175,7 +1563,10 @@ export function RecordModal({
                       <option value="">{getSelectPlaceholder(field)}</option>
 
                       {options.map((option) => (
-                        <option key={String(option.value)} value={String(option.value)}>
+                        <option
+                          key={String(option.value)}
+                          value={String(option.value)}
+                        >
                           {option.label}
                         </option>
                       ))}

@@ -4,7 +4,12 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from src.modules.products.model_product import ProductStatus, ProductType, StockMovementType
+from src.modules.products.model_product import (
+    ProductStatus,
+    ProductType,
+    StockMovementType,
+    ProductSupplierStatus,
+)
 
 
 class ORMBase(BaseModel):
@@ -43,6 +48,7 @@ class ProductCreate(BaseModel):
     barcode: str | None = None
     name: str
     description: str | None = None
+    image_url: str | None = None
     product_type: ProductType = ProductType.PHYSICAL
     unit: str = "pcs"
     cost_price: Decimal = Decimal("0.00")
@@ -58,6 +64,7 @@ class ProductUpdate(BaseModel):
     barcode: str | None = None
     name: str | None = None
     description: str | None = None
+    image_url: str | None = None
     product_type: ProductType | None = None
     unit: str | None = None
     cost_price: Decimal | None = None
@@ -73,6 +80,7 @@ class ProductResponse(ProductCreate, ORMBase):
 
 
 class ProductStockCreate(BaseModel):
+    company_id: UUID
     product_id: UUID
     branch_id: UUID
     quantity_on_hand: Decimal = Decimal("0.0000")
@@ -108,3 +116,31 @@ class ProductStockMovementCreate(BaseModel):
 class ProductStockMovementResponse(ProductStockMovementCreate, ORMBase):
     id: UUID
     movement_date: datetime
+
+class ProductSupplierCreate(BaseModel):
+    company_id: UUID
+    name: str
+    category: str | None = None
+    contact_person: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    lead_time_days: int = 0
+    status: ProductSupplierStatus = ProductSupplierStatus.ACTIVE
+
+
+class ProductSupplierUpdate(BaseModel):
+    name: str | None = None
+    category: str | None = None
+    contact_person: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    lead_time_days: int | None = None
+    status: ProductSupplierStatus | None = None
+
+
+class ProductSupplierResponse(ProductSupplierCreate, ORMBase):
+    id: UUID
+    created_at: datetime
+    updated_at: datetime

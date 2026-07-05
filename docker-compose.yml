@@ -88,6 +88,7 @@ services:
     container_name: erp_api
 
     restart: unless-stopped
+    
 
     env_file:
       - .env
@@ -104,6 +105,7 @@ services:
 
     volumes:
       - ./apps/backend:/app
+      - ./apps/backend/uploads:/app/uploads
 
     command: >
       uvicorn src.main:app

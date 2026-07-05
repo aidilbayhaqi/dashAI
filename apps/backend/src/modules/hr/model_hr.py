@@ -69,6 +69,7 @@ class Employee(Base):
     full_name: Mapped[str] = mapped_column(String(150), nullable=False, index=True)
     email: Mapped[str | None] = mapped_column(String(150), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     department_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
     job_title: Mapped[str | None] = mapped_column(String(150), nullable=True)

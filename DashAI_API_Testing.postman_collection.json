@@ -1,0 +1,3415 @@
+{
+  "info": {
+    "_postman_id": "dashai-erp-testing-collection",
+    "name": "DashAI ERP API Testing - Local",
+    "description": "Postman collection untuk testing backend DashAI ERP. Urutan run: Health \u2192 Auth Superadmin \u2192 Setup IDs \u2192 Module GET Tests \u2192 CRUD Smoke Tests \u2192 Owner Access Tests. Dibuat untuk base URL lokal FastAPI.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 - Health Check",
+      "item": [
+        {
+          "name": "Root",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/health",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Health DB",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/health/db",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Health Redis",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/health/redis",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ready",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/ready",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Ready endpoint returns response', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 - Auth",
+      "item": [
+        {
+          "name": "Login Superadmin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/auth/login",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{superadmin_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login superadmin success', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.token.access_token).to.exist;",
+                  "  pm.environment.set('super_access_token', json.token.access_token);",
+                  "  pm.environment.set('super_refresh_token', json.token.refresh_token);",
+                  "  pm.environment.set('access_token', json.token.access_token);",
+                  "  pm.environment.set('refresh_token', json.token.refresh_token);",
+                  "  pm.environment.set('super_user_id', json.user.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me - Superadmin",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/auth/me",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/auth/refresh",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{super_refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Refresh success', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('super_access_token', json.access_token);",
+                  "  pm.environment.set('super_refresh_token', json.refresh_token);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login Owner NRT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/auth/login",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{owner_nrt_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login owner NRT success', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.token.access_token).to.exist;",
+                  "  pm.environment.set('owner_nrt_access_token', json.token.access_token);",
+                  "  pm.environment.set('owner_nrt_refresh_token', json.token.refresh_token);",
+                  "  pm.environment.set('access_token', json.token.access_token);",
+                  "  pm.environment.set('refresh_token', json.token.refresh_token);",
+                  "  pm.environment.set('owner_nrt_user_id', json.user.id);",
+                  "  if (json.user.company_id) pm.environment.set('company_id_nrt', json.user.company_id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me - Owner NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{owner_nrt_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/auth/me",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Setup IDs from Seed Data",
+      "description": "Jalankan folder ini setelah login superadmin. Folder ini mengambil ID company, branch, product, finance, HR, dan CRM dari data seeder lalu menyimpannya ke environment.",
+      "item": [
+        {
+          "name": "Get Companies - Store NRT/GKM IDs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/companies",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Companies returned', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const companies = pm.response.json();",
+                  "  pm.expect(companies).to.be.an('array');",
+                  "  const nrt = companies.find(c => c.code === 'nrt' || /Nusa Retail|NRT/i.test(c.name || ''));",
+                  "  const gkm = companies.find(c => c.code === 'gkm' || /Garuda Konstruksi|GKM/i.test(c.name || ''));",
+                  "  if (nrt) pm.environment.set('company_id_nrt', nrt.id);",
+                  "  if (gkm) pm.environment.set('company_id_gkm', gkm.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get NRT Branches - Store HQ/WH IDs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/companies/{{company_id_nrt}}/branches",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Branches returned and stored', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const branches = pm.response.json();",
+                  "  pm.expect(branches).to.be.an('array');",
+                  "  const hq = branches.find(b => b.is_head_office === true || /HQ|Head Office/i.test(b.name || b.code || '')) || branches[0];",
+                  "  const wh = branches.find(b => /WH|Warehouse/i.test(b.name || b.code || '')) || branches[1] || hq;",
+                  "  if (hq) pm.environment.set('branch_id_nrt_hq', hq.id);",
+                  "  if (wh) pm.environment.set('branch_id_nrt_wh', wh.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Product Categories - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/categories?company_id={{company_id_nrt}}&limit=20&sort_by=code&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product Categories list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('category_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Product Items - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/items?company_id={{company_id_nrt}}&limit=20&sort_by=sku&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product Items list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('product_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Product Stocks - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/stocks?company_id={{company_id_nrt}}&limit=20&sort_by=updated_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product Stocks list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('stock_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Finance Periods - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/accounting-periods?company_id={{company_id_nrt}}&limit=20&sort_by=period_number&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Periods list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('period_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Finance Accounts - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/accounts?company_id={{company_id_nrt}}&limit=20&sort_by=code&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Accounts list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('account_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Finance Tax Rates - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/tax-rates?company_id={{company_id_nrt}}&limit=20&sort_by=created_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Tax Rates list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('tax_rate_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Finance Cash Accounts - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/cash-accounts?company_id={{company_id_nrt}}&limit=20&sort_by=created_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Cash Accounts list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('cash_account_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Finance Transactions - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/transactions?company_id={{company_id_nrt}}&limit=20&sort_by=transaction_date&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Transactions list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('transaction_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Finance Transaction Lines - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/transaction-lines?company_id={{company_id_nrt}}&limit=20&sort_by=id&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Transaction Lines list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('transaction_line_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Finance Journal Entries - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/journal-entries?company_id={{company_id_nrt}}&limit=20&sort_by=journal_date&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Journal Entries list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('journal_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Finance Tax Records - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/tax-records?company_id={{company_id_nrt}}&limit=20&sort_by=due_date&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Tax Records list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('tax_record_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Finance Budgets - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/budgets?company_id={{company_id_nrt}}&limit=20&sort_by=created_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Budgets list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('budget_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Finance Cashflow Snapshots - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/cashflow-snapshots?company_id={{company_id_nrt}}&limit=20&sort_by=report_date&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Cashflow Snapshots list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('cashflow_snapshot_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List HR Employees - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/hr/employees?company_id={{company_id_nrt}}&limit=20&sort_by=full_name&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HR Employees list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('employee_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List HR Attendance - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/hr/attendance?company_id={{company_id_nrt}}&limit=20&sort_by=attendance_date&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HR Attendance list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('attendance_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List HR Leave Types - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/hr/leave-types?company_id={{company_id_nrt}}&limit=20&sort_by=code&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HR Leave Types list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('leave_type_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List HR Leave Requests - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/hr/leave-requests?company_id={{company_id_nrt}}&limit=20&sort_by=start_date&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HR Leave Requests list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('leave_request_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List HR Tasks - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/hr/tasks?company_id={{company_id_nrt}}&limit=20&sort_by=created_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HR Tasks list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('task_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List HR Payroll Runs - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/hr/payroll-runs?company_id={{company_id_nrt}}&limit=20&sort_by=period_start&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HR Payroll Runs list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('payroll_run_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List CRM Leads - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/crm/leads?company_id={{company_id_nrt}}&limit=20&sort_by=created_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('CRM Leads list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('lead_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List CRM Contacts - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/crm/contacts?company_id={{company_id_nrt}}&limit=20&sort_by=created_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('CRM Contacts list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('contact_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List CRM Deals - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/crm/deals?company_id={{company_id_nrt}}&limit=20&sort_by=created_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('CRM Deals list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('deal_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List CRM Activities - Store First ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/crm/activities?company_id={{company_id_nrt}}&limit=20&sort_by=created_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('CRM Activities list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('activity_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Dashboard & Multi Company Tests",
+      "item": [
+        {
+          "name": "Dashboard Summary - Superadmin All Companies",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/dashboard/summary",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dashboard Summary - Superadmin NRT Filter",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/dashboard/summary?company_id={{company_id_nrt}}",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dashboard Summary - Superadmin GKM Filter",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/dashboard/summary?company_id={{company_id_gkm}}",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Products - Superadmin All Companies",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/items?limit=100&sort_by=name&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Products - Superadmin NRT Only",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/items?company_id={{company_id_nrt}}&limit=100&sort_by=name&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Products - Superadmin GKM Only",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/items?company_id={{company_id_gkm}}&limit=100&sort_by=name&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 - Module GET Smoke Tests",
+      "item": [
+        {
+          "name": "GET Product Categories - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/categories?company_id={{company_id_nrt}}&limit=20&sort_by=code&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product Categories NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('category_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Product Items - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/items?company_id={{company_id_nrt}}&limit=20&sort_by=sku&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product Items NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('product_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Product Stocks - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/stocks?company_id={{company_id_nrt}}&limit=20&sort_by=updated_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product Stocks NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('stock_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Finance Periods - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/accounting-periods?company_id={{company_id_nrt}}&limit=20&sort_by=period_number&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Periods NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('period_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Finance Accounts - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/accounts?company_id={{company_id_nrt}}&limit=20&sort_by=code&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Accounts NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('account_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Finance Tax Rates - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/tax-rates?company_id={{company_id_nrt}}&limit=20&sort_by=created_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Tax Rates NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('tax_rate_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Finance Cash Accounts - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/cash-accounts?company_id={{company_id_nrt}}&limit=20&sort_by=created_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Cash Accounts NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('cash_account_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Finance Transactions - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/transactions?company_id={{company_id_nrt}}&limit=20&sort_by=transaction_date&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Transactions NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('transaction_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Finance Transaction Lines - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/transaction-lines?company_id={{company_id_nrt}}&limit=20&sort_by=id&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Transaction Lines NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('transaction_line_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Finance Journal Entries - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/journal-entries?company_id={{company_id_nrt}}&limit=20&sort_by=journal_date&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Journal Entries NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('journal_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Finance Tax Records - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/tax-records?company_id={{company_id_nrt}}&limit=20&sort_by=due_date&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Tax Records NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('tax_record_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Finance Budgets - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/budgets?company_id={{company_id_nrt}}&limit=20&sort_by=created_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Budgets NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('budget_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Finance Cashflow Snapshots - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/cashflow-snapshots?company_id={{company_id_nrt}}&limit=20&sort_by=report_date&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Cashflow Snapshots NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('cashflow_snapshot_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET HR Employees - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/hr/employees?company_id={{company_id_nrt}}&limit=20&sort_by=full_name&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HR Employees NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('employee_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET HR Attendance - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/hr/attendance?company_id={{company_id_nrt}}&limit=20&sort_by=attendance_date&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HR Attendance NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('attendance_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET HR Leave Types - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/hr/leave-types?company_id={{company_id_nrt}}&limit=20&sort_by=code&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HR Leave Types NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('leave_type_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET HR Leave Requests - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/hr/leave-requests?company_id={{company_id_nrt}}&limit=20&sort_by=start_date&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HR Leave Requests NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('leave_request_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET HR Tasks - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/hr/tasks?company_id={{company_id_nrt}}&limit=20&sort_by=created_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HR Tasks NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('task_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET HR Payroll Runs - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/hr/payroll-runs?company_id={{company_id_nrt}}&limit=20&sort_by=period_start&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HR Payroll Runs NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('payroll_run_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET CRM Leads - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/crm/leads?company_id={{company_id_nrt}}&limit=20&sort_by=created_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('CRM Leads NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('lead_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET CRM Contacts - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/crm/contacts?company_id={{company_id_nrt}}&limit=20&sort_by=created_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('CRM Contacts NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('contact_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET CRM Deals - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/crm/deals?company_id={{company_id_nrt}}&limit=20&sort_by=created_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('CRM Deals NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('deal_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET CRM Activities - NRT",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/crm/activities?company_id={{company_id_nrt}}&limit=20&sort_by=created_at&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('CRM Activities NRT OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('activity_id_nrt', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 - CRUD Smoke Tests",
+      "description": "Jalankan setelah Setup IDs. Request create memakai variabel ID dari data seed.",
+      "item": [
+        {
+          "name": "Create Product Category - NRT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/categories",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{company_id_nrt}}\",\n  \"parent_category_id\": null,\n  \"code\": \"TST-CAT-{{$timestamp}}\",\n  \"name\": \"Test Category {{$timestamp}}\",\n  \"description\": \"Created from Postman smoke test\",\n  \"is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Category created', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('created_category_id', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Product - NRT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/items",
+            "description": "Jika backend kamu belum menambahkan image_url di schema ProductCreate, hapus field image_url dari body ini.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{company_id_nrt}}\",\n  \"branch_id\": \"{{branch_id_nrt_hq}}\",\n  \"category_id\": \"{{created_category_id}}\",\n  \"created_by_id\": \"{{super_user_id}}\",\n  \"sku\": \"TST-NRT-{{$timestamp}}\",\n  \"barcode\": \"BAR-TST-{{$timestamp}}\",\n  \"name\": \"Postman Test Product {{$timestamp}}\",\n  \"description\": \"Created from Postman smoke test\",\n  \"image_url\": null,\n  \"product_type\": \"physical\",\n  \"unit\": \"pcs\",\n  \"cost_price\": \"10000.00\",\n  \"selling_price\": \"15000.00\",\n  \"track_stock\": true,\n  \"status\": \"active\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product created', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('created_product_id', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Created Product",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/items/{{created_product_id}}",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Created Product",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/items/{{created_product_id}}",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Test Product Updated {{$timestamp}}\",\n  \"selling_price\": \"17500.00\",\n  \"status\": \"active\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create CRM Lead - NRT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/crm/leads",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{company_id_nrt}}\",\n  \"branch_id\": \"{{branch_id_nrt_hq}}\",\n  \"owner_user_id\": \"{{super_user_id}}\",\n  \"name\": \"Postman Lead {{$timestamp}}\",\n  \"company_name\": \"PT Test Lead Postman\",\n  \"email\": \"lead{{$timestamp}}@postman.test\",\n  \"phone\": \"+62-812-9999-{{$timestamp}}\",\n  \"source\": \"postman\",\n  \"estimated_value\": \"25000000.00\",\n  \"notes\": \"Created from Postman smoke test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('CRM Lead created', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('created_lead_id', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create CRM Contact - NRT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/crm/contacts",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{company_id_nrt}}\",\n  \"branch_id\": \"{{branch_id_nrt_hq}}\",\n  \"lead_id\": \"{{created_lead_id}}\",\n  \"owner_user_id\": \"{{super_user_id}}\",\n  \"name\": \"Postman Contact {{$timestamp}}\",\n  \"company_name\": \"PT Test Lead Postman\",\n  \"position\": \"Owner\",\n  \"email\": \"contact{{$timestamp}}@postman.test\",\n  \"phone\": \"+62-813-9999-{{$timestamp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('CRM Contact created', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('created_contact_id', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create CRM Deal - NRT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/crm/deals",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{company_id_nrt}}\",\n  \"branch_id\": \"{{branch_id_nrt_hq}}\",\n  \"lead_id\": \"{{created_lead_id}}\",\n  \"contact_id\": \"{{created_contact_id}}\",\n  \"owner_user_id\": \"{{super_user_id}}\",\n  \"title\": \"Postman Deal {{$timestamp}}\",\n  \"expected_value\": \"50000000.00\",\n  \"probability_percent\": \"50.0000\",\n  \"expected_close_date\": \"2026-08-30\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('CRM Deal created', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('created_deal_id', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create HR Employee - NRT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/hr/employees",
+            "description": "Jika backend kamu belum menambahkan photo_url di schema EmployeeCreate, hapus field photo_url dari body ini.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{company_id_nrt}}\",\n  \"branch_id\": \"{{branch_id_nrt_hq}}\",\n  \"user_id\": null,\n  \"employee_no\": \"TST-NRT-EMP-{{$timestamp}}\",\n  \"full_name\": \"Postman Employee {{$timestamp}}\",\n  \"email\": \"employee{{$timestamp}}@postman.test\",\n  \"phone\": \"+62-812-8888-{{$timestamp}}\",\n  \"photo_url\": null,\n  \"department_name\": \"QA\",\n  \"job_title\": \"API Tester\",\n  \"employment_type\": \"full_time\",\n  \"status\": \"active\",\n  \"hire_date\": \"2026-07-01\",\n  \"resign_date\": null,\n  \"base_salary\": \"6500000.00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HR Employee created', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('created_employee_id', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Finance Transaction - NRT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/transactions",
+            "description": "Jika backend kamu belum menambahkan proof_url/attachment_url di schema FinanceTransactionCreate, hapus kedua field itu dari body ini.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_id\": \"{{company_id_nrt}}\",\n  \"period_id\": \"{{period_id_nrt}}\",\n  \"cash_account_id\": \"{{cash_account_id_nrt}}\",\n  \"transaction_no\": \"TRX-NRT-PM-{{$timestamp}}\",\n  \"transaction_date\": \"2026-07-04\",\n  \"transaction_type\": \"income\",\n  \"cashflow_activity\": \"operating\",\n  \"status\": \"posted\",\n  \"counterparty_name\": \"Postman Customer\",\n  \"reference_no\": \"PM-REF-{{$timestamp}}\",\n  \"proof_url\": null,\n  \"attachment_url\": null,\n  \"source_module\": \"postman\",\n  \"source_id\": null,\n  \"subtotal_amount\": \"1000000.00\",\n  \"discount_amount\": \"0.00\",\n  \"tax_amount\": \"110000.00\",\n  \"total_amount\": \"1110000.00\",\n  \"description\": \"Created from Postman smoke test\",\n  \"posted_at\": \"2026-07-04T10:00:00\",\n  \"created_by\": \"{{super_user_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Finance Transaction created', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('created_transaction_id', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 - Owner Access Tests",
+      "description": "Jalankan Login Owner NRT dulu. Tujuan: owner melihat data company sendiri, walau query company_id company lain tetap tidak boleh bocor.",
+      "item": [
+        {
+          "name": "Owner NRT - Me",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{owner_nrt_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/auth/me",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Owner NRT - Companies List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{owner_nrt_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/companies",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Owner NRT - Products Without Filter",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{owner_nrt_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/items?limit=100&sort_by=name&sort_order=asc",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Owner product list OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "  if (json.data.length > 0) {",
+                  "    pm.environment.set('owner_first_product_id', json.data[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Owner NRT - Try GKM Products Filter",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{owner_nrt_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/items?company_id={{company_id_gkm}}&limit=100",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Owner request with another company_id still returns 2xx and should be scoped by backend', function () {",
+                  "  pm.expect(pm.response.code).to.be.within(200, 299);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Owner NRT - Finance Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{owner_nrt_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/finance/transactions?limit=20",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Owner NRT - HR Employees",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{owner_nrt_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/hr/employees?limit=20",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Owner NRT - CRM Leads",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{owner_nrt_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/crm/leads?limit=20",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07 - Upload File Tests",
+      "description": "Folder ini untuk fitur upload yang kamu tambahkan. Kalau endpoint /api/v1/files/upload belum ada, request akan 404 dan berarti route upload belum diregister di main.py.",
+      "item": [
+        {
+          "name": "Upload Product Photo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/files/upload",
+            "description": "Sebelum send, klik field file dan pilih gambar lokal. Kalau 404 berarti route files belum ditambahkan.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "context",
+                  "value": "product-photo",
+                  "type": "text"
+                },
+                {
+                  "key": "company_id",
+                  "value": "{{company_id_nrt}}",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Upload should return URL when file selected', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201, 400, 404, 413]);",
+                  "  if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json.url).to.exist;",
+                  "    pm.environment.set('uploaded_product_photo_url', json.url);",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload Transaction Proof",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/files/upload",
+            "description": "Pilih file PDF/JPG/PNG sebelum send.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "context",
+                  "value": "transaction-proof",
+                  "type": "text"
+                },
+                {
+                  "key": "company_id",
+                  "value": "{{company_id_nrt}}",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 2xx', function () { pm.expect(pm.response.code).to.be.within(200, 299); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "99 - Cleanup Optional",
+      "description": "Hati-hati: request ini menghapus data yang dibuat oleh smoke test.",
+      "item": [
+        {
+          "name": "Delete Created Product",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/items/{{created_product_id}}",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Delete product returns 204/404', function () { pm.expect(pm.response.code).to.be.oneOf([204, 404]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Created Category",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{super_access_token}}"
+              }
+            ],
+            "url": "{{base_url}}{{api_prefix}}/products/categories/{{created_category_id}}",
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Delete category returns 204/404', function () { pm.expect(pm.response.code).to.be.oneOf([204, 404]); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

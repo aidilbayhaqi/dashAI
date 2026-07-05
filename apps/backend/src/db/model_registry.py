@@ -27,6 +27,7 @@ from src.modules.finance.model_finance import (  # noqa: E402,F401
     FinanceCashflowSnapshot,
     FinanceMarginSnapshot,
     FinanceBalanceSheetSnapshot,
+    FinanceInvoice,
 )
 
 from src.modules.products.model_product import (  # noqa: E402,F401
@@ -34,6 +35,7 @@ from src.modules.products.model_product import (  # noqa: E402,F401
     Product,
     ProductStock,
     ProductStockMovement,
+    ProductSupplier,
 )
 
 from src.modules.hr.model_hr import (  # noqa: E402,F401
@@ -56,4 +58,7 @@ from src.modules.crm.model_crm import (  # noqa: E402,F401
     CRMDeal,
     CRMDealItem,
     CRMActivity,
+    CRMCampaign,
 )
+
+from src.modules.admin.model_admin import SystemSetting

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.database import get_db
 from src.routes.crud_factory import create_crud_router
-from src.modules.crm.model_crm import CRMActivity, CRMContact, CRMDeal, CRMLead
+from src.modules.crm.model_crm import CRMActivity, CRMContact, CRMDeal, CRMLead, CRMCampaign
 from src.modules.crm.schema_crm import (
     CRMActivityCreate,
     CRMActivityUpdate,
@@ -20,6 +20,9 @@ from src.modules.crm.schema_crm import (
     CRMLeadCreate,
     CRMLeadUpdate,
     CRMLeadResponse,
+    CRMCampaignCreate,
+    CRMCampaignUpdate,
+    CRMCampaignResponse
 )
 from src.modules.crm.service_crm import CRMDealItemService, CRMDealService
 from src.security.dependencies import CurrentUser, require_permission
@@ -95,6 +98,19 @@ router.include_router(
     )
 )
 
+router.include_router(
+    create_crud_router(
+        prefix="/crm/campaigns",
+        tags=["CRM Campaigns"],
+        permission_prefix="crm.campaigns",
+        model_class=CRMCampaign,
+        create_schema=CRMCampaignCreate,
+        update_schema=CRMCampaignUpdate,
+        response_schema=CRMCampaignResponse,
+        search_fields=["name", "channel", "notes"],
+        date_filter_field="start_date",
+    )
+)
 
 @router.post("/crm/deal-items", response_model=CRMDealItemResponse)
 async def create_deal_item(

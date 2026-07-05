@@ -12,6 +12,8 @@ from src.modules.hr.model_hr import (
     LeaveRequest,
     LeaveType,
     PayrollRun,
+    KPIIndicator,
+    KPIReview,
 )
 from src.modules.hr.schema_hr import (
     AttendanceCreate,
@@ -30,6 +32,12 @@ from src.modules.hr.schema_hr import (
     LeaveTypeResponse,
     PayrollRunCreate,
     PayrollRunResponse,
+    KPIIndicatorCreate,
+    KPIIndicatorUpdate,
+    KPIIndicatorResponse,
+    KPIReviewCreate,
+    KPIReviewUpdate,
+    KPIReviewResponse,
 )
 from src.modules.hr.service_hr import PayrollRunService
 from src.security.dependencies import CurrentUser, require_permission
@@ -123,6 +131,33 @@ router.include_router(
         update_schema=PayrollRunCreate,
         response_schema=PayrollRunResponse,
         search_fields=["payroll_no", "notes"],
+        date_filter_field="period_start",
+    )
+)
+
+router.include_router(
+    create_crud_router(
+        prefix="/hr/kpi-indicators",
+        tags=["HR KPI Indicators"],
+        permission_prefix="hr.kpi",
+        model_class=KPIIndicator,
+        create_schema=KPIIndicatorCreate,
+        update_schema=KPIIndicatorUpdate,
+        response_schema=KPIIndicatorResponse,
+        search_fields=["code", "name", "category"],
+    )
+)
+
+router.include_router(
+    create_crud_router(
+        prefix="/hr/kpi-reviews",
+        tags=["HR KPI Reviews"],
+        permission_prefix="hr.kpi",
+        model_class=KPIReview,
+        create_schema=KPIReviewCreate,
+        update_schema=KPIReviewUpdate,
+        response_schema=KPIReviewResponse,
+        search_fields=["rating"],
         date_filter_field="period_start",
     )
 )
