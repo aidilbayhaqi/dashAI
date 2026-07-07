@@ -159,21 +159,41 @@ class PayrollRunCreate(BaseModel):
     company_id: UUID
     branch_id: UUID | None = None
     created_by_id: UUID | None = None
+
     payroll_no: str
     period_start: date
     period_end: date
 
+    status: PayrollStatus = PayrollStatus.DRAFT
+
+    total_gross: Decimal = Decimal("0.00")
+    total_deductions: Decimal = Decimal("0.00")
+    total_tax: Decimal = Decimal("0.00")
+    total_net: Decimal = Decimal("0.00")
+
+
+class PayrollRunUpdate(BaseModel):
+    branch_id: UUID | None = None
+
+    payroll_no: str | None = None
+    period_start: date | None = None
+    period_end: date | None = None
+
+    status: PayrollStatus | None = None
+
+    total_gross: Decimal | None = None
+    total_deductions: Decimal | None = None
+    total_tax: Decimal | None = None
+    total_net: Decimal | None = None
+
+    paid_at: datetime | None = None
+
 
 class PayrollRunResponse(PayrollRunCreate, ORMBase):
     id: UUID
-    status: PayrollStatus
-    total_gross: Decimal
-    total_deductions: Decimal
-    total_tax: Decimal
-    total_net: Decimal
-    finance_transaction_id: UUID | None
+    finance_transaction_id: UUID | None = None
     created_at: datetime
-    paid_at: datetime | None
+    paid_at: datetime | None = None
 
 class KPIIndicatorCreate(BaseModel):
     company_id: UUID

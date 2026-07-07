@@ -31,6 +31,7 @@ from src.modules.hr.schema_hr import (
     LeaveTypeCreate,
     LeaveTypeResponse,
     PayrollRunCreate,
+    PayrollRunUpdate,
     PayrollRunResponse,
     KPIIndicatorCreate,
     KPIIndicatorUpdate,
@@ -128,9 +129,9 @@ router.include_router(
         permission_prefix="hr.payroll",
         model_class=PayrollRun,
         create_schema=PayrollRunCreate,
-        update_schema=PayrollRunCreate,
+        update_schema=PayrollRunUpdate,
         response_schema=PayrollRunResponse,
-        search_fields=["payroll_no", "notes"],
+        search_fields=["payroll_no"],
         date_filter_field="period_start",
     )
 )

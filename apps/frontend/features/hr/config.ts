@@ -346,10 +346,28 @@ const payrollFormFields: ModuleField[] = [
     key: "status",
     label: "Status",
     type: "select",
+    required: true,
     options: [
-      { label: "Draft", value: "DRAFT" },
-      { label: "Paid", value: "PAID" },
-      { label: "Cancelled", value: "CANCELLED" },
+      {
+        label: "Draft",
+        value: "draft",
+      },
+      {
+        label: "Calculated",
+        value: "calculated",
+      },
+      {
+        label: "Approved",
+        value: "approved",
+      },
+      {
+        label: "Paid",
+        value: "paid",
+      },
+      {
+        label: "Cancelled",
+        value: "cancelled",
+      },
     ],
   },
 ];
@@ -500,15 +518,39 @@ export const hrModuleConfig: Record<HRModuleKey, ModuleConfig> = {
     tableTitle: "Payroll Records",
     tableDescription: "Data payroll run.",
     columns: [
-      { key: "payroll_no", label: "Payroll No" },
-      { key: "period_start_display", label: "Period Start" },
-      { key: "period_end_display", label: "Period End" },
-      { key: "total_gross_display", label: "Gross" },
-      { key: "total_deductions_display", label: "Deduction" },
-      { key: "total_tax_display", label: "Tax" },
-      { key: "total_net_display", label: "Net" },
-      { key: "status_label", label: "Status" },
-    ],
+  {
+    key: "payroll_no",
+    label: "Payroll No",
+  },
+  {
+    key: "period_start_display",
+    label: "Period Start",
+  },
+  {
+    key: "period_end_display",
+    label: "Period End",
+  },
+  {
+    key: "total_gross_display",
+    label: "Gross",
+  },
+  {
+    key: "total_deductions_display",
+    label: "Deduction",
+  },
+  {
+    key: "total_tax_display",
+    label: "Tax",
+  },
+  {
+    key: "total_net_display",
+    label: "Net",
+  },
+  {
+    key: "status_label",
+    label: "Status",
+  },
+],
     formFields: payrollFormFields,
   },
 

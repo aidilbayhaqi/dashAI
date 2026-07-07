@@ -1,6 +1,9 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { CompanyScopeFilter } from "@/components/modules/company-scope-filter";
 import { ModulePage } from "@/components/modules/module-page";
@@ -17,27 +20,57 @@ import type { ModuleRow } from "@/types/modules";
 
 import { hrModuleConfig } from "./config";
 import { useHRModule } from "./hook";
-import type { HRModuleKey } from "./types";
-import { normalizeHRModuleKey } from "./types";
+import {
+  createPayrollRun,
+  updatePayrollRun,
+} from "./payroll-service";
+import {
+  normalizeHRModuleKey,
+  type HRModuleKey,
+} from "./types";
 
 type MutationState = {
   isPending?: boolean;
   isLoading?: boolean;
 };
 
-function getMutationLoadingState(mutation: MutationState) {
-  return mutation.isPending ?? mutation.isLoading ?? false;
+function getMutationLoadingState(
+  mutation: MutationState
+) {
+  return (
+    mutation.isPending ??
+    mutation.isLoading ??
+    false
+  );
 }
 
-export function HRModuleClient({ moduleKey }: { moduleKey: HRModuleKey | string }) {
-  const safeModuleKey = normalizeHRModuleKey(String(moduleKey));
+export function HRModuleClient({
+  moduleKey,
+}: {
+  moduleKey: HRModuleKey | string;
+}) {
+  const safeModuleKey = normalizeHRModuleKey(
+    String(moduleKey)
+  );
+
   const config = hrModuleConfig[safeModuleKey];
+  const isPayrollModule =
+    safeModuleKey === "payroll-runs";
 
   const queryClient = useQueryClient();
-  const { data, isLoading, isError } = useHRModule(safeModuleKey);
 
-  const currentCompanyId = getCurrentCompanyId();
-  const canShowCompanyFilter = isCurrentUserSuperAdmin() || !currentCompanyId;
+  const {
+    data,
+    isLoading,
+    isError,
+  } = useHRModule(safeModuleKey);
+
+  const currentCompanyId =
+    getCurrentCompanyId();
+
+  const canShowCompanyFilter =
+    isCurrentUserSuperAdmin() ||
+    !currentCompanyId;
 
   function invalidate() {
     queryClient.invalidateQueries({
@@ -46,23 +79,44 @@ export function HRModuleClient({ moduleKey }: { moduleKey: HRModuleKey | string 
   }
 
   const createMutation = useMutation({
-    mutationFn: (payload: ModuleRow) =>
-      createModuleRecord({
+    mutationFn: (payload: ModuleRow) => {
+      if (isPayrollModule) {
+        return createPayrollRun(payload);
+      }
+
+      return createModuleRecord({
         featureKey: "hr",
         moduleKey: safeModuleKey,
         payload,
-      }),
+      });
+    },
+
     onSuccess: invalidate,
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: ModuleRow }) =>
-      updateModuleRecord({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: ModuleRow;
+    }) => {
+      if (isPayrollModule) {
+        return updatePayrollRun(
+          id,
+          payload
+        );
+      }
+
+      return updateModuleRecord({
         featureKey: "hr",
         moduleKey: safeModuleKey,
         id,
         payload,
-      }),
+      });
+    },
+
     onSuccess: invalidate,
   });
 
@@ -73,13 +127,15 @@ export function HRModuleClient({ moduleKey }: { moduleKey: HRModuleKey | string 
         moduleKey: safeModuleKey,
         id,
       }),
+
     onSuccess: invalidate,
   });
 
   if (!config) {
     return (
       <div className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-sm font-bold text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
-        HR module tidak ditemukan: {String(moduleKey)}
+        HR module tidak ditemukan:{" "}
+        {String(moduleKey)}
       </div>
     );
   }
@@ -94,18 +150,32 @@ export function HRModuleClient({ moduleKey }: { moduleKey: HRModuleKey | string 
       isLoading={isLoading}
       isError={isError}
       emptyMessage="Belum ada data HR."
-      topContent={canShowCompanyFilter ? <CompanyScopeFilter /> : null}
-      onCreateRecord={(payload) => createMutation.mutateAsync(payload)}
+      topContent={
+        canShowCompanyFilter ? (
+          <CompanyScopeFilter />
+        ) : null
+      }
+      onCreateRecord={(payload) =>
+        createMutation.mutateAsync(payload)
+      }
       onUpdateRecord={(id, payload) =>
         updateMutation.mutateAsync({
           id,
           payload,
         })
       }
-      onDeleteRecord={(id) => deleteMutation.mutateAsync(id)}
-      isCreating={getMutationLoadingState(createMutation)}
-      isUpdating={getMutationLoadingState(updateMutation)}
-      isDeleting={getMutationLoadingState(deleteMutation)}
+      onDeleteRecord={(id) =>
+        deleteMutation.mutateAsync(id)
+      }
+      isCreating={getMutationLoadingState(
+        createMutation
+      )}
+      isUpdating={getMutationLoadingState(
+        updateMutation
+      )}
+      isDeleting={getMutationLoadingState(
+        deleteMutation
+      )}
     />
   );
 }

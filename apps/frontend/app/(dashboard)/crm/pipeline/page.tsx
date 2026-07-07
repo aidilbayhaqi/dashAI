@@ -2,5 +2,5 @@
 import { CRMModuleClient } from "@/features/crm/client";
 
 export default function CRMPipelinePage() {
-  return <CRMModuleClient moduleKey="pipeline" />;
+  return <CRMModuleClient moduleKey="deals" />;
 }
