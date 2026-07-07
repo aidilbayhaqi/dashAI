@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { getScopedQueryParams } from "@/lib/module-crud";
 import type { ModuleMetric, ModuleRow } from "@/types/modules";
 import type { HRModuleKey } from "./types";
 
@@ -9,42 +10,156 @@ type GetHRModuleDataParams =
       companyId?: string;
     };
 
-type ApiListResponse = {
-  data?: ModuleRow[];
-  items?: ModuleRow[];
-  results?: ModuleRow[];
-  rows?: ModuleRow[];
-};
+type ApiListResponse = Record<string, unknown>;
 
-const endpointMap: Record<HRModuleKey, string> = {
-  employees: "/api/v1/hr/employees",
-  attendance: "/api/v1/hr/attendance",
-  "leave-types": "/api/v1/hr/leave-types",
-  "leave-requests": "/api/v1/hr/leave-requests",
-  tasks: "/api/v1/hr/tasks",
-  "payroll-runs": "/api/v1/hr/payroll-runs",
+const endpointMap: Record<HRModuleKey, string[]> = {
+  employees: ["/api/v1/hr/employees", "/api/v1/hr/employees/"],
+
+  attendance: ["/api/v1/hr/attendance", "/api/v1/hr/attendance/"],
+
+  "leave-types": [
+    "/api/v1/hr/leave-types",
+    "/api/v1/hr/leave-types/",
+    "/api/v1/hr/leave_types",
+  ],
+
+  "leave-requests": [
+    "/api/v1/hr/leave-requests",
+    "/api/v1/hr/leave-requests/",
+    "/api/v1/hr/leave_requests",
+  ],
+
+  tasks: ["/api/v1/hr/tasks", "/api/v1/hr/tasks/"],
+
+  "payroll-runs": [
+    "/api/v1/hr/payroll-runs",
+    "/api/v1/hr/payroll-runs/",
+    "/api/v1/hr/payroll_runs",
+    "/api/v1/hr/payroll",
+  ],
+
+  "kpi-reviews": [
+    "/api/v1/hr/kpi-reviews",
+    "/api/v1/hr/kpi-reviews/",
+    "/api/v1/hr/kpi_reviews",
+  ],
 };
 
 const sortMap: Record<HRModuleKey, string> = {
   employees: "full_name",
   attendance: "attendance_date",
-  "leave-types": "code",
+  "leave-types": "name",
   "leave-requests": "start_date",
   tasks: "created_at",
   "payroll-runs": "period_start",
+  "kpi-reviews": "period_start",
 };
 
+function hasValue(value: unknown) {
+  return value !== undefined && value !== null && String(value).trim() !== "";
+}
+
+function pickRaw(row: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = row[key];
+
+    if (hasValue(value)) return String(value);
+  }
+
+  return "";
+}
+
+function toModuleRow(row: unknown): ModuleRow {
+  if (!row || typeof row !== "object") return {};
+
+  const source = row as Record<string, unknown>;
+  const result: ModuleRow = {};
+
+  Object.entries(source).forEach(([key, value]) => {
+    if (value === undefined || value === null) {
+      result[key] = "";
+      return;
+    }
+
+    if (typeof value === "object") {
+      const display = pickRaw(value as Record<string, unknown>, [
+        "full_name",
+        "employee_name",
+        "name",
+        "code",
+        "email",
+        "title",
+        "label",
+        "value",
+      ]);
+
+      result[key] = display || JSON.stringify(value);
+      return;
+    }
+
+    result[key] = String(value);
+  });
+
+  return result;
+}
+
 function normalizeRows(data: unknown): ModuleRow[] {
-  if (Array.isArray(data)) return data as ModuleRow[];
+  if (Array.isArray(data)) return data.map(toModuleRow);
 
   if (!data || typeof data !== "object") return [];
 
   const record = data as ApiListResponse;
 
-  if (Array.isArray(record.data)) return record.data;
-  if (Array.isArray(record.items)) return record.items;
-  if (Array.isArray(record.results)) return record.results;
-  if (Array.isArray(record.rows)) return record.rows;
+  const arrayKeys = [
+    "items",
+    "data",
+    "results",
+    "rows",
+    "records",
+
+    "employees",
+    "employee",
+
+    "attendance",
+    "attendances",
+
+    "leave_types",
+    "leaveTypes",
+    "leave_type",
+    "leaveTypesData",
+
+    "leave_requests",
+    "leaveRequests",
+    "leave_request",
+
+    "tasks",
+
+    "payroll_runs",
+    "payrollRuns",
+    "payrolls",
+    "payroll",
+    "runs",
+
+    "kpi_reviews",
+    "kpiReviews",
+    "reviews",
+  ];
+
+  for (const key of arrayKeys) {
+    const value = record[key];
+
+    if (Array.isArray(value)) return value.map(toModuleRow);
+
+    if (value && typeof value === "object") {
+      const nested = normalizeRows(value);
+
+      if (nested.length > 0) return nested;
+    }
+  }
+
+  const firstArray = Object.values(record).find((value) => Array.isArray(value));
+
+  if (Array.isArray(firstArray)) return firstArray.map(toModuleRow);
 
   return [];
 }
@@ -53,20 +168,14 @@ function pick(row: ModuleRow, keys: string[]) {
   for (const key of keys) {
     const value = row[key];
 
-    if (value !== undefined && value !== null && String(value).trim() !== "") {
-      return String(value);
-    }
+    if (hasValue(value)) return String(value);
   }
 
   return "";
 }
 
-function parseMoneyNumber(value: unknown) {
-  if (value === undefined || value === null || value === "") return null;
-
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : null;
-  }
+function parseNumber(value: unknown) {
+  if (!hasValue(value)) return null;
 
   const raw = String(value)
     .replaceAll("Rp", "")
@@ -77,7 +186,6 @@ function parseMoneyNumber(value: unknown) {
   if (!raw) return null;
 
   const cleaned = raw.replace(/[^\d.,-]/g, "");
-
   const hasComma = cleaned.includes(",");
   const hasDot = cleaned.includes(".");
 
@@ -87,62 +195,28 @@ function parseMoneyNumber(value: unknown) {
     const lastCommaIndex = cleaned.lastIndexOf(",");
     const lastDotIndex = cleaned.lastIndexOf(".");
 
-    if (lastCommaIndex > lastDotIndex) {
-      /**
-       * Format Indonesia:
-       * 5.000.000,00 -> 5000000.00
-       */
-      normalized = cleaned.replaceAll(".", "").replace(",", ".");
-    } else {
-      /**
-       * Format backend / US:
-       * 5,000,000.00 -> 5000000.00
-       */
-      normalized = cleaned.replaceAll(",", "");
-    }
+    normalized =
+      lastCommaIndex > lastDotIndex
+        ? cleaned.replaceAll(".", "").replace(",", ".")
+        : cleaned.replaceAll(",", "");
+  } else if (hasComma) {
+    normalized = cleaned.replace(",", ".");
   } else if (hasDot) {
     const parts = cleaned.split(".");
 
-    if (parts.length === 2 && parts[1].length <= 6) {
-      /**
-       * Format backend decimal:
-       * 5000000.00 -> 5000000.00
-       */
-      normalized = cleaned;
-    } else {
-      /**
-       * Format Indonesia ribuan:
-       * 5.000.000 -> 5000000
-       */
-      normalized = cleaned.replaceAll(".", "");
-    }
-  } else if (hasComma) {
-    const parts = cleaned.split(",");
-
-    if (parts.length === 2 && parts[1].length <= 2) {
-      /**
-       * Format decimal Indonesia:
-       * 5000000,00 -> 5000000.00
-       */
-      normalized = cleaned.replace(",", ".");
-    } else {
-      /**
-       * Format ribuan pakai comma:
-       * 5,000,000 -> 5000000
-       */
-      normalized = cleaned.replaceAll(",", "");
-    }
+    normalized =
+      parts.length === 2 && parts[1].length <= 2
+        ? cleaned
+        : cleaned.replaceAll(".", "");
   }
 
   const parsed = Number(normalized);
 
-  if (Number.isNaN(parsed)) return null;
-
-  return parsed;
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function formatRupiah(value: unknown) {
-  const parsed = parseMoneyNumber(value);
+  const parsed = parseNumber(value);
 
   if (parsed === null) return "-";
 
@@ -153,158 +227,416 @@ function formatRupiah(value: unknown) {
   }).format(parsed);
 }
 
-function getEmployeeName(row: ModuleRow) {
-  return (
-    pick(row, [
-      "employee_name",
-      "full_name",
-      "name",
-      "employee_full_name",
-      "employee",
-    ]) || "-"
-  );
+function formatDate(value: unknown) {
+  if (!hasValue(value)) return "-";
+
+  const date = new Date(String(value));
+
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatDateTime(value: unknown) {
+  if (!hasValue(value)) return "-";
+
+  const date = new Date(String(value));
+
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function statusText(value: unknown) {
+  if (!hasValue(value)) return "-";
+
+  return String(value)
+    .replaceAll("_", " ")
+    .replaceAll("-", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function boolText(value: unknown) {
+  const normalized = String(value ?? "").toLowerCase();
+
+  if (["true", "1", "yes", "paid", "active"].includes(normalized)) {
+    return "Yes";
+  }
+
+  if (["false", "0", "no", "unpaid", "inactive"].includes(normalized)) {
+    return "No";
+  }
+
+  return statusText(value);
+}
+
+function buildIndex(rows: ModuleRow[]) {
+  const index: Record<string, ModuleRow> = {};
+
+  rows.forEach((row) => {
+    const id = pick(row, ["id"]);
+
+    if (id) index[id] = row;
+  });
+
+  return index;
+}
+
+function getEmployeeName(
+  row: ModuleRow,
+  employeeIndex: Record<string, ModuleRow>
+) {
+  const direct = pick(row, [
+    "employee_name",
+    "employee_full_name",
+    "full_name",
+    "employee",
+    "name",
+  ]);
+
+  if (direct) return direct;
+
+  const employeeId = pick(row, ["employee_id"]);
+  const employee = employeeIndex[employeeId];
+
+  if (!employee) return employeeId || "-";
+
+  return pick(employee, ["full_name", "name", "employee_name", "email"]) || "-";
+}
+
+function getLeaveTypeName(
+  row: ModuleRow,
+  leaveTypeIndex: Record<string, ModuleRow>
+) {
+  const direct = pick(row, [
+    "leave_type_name",
+    "leave_type",
+    "type_name",
+    "name",
+  ]);
+
+  if (direct) return direct;
+
+  const leaveTypeId = pick(row, ["leave_type_id"]);
+  const leaveType = leaveTypeIndex[leaveTypeId];
+
+  if (!leaveType) return leaveTypeId || "-";
+
+  return pick(leaveType, ["name", "leave_type_name", "code"]) || "-";
 }
 
 function normalizeEmployeeRows(rows: ModuleRow[]) {
   return rows.map((row) => {
+    const employmentType = pick(row, ["employment_type", "type"]);
     const baseSalary = pick(row, ["base_salary", "salary", "basic_salary"]);
 
     return {
       ...row,
-      employee_no: pick(row, ["employee_no", "code", "number"]),
-      full_name: getEmployeeName(row),
-      email: pick(row, ["email"]),
-      phone: pick(row, ["phone"]),
-      department_name: pick(row, ["department_name", "department"]),
-      job_title: pick(row, ["job_title", "position", "role"]),
-      employment_type: pick(row, ["employment_type", "type"]),
+      employee_no: pick(row, ["employee_no", "code", "number"]) || "-",
+      full_name: pick(row, ["full_name", "name", "employee_name"]) || "-",
+      email: pick(row, ["email"]) || "-",
+      phone: pick(row, ["phone"]) || "-",
+      department_name: pick(row, ["department_name", "department"]) || "-",
+      job_title: pick(row, ["job_title", "position", "role"]) || "-",
+
+      employment_type: employmentType,
+      employment_type_label: statusText(employmentType),
+      type_label: statusText(employmentType),
+
       base_salary: baseSalary,
       base_salary_display: formatRupiah(baseSalary),
-      status: pick(row, ["status"]),
+
+      status_label: statusText(pick(row, ["status"])),
     };
   });
 }
 
-function normalizeAttendanceRows(rows: ModuleRow[]) {
-  return rows.map((row) => ({
-    ...row,
-    employee_name: getEmployeeName(row),
-    attendance_date: pick(row, ["attendance_date", "date"]),
-    clock_in: pick(row, ["clock_in", "check_in", "time_in"]),
-    clock_out: pick(row, ["clock_out", "check_out", "time_out"]),
-    status: pick(row, ["status"]),
-  }));
+function normalizeAttendanceRows(
+  rows: ModuleRow[],
+  employeeIndex: Record<string, ModuleRow>
+) {
+  return rows.map((row) => {
+    const checkIn = pick(row, [
+      "check_in_at",
+      "clock_in",
+      "check_in",
+      "time_in",
+    ]);
+
+    const checkOut = pick(row, [
+      "check_out_at",
+      "clock_out",
+      "check_out",
+      "time_out",
+    ]);
+
+    const attendanceDate = pick(row, ["attendance_date", "date"]);
+
+    return {
+      ...row,
+      employee_name: getEmployeeName(row, employeeIndex),
+
+      attendance_date: attendanceDate,
+      attendance_date_display: formatDate(attendanceDate),
+
+      check_in_display: formatDateTime(checkIn),
+      check_out_display: formatDateTime(checkOut),
+
+      clock_in: formatDateTime(checkIn),
+      clock_out: formatDateTime(checkOut),
+
+      status_label: statusText(pick(row, ["status"])),
+    };
+  });
 }
 
 function normalizeLeaveTypeRows(rows: ModuleRow[]) {
-  return rows.map((row) => ({
-    ...row,
-    code: pick(row, ["code"]),
-    name: pick(row, ["name", "leave_type_name"]),
-    max_days: pick(row, ["max_days", "quota_days", "days"]),
-    is_paid: pick(row, ["is_paid", "paid"]),
-    is_active: pick(row, ["is_active", "active"]),
-  }));
+  return rows.map((row) => {
+    const isPaid = pick(row, ["is_paid", "paid"]);
+    const isActive = pick(row, ["is_active", "active"]);
+
+    return {
+      ...row,
+      code: pick(row, ["code"]) || "-",
+      name: pick(row, ["name", "leave_type_name"]) || "-",
+
+      default_days_per_year:
+        pick(row, [
+          "default_days_per_year",
+          "max_days",
+          "quota_days",
+          "days",
+        ]) || "0",
+
+      is_paid_label: boolText(isPaid),
+      is_active_label: boolText(isActive),
+      status_label:
+        String(isActive).toLowerCase() === "false" ? "Inactive" : "Active",
+    };
+  });
 }
 
-function normalizeLeaveRequestRows(rows: ModuleRow[]) {
-  return rows.map((row) => ({
-    ...row,
-    employee_name: getEmployeeName(row),
-    leave_type_name: pick(row, [
-      "leave_type_name",
-      "leave_type",
-      "type_name",
-      "name",
-    ]),
-    start_date: pick(row, ["start_date"]),
-    end_date: pick(row, ["end_date"]),
-    total_days: pick(row, ["total_days", "days"]),
-    status: pick(row, ["status"]),
-  }));
+function normalizeLeaveRequestRows(
+  rows: ModuleRow[],
+  employeeIndex: Record<string, ModuleRow>,
+  leaveTypeIndex: Record<string, ModuleRow>
+) {
+  return rows.map((row) => {
+    const startDate = pick(row, ["start_date", "from_date"]);
+    const endDate = pick(row, ["end_date", "to_date"]);
+
+    return {
+      ...row,
+      employee_name: getEmployeeName(row, employeeIndex),
+      leave_type_name: getLeaveTypeName(row, leaveTypeIndex),
+
+      start_date: startDate,
+      end_date: endDate,
+      start_date_display: formatDate(startDate),
+      end_date_display: formatDate(endDate),
+
+      total_days: pick(row, ["total_days", "days"]) || "0",
+      status_label: statusText(pick(row, ["status"])),
+    };
+  });
 }
 
-function normalizeTaskRows(rows: ModuleRow[]) {
+function normalizeTaskRows(
+  rows: ModuleRow[],
+  employeeIndex: Record<string, ModuleRow>
+) {
   return rows.map((row) => ({
     ...row,
-    title: pick(row, ["title", "name", "task_name"]),
-    employee_name: getEmployeeName(row),
-    priority: pick(row, ["priority"]),
-    status: pick(row, ["status"]),
-    due_date: pick(row, ["due_date", "deadline"]),
+    employee_name: getEmployeeName(row, employeeIndex),
+    title: pick(row, ["title", "name", "task_name"]) || "-",
+    priority_label: statusText(pick(row, ["priority"])),
+    due_date_display: formatDate(pick(row, ["due_date", "deadline"])),
+    status_label: statusText(pick(row, ["status"])),
   }));
 }
 
 function normalizePayrollRows(rows: ModuleRow[]) {
   return rows.map((row) => {
-    const totalGross = pick(row, ["total_gross", "gross_amount", "gross"]);
-    const totalDeduction = pick(row, [
-      "total_deduction",
-      "deduction_amount",
-      "deduction",
+    const periodStart = pick(row, [
+      "period_start",
+      "start_date",
+      "from_date",
     ]);
-    const totalNet = pick(row, ["total_net", "net_amount", "net"]);
+
+    const periodEnd = pick(row, [
+      "period_end",
+      "end_date",
+      "to_date",
+    ]);
+
+    const gross = pick(row, [
+      "total_gross",
+      "gross",
+      "gross_amount",
+      "gross_salary",
+    ]);
+
+    const deductions = pick(row, [
+      "total_deductions",
+      "total_deduction",
+      "deductions",
+      "deduction",
+      "deduction_amount",
+    ]);
+
+    const tax = pick(row, [
+      "total_tax",
+      "tax",
+      "tax_amount",
+    ]);
+
+    const net = pick(row, [
+      "total_net",
+      "net",
+      "net_amount",
+      "net_salary",
+      "take_home_pay",
+    ]);
 
     return {
       ...row,
-      period_start: pick(row, ["period_start", "start_date"]),
-      period_end: pick(row, ["period_end", "end_date"]),
-      payment_date: pick(row, ["payment_date", "paid_date"]),
 
-      total_gross: totalGross,
-      total_deduction: totalDeduction,
-      total_net: totalNet,
+      payroll_no:
+        pick(row, ["payroll_no", "code", "number", "reference_no"]) || "-",
 
-      total_gross_display: formatRupiah(totalGross),
-      total_deduction_display: formatRupiah(totalDeduction),
-      total_net_display: formatRupiah(totalNet),
+      period_start: periodStart,
+      period_end: periodEnd,
 
-      status: pick(row, ["status"]),
+      period_start_display: formatDate(periodStart),
+      period_end_display: formatDate(periodEnd),
+
+      total_gross: gross,
+      total_deductions: deductions,
+      total_deduction: deductions,
+      total_tax: tax,
+      total_net: net,
+
+      total_gross_display: formatRupiah(gross),
+      total_deductions_display: formatRupiah(deductions),
+      total_deduction_display: formatRupiah(deductions),
+      total_tax_display: formatRupiah(tax),
+      total_net_display: formatRupiah(net),
+
+      status: statusText(pick(row, ["status"])),
+      status_label: statusText(pick(row, ["status"])),
     };
   });
 }
 
-function normalizeByModule(moduleKey: HRModuleKey, rows: ModuleRow[]) {
-  if (moduleKey === "employees") return normalizeEmployeeRows(rows);
-  if (moduleKey === "attendance") return normalizeAttendanceRows(rows);
-  if (moduleKey === "leave-types") return normalizeLeaveTypeRows(rows);
-  if (moduleKey === "leave-requests") return normalizeLeaveRequestRows(rows);
-  if (moduleKey === "tasks") return normalizeTaskRows(rows);
-  if (moduleKey === "payroll-runs") return normalizePayrollRows(rows);
+function normalizeKPIReviewRows(
+  rows: ModuleRow[],
+  employeeIndex: Record<string, ModuleRow>
+) {
+  return rows.map((row) => {
+    const periodStart = pick(row, ["period_start", "start_date"]);
+    const periodEnd = pick(row, ["period_end", "end_date"]);
 
-  return rows;
+    return {
+      ...row,
+      employee_name: getEmployeeName(row, employeeIndex),
+
+      period_start: periodStart,
+      period_end: periodEnd,
+      period_start_display: formatDate(periodStart),
+      period_end_display: formatDate(periodEnd),
+
+      total_score: pick(row, ["total_score", "score"]) || "-",
+      rating: pick(row, ["rating", "grade"]) || "-",
+      status_label: statusText(pick(row, ["status"])),
+    };
+  });
 }
 
 function buildMetrics(moduleKey: HRModuleKey, rows: ModuleRow[]): ModuleMetric[] {
-  const total = rows.length;
-
-  const active = rows.filter((row) =>
-    String(row.status ?? "").toLowerCase().includes("active")
-  ).length;
-
-  const needAttention = rows.filter((row) =>
-    ["pending", "draft", "todo", "in_progress", "late", "review"].some(
-      (status) => String(row.status ?? "").toLowerCase().includes(status)
-    )
-  ).length;
-
   return [
     {
       label: "Total Records",
-      value: String(total),
+      value: String(rows.length),
       helper: `Total data ${moduleKey}.`,
     },
     {
-      label: "Active",
-      value: String(active),
-      helper: "Record aktif dari data yang sedang tampil.",
-    },
-    {
-      label: "Need Attention",
-      value: String(needAttention),
-      helper: "Pending, draft, todo, review, atau in progress.",
+      label: "Synced",
+      value: rows.length > 0 ? "Yes" : "No",
+      helper: "Status sinkronisasi data backend.",
     },
   ];
+}
+
+function removeSortParams(params: Record<string, unknown>) {
+  const clone = {
+    ...params,
+  };
+
+  delete clone.sort_by;
+  delete clone.sort_order;
+
+  return clone;
+}
+
+function removeCompanyParams(params: Record<string, unknown>) {
+  const clone = {
+    ...params,
+  };
+
+  delete clone.company_id;
+
+  return clone;
+}
+
+async function tryGetRows(
+  endpoint: string,
+  params: Record<string, unknown>
+): Promise<ModuleRow[]> {
+  try {
+    const response = await api.get(endpoint, {
+      params,
+    });
+
+    return normalizeRows(response.data);
+  } catch {
+    return [];
+  }
+}
+
+async function safeGetFromCandidates(
+  endpoints: string[],
+  params: Record<string, unknown>
+) {
+  const paramCandidates: Record<string, unknown>[] = [
+    params,
+    removeSortParams(params),
+    removeCompanyParams(params),
+    removeSortParams(removeCompanyParams(params)),
+    {
+      limit: 100,
+    },
+    {},
+  ];
+
+  for (const endpoint of endpoints) {
+    for (const paramCandidate of paramCandidates) {
+      const rows = await tryGetRows(endpoint, paramCandidate);
+
+      if (rows.length > 0) return rows;
+    }
+  }
+
+  return [];
 }
 
 function resolveParams(input: GetHRModuleDataParams) {
@@ -320,31 +652,66 @@ function resolveParams(input: GetHRModuleDataParams) {
 
 export async function getHRModuleData(input: GetHRModuleDataParams) {
   const { moduleKey, companyId } = resolveParams(input);
-  const endpoint = endpointMap[moduleKey];
 
-  const response = await api.get(endpoint, {
-    params: {
-      ...(companyId
-        ? {
-            company_id: companyId,
-          }
-        : {}),
-      limit: 100,
-      sort_by: sortMap[moduleKey],
-      sort_order: "asc",
-    },
+  const params = getScopedQueryParams("hr", {
+    ...(companyId ? { company_id: companyId } : {}),
+    limit: 100,
+    sort_by: sortMap[moduleKey],
+    sort_order: "asc",
   });
 
-  const rows = normalizeByModule(moduleKey, normalizeRows(response.data));
+  const [rawRows, employeeRows, leaveTypeRows] = await Promise.all([
+    safeGetFromCandidates(endpointMap[moduleKey], params),
+    safeGetFromCandidates(endpointMap.employees, {
+      ...params,
+      sort_by: "full_name",
+    }),
+    safeGetFromCandidates(endpointMap["leave-types"], {
+      ...params,
+      sort_by: "name",
+    }),
+  ]);
+
+  const employeeIndex = buildIndex(employeeRows);
+  const leaveTypeIndex = buildIndex(leaveTypeRows);
+
+  let rows: ModuleRow[] = rawRows;
+
+  if (moduleKey === "employees") {
+    rows = normalizeEmployeeRows(rawRows);
+  }
+
+  if (moduleKey === "attendance") {
+    rows = normalizeAttendanceRows(rawRows, employeeIndex);
+  }
+
+  if (moduleKey === "leave-types") {
+    rows = normalizeLeaveTypeRows(rawRows);
+  }
+
+  if (moduleKey === "leave-requests") {
+    rows = normalizeLeaveRequestRows(rawRows, employeeIndex, leaveTypeIndex);
+  }
+
+  if (moduleKey === "tasks") {
+    rows = normalizeTaskRows(rawRows, employeeIndex);
+  }
+
+  if (moduleKey === "payroll-runs") {
+    rows = normalizePayrollRows(rawRows);
+  }
+
+  if (moduleKey === "kpi-reviews") {
+    rows = normalizeKPIReviewRows(rawRows, employeeIndex);
+  }
 
   return {
     rows,
     metrics: buildMetrics(moduleKey, rows),
     aiNotes: [
-      `Data HR ${moduleKey} berhasil di-fetch dari backend.`,
-      companyId
-        ? "Data sedang difilter berdasarkan company."
-        : "Superadmin dapat melihat semua company atau memilih company dari filter.",
+      `Data HR ${moduleKey} berhasil dibaca.`,
+      "Payroll memakai total_deductions sesuai kolom database.",
+      "Field payroll dibuat ke total_gross_display, total_deductions_display, total_tax_display, dan total_net_display.",
     ],
   };
 }

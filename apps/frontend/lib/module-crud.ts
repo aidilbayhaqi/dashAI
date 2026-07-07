@@ -19,9 +19,13 @@ const endpointMap: Record<FeatureKey, EndpointMap> = {
     overview: "/api/v1/hr/employees",
     employees: "/api/v1/hr/employees",
     attendance: "/api/v1/hr/attendance",
+    "leave-types": "/api/v1/hr/leave-types",
+    "leave-requests": "/api/v1/hr/leave-requests",
     leave: "/api/v1/hr/leave-requests",
-    kpi: "/api/v1/hr/kpi-reviews",
+    "payroll-runs": "/api/v1/hr/payroll-runs",
     payroll: "/api/v1/hr/payroll-runs",
+    "kpi-reviews": "/api/v1/hr/kpi-reviews",
+    kpi: "/api/v1/hr/kpi-reviews",
   },
 
   crm: {
@@ -66,6 +70,20 @@ const numericKeys = new Set([
   "amount",
   "score",
   "salary",
+  "base_salary",
+  "max_days",
+  "default_days_per_year",
+  "total_days",
+  "work_minutes",
+  "overtime_minutes",
+  "weight_score",
+  "completion_score",
+  "total_score",
+  "total_gross",
+  "total_deduction",
+  "total_deductions",
+  "total_tax",
+  "total_net",
   "target_value",
   "actual_value",
   "weight_percent",
@@ -78,6 +96,7 @@ const numericKeys = new Set([
 const booleanKeys = new Set([
   "track_stock",
   "is_active",
+  "is_paid",
   "is_default",
   "is_balanced",
 ]);
@@ -91,6 +110,12 @@ const uuidKeys = new Set([
   "parent_category_id",
   "product_id",
   "employee_id",
+  "reviewer_user_id",
+  "reviewer_id",
+  "approved_by_id",
+  "assigned_by_id",
+  "user_id",
+  "leave_type_id",
   "transaction_id",
   "period_id",
   "cash_account_id",
@@ -120,6 +145,31 @@ const readonlyKeys = new Set([
   "reserved",
   "reorder",
   "leadTime",
+
+  "employee_name",
+  "leave_type_name",
+  "status_label",
+  "type_label",
+  "employment_type_label",
+  "is_paid_label",
+  "is_active_label",
+
+  "period_start_display",
+  "period_end_display",
+  "start_date_display",
+  "end_date_display",
+  "attendance_date_display",
+  "check_in_display",
+  "check_out_display",
+  "paid_at_display",
+  "payment_date_display",
+
+  "base_salary_display",
+  "total_gross_display",
+  "total_deduction_display",
+  "total_deductions_display",
+  "total_tax_display",
+  "total_net_display",
 ]);
 
 function isValidUuid(value: string) {
@@ -150,11 +200,10 @@ function parseNumberValue(value: unknown) {
     const lastCommaIndex = cleaned.lastIndexOf(",");
     const lastDotIndex = cleaned.lastIndexOf(".");
 
-    if (lastCommaIndex > lastDotIndex) {
-      normalized = cleaned.replaceAll(".", "").replace(",", ".");
-    } else {
-      normalized = cleaned.replaceAll(",", "");
-    }
+    normalized =
+      lastCommaIndex > lastDotIndex
+        ? cleaned.replaceAll(".", "").replace(",", ".")
+        : cleaned.replaceAll(",", "");
   } else if (hasComma) {
     normalized = cleaned.replace(",", ".");
   }
@@ -201,32 +250,83 @@ function normalizePayloadAliases({
   };
 
   if (featureKey === "product" && moduleKey === "stock") {
-    if (
-      clone.quantity_on_hand === undefined &&
-      clone.stock !== undefined &&
-      clone.stock !== null &&
-      String(clone.stock).trim() !== ""
-    ) {
+    if (!clone.quantity_on_hand && clone.stock) {
       clone.quantity_on_hand = clone.stock;
     }
 
-    if (
-      clone.reserved_quantity === undefined &&
-      clone.reserved !== undefined &&
-      clone.reserved !== null &&
-      String(clone.reserved).trim() !== ""
-    ) {
+    if (!clone.reserved_quantity && clone.reserved) {
       clone.reserved_quantity = clone.reserved;
     }
 
-    if (
-      clone.reorder_point === undefined &&
-      clone.reorder !== undefined &&
-      clone.reorder !== null &&
-      String(clone.reorder).trim() !== ""
-    ) {
+    if (!clone.reorder_point && clone.reorder) {
       clone.reorder_point = clone.reorder;
     }
+  }
+
+  if (featureKey === "hr" && moduleKey === "attendance") {
+    if (!clone.check_in_at && clone.clock_in) clone.check_in_at = clone.clock_in;
+    if (!clone.check_out_at && clone.clock_out) {
+      clone.check_out_at = clone.clock_out;
+    }
+
+    delete clone.clock_in;
+    delete clone.clock_out;
+  }
+
+  if (featureKey === "hr" && moduleKey === "leave-types") {
+    if (!clone.default_days_per_year && clone.max_days) {
+      clone.default_days_per_year = clone.max_days;
+    }
+
+    delete clone.max_days;
+  }
+
+  if (featureKey === "hr" && moduleKey === "leave-requests") {
+    /**
+     * Backend biasanya auto set approval status.
+     * Kalau status dikirim saat create, sering bikin schema mismatch.
+     */
+    delete clone.status;
+    delete clone.status_label;
+  }
+
+  if (featureKey === "hr" && moduleKey === "payroll-runs") {
+    /**
+     * Backend PayrollRunCreate biasanya hanya nerima:
+     * company_id, branch_id, payroll_no, period_start, period_end
+     * Gross/deduction/net dihitung backend, jadi jangan dikirim saat create.
+     */
+    delete clone.payment_date;
+    delete clone.paid_at;
+    delete clone.status;
+    delete clone.notes;
+
+    delete clone.total_gross;
+    delete clone.total_deduction;
+    delete clone.total_deductions;
+    delete clone.total_tax;
+    delete clone.total_net;
+
+    delete clone.gross;
+    delete clone.deduction;
+    delete clone.net;
+  }
+
+  if (featureKey === "hr" && moduleKey === "kpi-reviews") {
+    /**
+     * Backend KPIReviewCreate kamu sebelumnya nolak:
+     * target_value, actual_value, weight_score.
+     * Jadi form KPI create hanya kirim employee_id, period_start, period_end,
+     * total_score, rating, status.
+     */
+    if (!clone.reviewer_user_id && clone.reviewer_id) {
+      clone.reviewer_user_id = clone.reviewer_id;
+    }
+
+    delete clone.reviewer_id;
+    delete clone.target_value;
+    delete clone.actual_value;
+    delete clone.weight_score;
   }
 
   return clone;
@@ -366,6 +466,7 @@ export async function createModuleRecord({
   const body = stripReadonlyFields(withCompanyId(featureKey, normalizedPayload));
 
   const response = await api.post(endpoint, body);
+
   return response.data;
 }
 
@@ -391,6 +492,7 @@ export async function updateModuleRecord({
   const body = stripReadonlyFields(cleanPayload(normalizedPayload));
 
   const response = await api.patch(`${endpoint}/${id}`, body);
+
   return response.data;
 }
 

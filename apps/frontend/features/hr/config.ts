@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   BriefcaseBusiness,
   CalendarCheck,
   ClipboardList,
@@ -46,22 +47,19 @@ const employeeFormFields: ModuleField[] = [
   {
     key: "phone",
     label: "Phone",
-    placeholder: "+62-812-xxxx",
   },
   {
     key: "photo_url",
-    label: "Employee Photo",
+    label: "Photo",
     type: "file",
   },
   {
     key: "department_name",
     label: "Department",
-    placeholder: "IT / Finance / HR / Sales",
   },
   {
     key: "job_title",
     label: "Job Title",
-    placeholder: "Software Developer",
   },
   {
     key: "employment_type",
@@ -71,8 +69,7 @@ const employeeFormFields: ModuleField[] = [
       { label: "Full Time", value: "full_time" },
       { label: "Part Time", value: "part_time" },
       { label: "Contract", value: "contract" },
-      { label: "Internship", value: "internship" },
-      { label: "Freelance", value: "freelance" },
+      { label: "Intern", value: "intern" },
     ],
   },
   {
@@ -110,6 +107,7 @@ const attendanceFormFields: ModuleField[] = [
     label: "Employee",
     type: "select",
     required: true,
+    placeholder: "Cari / pilih karyawan",
   },
   {
     key: "attendance_date",
@@ -118,12 +116,12 @@ const attendanceFormFields: ModuleField[] = [
     required: true,
   },
   {
-    key: "clock_in",
+    key: "check_in_at",
     label: "Clock In",
     type: "datetime-local",
   },
   {
-    key: "clock_out",
+    key: "check_out_at",
     label: "Clock Out",
     type: "datetime-local",
   },
@@ -138,6 +136,16 @@ const attendanceFormFields: ModuleField[] = [
       { label: "Leave", value: "leave" },
       { label: "Sick", value: "sick" },
     ],
+  },
+  {
+    key: "work_minutes",
+    label: "Work Minutes",
+    type: "number",
+  },
+  {
+    key: "overtime_minutes",
+    label: "Overtime Minutes",
+    type: "number",
   },
   {
     key: "notes",
@@ -166,8 +174,8 @@ const leaveTypeFormFields: ModuleField[] = [
     required: true,
   },
   {
-    key: "max_days",
-    label: "Max Days",
+    key: "default_days_per_year",
+    label: "Default Days Per Year",
     type: "number",
   },
   {
@@ -197,12 +205,14 @@ const leaveRequestFormFields: ModuleField[] = [
     label: "Employee",
     type: "select",
     required: true,
+    placeholder: "Cari / pilih karyawan",
   },
   {
     key: "leave_type_id",
     label: "Leave Type",
     type: "select",
     required: true,
+    placeholder: "Cari / pilih leave type",
   },
   {
     key: "start_date",
@@ -226,17 +236,6 @@ const leaveRequestFormFields: ModuleField[] = [
     label: "Reason",
     type: "textarea",
   },
-  {
-    key: "status",
-    label: "Status",
-    type: "select",
-    options: [
-      { label: "Pending", value: "pending" },
-      { label: "Approved", value: "approved" },
-      { label: "Rejected", value: "rejected" },
-      { label: "Cancelled", value: "cancelled" },
-    ],
-  },
 ];
 
 const taskFormFields: ModuleField[] = [
@@ -245,6 +244,7 @@ const taskFormFields: ModuleField[] = [
     key: "employee_id",
     label: "Assigned Employee",
     type: "select",
+    placeholder: "Cari / pilih karyawan",
   },
   {
     key: "title",
@@ -294,6 +294,17 @@ const payrollFormFields: ModuleField[] = [
     required: true,
   },
   {
+    key: "branch_id",
+    label: "Branch",
+    type: "select",
+  },
+  {
+    key: "payroll_no",
+    label: "Payroll No",
+    placeholder: "PAY-2026-0001",
+    required: true,
+  },
+  {
     key: "period_start",
     label: "Period Start",
     type: "date",
@@ -306,9 +317,73 @@ const payrollFormFields: ModuleField[] = [
     required: true,
   },
   {
-    key: "payment_date",
-    label: "Payment Date",
+    key: "total_gross",
+    label: "Gross",
+    type: "number",
+    required: true,
+    placeholder: "Contoh: 58000000",
+  },
+  {
+    key: "total_deductions",
+    label: "Deduction",
+    type: "number",
+    placeholder: "Contoh: 900000",
+  },
+  {
+    key: "total_tax",
+    label: "Tax",
+    type: "number",
+    placeholder: "Contoh: 1500000",
+  },
+  {
+    key: "total_net",
+    label: "Net",
+    type: "number",
+    required: true,
+    placeholder: "Contoh: 55600000",
+  },
+  {
+    key: "status",
+    label: "Status",
+    type: "select",
+    options: [
+      { label: "Draft", value: "DRAFT" },
+      { label: "Paid", value: "PAID" },
+      { label: "Cancelled", value: "CANCELLED" },
+    ],
+  },
+];
+
+const kpiReviewFormFields: ModuleField[] = [
+  ...companyBranchFields,
+  {
+    key: "employee_id",
+    label: "Employee",
+    type: "select",
+    required: true,
+    placeholder: "Cari / pilih karyawan",
+  },
+  {
+    key: "period_start",
+    label: "Period Start",
     type: "date",
+    required: true,
+  },
+  {
+    key: "period_end",
+    label: "Period End",
+    type: "date",
+    required: true,
+  },
+  {
+    key: "total_score",
+    label: "Total Score",
+    type: "number",
+  },
+  {
+    key: "rating",
+    label: "Rating",
+    placeholder: "A / B / C / Excellent",
   },
   {
     key: "status",
@@ -316,15 +391,9 @@ const payrollFormFields: ModuleField[] = [
     type: "select",
     options: [
       { label: "Draft", value: "draft" },
-      { label: "Calculated", value: "calculated" },
-      { label: "Paid", value: "paid" },
-      { label: "Cancelled", value: "cancelled" },
+      { label: "Review", value: "review" },
+      { label: "Completed", value: "completed" },
     ],
-  },
-  {
-    key: "notes",
-    label: "Notes",
-    type: "textarea",
   },
 ];
 
@@ -332,12 +401,10 @@ export const hrModuleConfig: Record<HRModuleKey, ModuleConfig> = {
   employees: {
     badge: "HR / Employees",
     title: "Employees",
-    description:
-      "Kelola data karyawan, cabang, jabatan, status kerja, tanggal masuk, dan gaji pokok.",
+    description: "Kelola data karyawan, jabatan, status kerja, dan salary.",
     icon: UsersRound,
     tableTitle: "Employee Records",
-    tableDescription:
-      "Data karyawan berdasarkan company, branch, department, dan status kerja.",
+    tableDescription: "Data karyawan perusahaan.",
     columns: [
       { key: "photo_url", label: "Photo" },
       { key: "employee_no", label: "Employee No" },
@@ -346,9 +413,9 @@ export const hrModuleConfig: Record<HRModuleKey, ModuleConfig> = {
       { key: "phone", label: "Phone" },
       { key: "department_name", label: "Department" },
       { key: "job_title", label: "Job Title" },
-      { key: "employment_type", label: "Type" },
+      { key: "employment_type_label", label: "Type" },
       { key: "base_salary_display", label: "Base Salary" },
-      { key: "status", label: "Status" },
+      { key: "status_label", label: "Status" },
     ],
     formFields: employeeFormFields,
   },
@@ -356,18 +423,18 @@ export const hrModuleConfig: Record<HRModuleKey, ModuleConfig> = {
   attendance: {
     badge: "HR / Attendance",
     title: "Attendance",
-    description:
-      "Monitoring absensi karyawan, jam masuk, jam keluar, status hadir, dan catatan.",
+    description: "Monitoring absensi karyawan.",
     icon: CalendarCheck,
     tableTitle: "Attendance Records",
-    tableDescription: "Riwayat absensi karyawan berdasarkan tanggal.",
+    tableDescription: "Data jam masuk dan jam keluar karyawan.",
     columns: [
-      { key: "attendance_date", label: "Date" },
       { key: "employee_name", label: "Employee" },
-      { key: "clock_in", label: "Clock In" },
-      { key: "clock_out", label: "Clock Out" },
-      { key: "status", label: "Status" },
-      { key: "notes", label: "Notes" },
+      { key: "attendance_date_display", label: "Date" },
+      { key: "check_in_display", label: "Clock In" },
+      { key: "check_out_display", label: "Clock Out" },
+      { key: "work_minutes", label: "Work Minutes" },
+      { key: "overtime_minutes", label: "Overtime" },
+      { key: "status_label", label: "Status" },
     ],
     formFields: attendanceFormFields,
   },
@@ -375,36 +442,34 @@ export const hrModuleConfig: Record<HRModuleKey, ModuleConfig> = {
   "leave-types": {
     badge: "HR / Leave Types",
     title: "Leave Types",
-    description:
-      "Kelola jenis cuti seperti annual leave, sick leave, dan unpaid leave.",
+    description: "Kelola master tipe cuti.",
     icon: FileClock,
     tableTitle: "Leave Type Records",
-    tableDescription: "Daftar tipe cuti perusahaan.",
+    tableDescription: "Master data tipe cuti perusahaan.",
     columns: [
       { key: "code", label: "Code" },
       { key: "name", label: "Name" },
-      { key: "max_days", label: "Max Days" },
-      { key: "is_paid", label: "Paid" },
-      { key: "is_active", label: "Active" },
+      { key: "default_days_per_year", label: "Default Days" },
+      { key: "is_paid_label", label: "Paid" },
+      { key: "is_active_label", label: "Active" },
     ],
     formFields: leaveTypeFormFields,
   },
 
   "leave-requests": {
-    badge: "HR / Leave Requests",
-    title: "Leave Requests",
-    description:
-      "Kelola pengajuan cuti karyawan berdasarkan tipe cuti, tanggal, alasan, dan status approval.",
-    icon: BriefcaseBusiness,
+    badge: "HR / Leave Management",
+    title: "Leave Management",
+    description: "Kelola pengajuan cuti karyawan.",
+    icon: ClipboardList,
     tableTitle: "Leave Request Records",
-    tableDescription: "Data pengajuan cuti dan approval status.",
+    tableDescription: "Data pengajuan cuti karyawan.",
     columns: [
       { key: "employee_name", label: "Employee" },
       { key: "leave_type_name", label: "Leave Type" },
-      { key: "start_date", label: "Start Date" },
-      { key: "end_date", label: "End Date" },
+      { key: "start_date_display", label: "Start Date" },
+      { key: "end_date_display", label: "End Date" },
       { key: "total_days", label: "Days" },
-      { key: "status", label: "Status" },
+      { key: "status_label", label: "Status" },
     ],
     formFields: leaveRequestFormFields,
   },
@@ -412,38 +477,56 @@ export const hrModuleConfig: Record<HRModuleKey, ModuleConfig> = {
   tasks: {
     badge: "HR / Tasks",
     title: "Tasks",
-    description:
-      "Kelola tugas karyawan, prioritas, deadline, status progress, dan assignment.",
-    icon: ClipboardList,
-    tableTitle: "HR Task Records",
-    tableDescription: "Daftar task operasional HR dan employee assignment.",
+    description: "Kelola task HR dan assignment karyawan.",
+    icon: BriefcaseBusiness,
+    tableTitle: "Task Records",
+    tableDescription: "Data task karyawan.",
     columns: [
-      { key: "title", label: "Title" },
       { key: "employee_name", label: "Employee" },
-      { key: "priority", label: "Priority" },
-      { key: "status", label: "Status" },
-      { key: "due_date", label: "Due Date" },
+      { key: "title", label: "Task" },
+      { key: "priority_label", label: "Priority" },
+      { key: "due_date_display", label: "Due Date" },
+      { key: "status_label", label: "Status" },
     ],
     formFields: taskFormFields,
   },
 
   "payroll-runs": {
     badge: "HR / Payroll",
-    title: "Payroll",
+    title: "Payroll Runs",
     description:
-      "Kelola payroll run berdasarkan periode, status perhitungan, dan tanggal pembayaran.",
+      "Kelola payroll run berdasarkan periode, gross, deduction, tax, dan net.",
     icon: HandCoins,
-    tableTitle: "Payroll Runs",
-    tableDescription: "Data proses payroll perusahaan berdasarkan periode.",
+    tableTitle: "Payroll Records",
+    tableDescription: "Data payroll run.",
     columns: [
-      { key: "period_start", label: "Period Start" },
-      { key: "period_end", label: "Period End" },
-      { key: "payment_date", label: "Payment Date" },
+      { key: "payroll_no", label: "Payroll No" },
+      { key: "period_start_display", label: "Period Start" },
+      { key: "period_end_display", label: "Period End" },
       { key: "total_gross_display", label: "Gross" },
-      { key: "total_deduction_display", label: "Deduction" },
+      { key: "total_deductions_display", label: "Deduction" },
+      { key: "total_tax_display", label: "Tax" },
       { key: "total_net_display", label: "Net" },
-      { key: "status", label: "Status" },
+      { key: "status_label", label: "Status" },
     ],
     formFields: payrollFormFields,
+  },
+
+  "kpi-reviews": {
+    badge: "HR / KPI",
+    title: "KPI Reviews",
+    description: "Kelola review KPI karyawan.",
+    icon: BarChart3,
+    tableTitle: "KPI Review Records",
+    tableDescription: "Data KPI review per periode.",
+    columns: [
+      { key: "employee_name", label: "Employee" },
+      { key: "period_start_display", label: "Period Start" },
+      { key: "period_end_display", label: "Period End" },
+      { key: "total_score", label: "Score" },
+      { key: "rating", label: "Rating" },
+      { key: "status_label", label: "Status" },
+    ],
+    formFields: kpiReviewFormFields,
   },
 };

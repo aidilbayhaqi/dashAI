@@ -1,104 +1,60 @@
 import type { ModuleData } from "@/types/modules";
 import type { CRMModuleKey } from "./types";
 
+function emptyModuleData({
+  label,
+  helper,
+  endpoint,
+}: {
+  label: string;
+  helper: string;
+  endpoint: string;
+}): ModuleData {
+  return {
+    metrics: [
+      {
+        label,
+        value: "0",
+        helper,
+        trend: "Empty",
+      },
+    ],
+    rows: [],
+    aiNotes: [
+      `Data akan dibaca dari API ${endpoint}.`,
+      "Dummy data ini hanya fallback agar UI tetap aman saat API belum tersedia.",
+    ],
+  };
+}
+
 export const crmDummyData: Record<CRMModuleKey, ModuleData> = {
-  leads: {
-    metrics: [
-      {
-        label: "Active Leads",
-        value: "0",
-        helper: "Total lead aktif dari CRM.",
-      },
-      {
-        label: "Need Follow Up",
-        value: "0",
-        helper: "Lead yang perlu ditindaklanjuti.",
-      },
-      {
-        label: "Converted",
-        value: "0",
-        helper: "Lead yang berhasil dikonversi.",
-      },
-    ],
-    rows: [],
-    aiNotes: [
-      "Belum ada data leads.",
-      "Tambahkan lead baru untuk mulai tracking pipeline customer.",
-    ],
-  },
+  leads: emptyModuleData({
+    label: "Total Leads",
+    helper: "Belum ada lead yang tercatat.",
+    endpoint: "/api/v1/crm/leads",
+  }),
 
-  contacts: {
-    metrics: [
-      {
-        label: "Total Contacts",
-        value: "0",
-        helper: "Total kontak customer.",
-      },
-      {
-        label: "Linked Leads",
-        value: "0",
-        helper: "Kontak yang sudah terhubung dengan lead.",
-      },
-      {
-        label: "Active PIC",
-        value: "0",
-        helper: "PIC customer yang aktif.",
-      },
-    ],
-    rows: [],
-    aiNotes: [
-      "Belum ada data contacts.",
-      "Tambahkan contact untuk menyimpan PIC customer.",
-    ],
-  },
+  contacts: emptyModuleData({
+    label: "Total Contacts",
+    helper: "Belum ada contact yang tercatat.",
+    endpoint: "/api/v1/crm/contacts",
+  }),
 
-  deals: {
-    metrics: [
-      {
-        label: "Open Deals",
-        value: "0",
-        helper: "Deal yang masih berjalan.",
-      },
-      {
-        label: "Won Deals",
-        value: "0",
-        helper: "Deal yang berhasil dimenangkan.",
-      },
-      {
-        label: "Pipeline Value",
-        value: "Rp 0",
-        helper: "Estimasi nilai pipeline CRM.",
-      },
-    ],
-    rows: [],
-    aiNotes: [
-      "Belum ada data deals.",
-      "Tambahkan deal untuk mulai tracking opportunity.",
-    ],
-  },
+  deals: emptyModuleData({
+    label: "Total Deals",
+    helper: "Belum ada deal/pipeline yang tercatat.",
+    endpoint: "/api/v1/crm/deals",
+  }),
 
-  activities: {
-    metrics: [
-      {
-        label: "Total Activities",
-        value: "0",
-        helper: "Total aktivitas CRM.",
-      },
-      {
-        label: "Planned",
-        value: "0",
-        helper: "Aktivitas yang masih direncanakan.",
-      },
-      {
-        label: "Done",
-        value: "0",
-        helper: "Aktivitas yang sudah selesai.",
-      },
-    ],
-    rows: [],
-    aiNotes: [
-      "Belum ada data activities.",
-      "Tambahkan activity untuk mencatat follow up customer.",
-    ],
-  },
+  activities: emptyModuleData({
+    label: "Total Activities",
+    helper: "Belum ada activity CRM yang tercatat.",
+    endpoint: "/api/v1/crm/activities",
+  }),
+
+  campaigns: emptyModuleData({
+    label: "Total Campaigns",
+    helper: "Belum ada campaign yang tercatat.",
+    endpoint: "/api/v1/crm/campaigns",
+  }),
 };

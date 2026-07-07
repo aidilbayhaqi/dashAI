@@ -2,10 +2,14 @@ export type AuthUserScope = {
   id?: string;
   email?: string;
   name?: string;
+  full_name?: string;
   role?: string | null;
   roles?: unknown;
   company_id?: string | null;
   tenant_id?: string | null;
+  role_id?: string | null;
+  permissions?: unknown;
+  branch_ids?: unknown;
   is_superuser?: boolean;
   is_super_admin?: boolean;
   is_staff?: boolean;
@@ -17,6 +21,22 @@ export type AuthUserScope = {
   profile?: AuthUserScope;
 };
 
+const USER_KEYS = [
+  "dashai_auth_user",
+  "dashai_user",
+  "auth_user",
+  "user",
+  "current_user",
+  "profile",
+];
+
+const TOKEN_KEYS = [
+  "dashai_access_token",
+  "access_token",
+  "token",
+  "auth_token",
+];
+
 function safeJsonParse<T>(value: string | null): T | null {
   if (!value) return null;
 
@@ -27,13 +47,25 @@ function safeJsonParse<T>(value: string | null): T | null {
   }
 }
 
+function getBrowserStorageItems(key: string) {
+  if (typeof window === "undefined") return [];
+
+  return [sessionStorage.getItem(key), localStorage.getItem(key)].filter(
+    (value): value is string => Boolean(value)
+  );
+}
+
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const payload = token.split(".")[1];
 
     if (!payload) return null;
 
-    const normalizedPayload = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const normalizedPayload = payload
+      .replace(/-/g, "+")
+      .replace(/_/g, "/")
+      .padEnd(Math.ceil(payload.length / 4) * 4, "=");
+
     const decoded = atob(normalizedPayload);
     const json = decodeURIComponent(
       decoded
@@ -51,37 +83,19 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 function getStorageObject(): AuthUserScope | null {
   if (typeof window === "undefined") return null;
 
-  const possibleUserKeys = [
-    "dashai_user",
-    "auth_user",
-    "user",
-    "current_user",
-    "dashai_auth_user",
-    "profile",
-  ];
+  for (const key of USER_KEYS) {
+    for (const raw of getBrowserStorageItems(key)) {
+      const parsed = safeJsonParse<AuthUserScope>(raw);
 
-  for (const key of possibleUserKeys) {
-    const parsed = safeJsonParse<AuthUserScope>(localStorage.getItem(key));
-
-    if (parsed) return parsed;
+      if (parsed) return parsed;
+    }
   }
 
-  const possibleTokenKeys = [
-    "access_token",
-    "dashai_access_token",
-    "token",
-    "auth_token",
-  ];
+  for (const key of TOKEN_KEYS) {
+    for (const token of getBrowserStorageItems(key)) {
+      const payload = decodeJwtPayload(token);
 
-  for (const key of possibleTokenKeys) {
-    const token = localStorage.getItem(key);
-
-    if (!token) continue;
-
-    const payload = decodeJwtPayload(token);
-
-    if (payload) {
-      return payload as AuthUserScope;
+      if (payload) return payload as AuthUserScope;
     }
   }
 
@@ -100,7 +114,6 @@ function unwrapUser(user: AuthUserScope | null): AuthUserScope | null {
 
 function extractRoleText(value: unknown): string {
   if (!value) return "";
-
   if (typeof value === "string") return value;
 
   if (Array.isArray(value)) {

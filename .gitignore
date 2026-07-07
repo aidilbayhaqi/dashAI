@@ -1,22 +1,84 @@
-# env
+# =========================
+# ENV
+# =========================
 .env
 .env.*
 !.env.example
 
-# python
-.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
+# =========================
+# Node / Frontend
+# =========================
+# PNPM cache/store
+.pnpm-store/
+**/.pnpm-store/
 
-# node
+# Node dependencies
 node_modules/
+**/node_modules/
+
+# Next.js
 .next/
+**/.next/
+out/
+**/out/
+
+# Build output
 dist/
 build/
 
-# logs
+# Env
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+pnpm-debug.log*
+npm-debug.log*
+
+# =========================
+# Python / Backend
+# =========================
+.venv/
+**/.venv/
+
+venv/
+**/venv/
+
+__pycache__/
+**/__pycache__/
+
+*.pyc
+*.pyo
+*.pyd
+
+.pytest_cache/
+**/.pytest_cache/
+
+.mypy_cache/
+**/.mypy_cache/
+
+.ruff_cache/
+**/.ruff_cache/
+
+# =========================
+# Docker local junk
+# =========================
+docker-data/
+postgres_data/
+redis_data/
+qdrant_data/
+
 *.log
 
-# os
+# =========================
+# OS / Editor
+# =========================
 .DS_Store
+Thumbs.db
+
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+.idea/

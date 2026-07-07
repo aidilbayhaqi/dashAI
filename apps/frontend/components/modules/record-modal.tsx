@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { ImagePlus, Loader2, UploadCloud, X } from "lucide-react";
+import { ImagePlus, Loader2, Search, UploadCloud, X } from "lucide-react";
 
 import { api } from "@/lib/api";
 import {
@@ -33,6 +33,58 @@ type RecordModalProps = {
 type InputField = ModuleColumn | ModuleField;
 type RawRow = Record<string, unknown>;
 
+const searchableSelectKeys = new Set([
+  "employee_id",
+  "reviewer_id",
+  "reviewer_user_id",
+  "approved_by",
+  "approved_by_id",
+  "assigned_to",
+  "assigned_by_id",
+  "leave_type_id",
+  "product_id",
+  "category_id",
+  "parent_category_id",
+  "supplier_id",
+  "cash_account_id",
+  "transaction_id",
+  "period_id",
+  "tax_rate_id",
+  "lead_id",
+  "contact_id",
+  "deal_id",
+]);
+
+const lookupEndpointMap: Record<string, string[]> = {
+  company_id: ["/api/v1/companies"],
+  employee_id: ["/api/v1/hr/employees"],
+  reviewer_id: ["/api/v1/hr/employees"],
+  reviewer_user_id: ["/api/v1/hr/employees"],
+  approved_by: ["/api/v1/hr/employees"],
+  approved_by_id: ["/api/v1/hr/employees"],
+  assigned_to: ["/api/v1/hr/employees"],
+  assigned_by_id: ["/api/v1/hr/employees"],
+
+  leave_type_id: ["/api/v1/hr/leave-types", "/api/v1/hr/leave_types"],
+
+  product_id: ["/api/v1/products/items", "/api/v1/products"],
+  category_id: ["/api/v1/products/categories"],
+  parent_category_id: ["/api/v1/products/categories"],
+  supplier_id: ["/api/v1/products/suppliers"],
+
+  cash_account_id: ["/api/v1/finance/cash-accounts"],
+  transaction_id: ["/api/v1/finance/transactions"],
+  period_id: [
+    "/api/v1/finance/accounting-periods",
+    "/api/v1/finance/periods",
+  ],
+  tax_rate_id: ["/api/v1/finance/tax-rates"],
+
+  lead_id: ["/api/v1/crm/leads"],
+  contact_id: ["/api/v1/crm/contacts"],
+  deal_id: ["/api/v1/crm/deals"],
+};
+
 function isModuleField(field: InputField): field is ModuleField {
   return (
     "type" in field ||
@@ -46,42 +98,54 @@ function getFieldType(field: InputField): ModuleField["type"] {
   return isModuleField(field) ? field.type ?? "text" : "text";
 }
 
-function getFieldRequired(field: InputField): boolean {
-  return isModuleField(field) ? field.required ?? false : false;
+function getFieldRequired(field: InputField) {
+  return isModuleField(field) ? Boolean(field.required) : false;
 }
 
-function getFieldPlaceholder(field: InputField): string {
-  if (isModuleField(field) && field.placeholder) {
-    return field.placeholder;
-  }
-
-  return `Input ${field.label}`;
+function getFieldPlaceholder(field: InputField) {
+  return isModuleField(field) && field.placeholder
+    ? field.placeholder
+    : `Input ${field.label}`;
 }
 
 function getStaticOptions(field: InputField): ModuleFieldOption[] {
   return isModuleField(field) ? field.options ?? [] : [];
 }
 
-function getInputType(fieldType: ModuleField["type"]) {
+function getInputType(type: ModuleField["type"]) {
   if (
-    fieldType === "number" ||
-    fieldType === "date" ||
-    fieldType === "datetime-local" ||
-    fieldType === "email" ||
-    fieldType === "password"
+    type === "number" ||
+    type === "date" ||
+    type === "datetime-local" ||
+    type === "email" ||
+    type === "password"
   ) {
-    return fieldType;
+    return type;
   }
 
   return "text";
 }
 
-function isPreviewableImage(value: string) {
-  return (
-    value.startsWith("http://") ||
-    value.startsWith("https://") ||
-    value.startsWith("/")
-  );
+function isSelectField(field: InputField) {
+  const type = getFieldType(field);
+
+  return type === "select" || field.key.endsWith("_id");
+}
+
+function isTextareaField(field: InputField) {
+  return getFieldType(field) === "textarea";
+}
+
+function isFileField(field: InputField) {
+  return getFieldType(field) === "file";
+}
+
+function isHiddenField(field: InputField) {
+  return getFieldType(field) === "hidden";
+}
+
+function hasValue(value: unknown) {
+  return value !== undefined && value !== null && String(value).trim() !== "";
 }
 
 function isValidUuid(value: string | undefined | null) {
@@ -92,52 +156,6 @@ function isValidUuid(value: string | undefined | null) {
   );
 }
 
-function hasField(inputFields: InputField[], key: string) {
-  return inputFields.some((field) => field.key === key);
-}
-
-function isSelectField(field: InputField) {
-  const fieldType = getFieldType(field);
-
-  return (
-    fieldType === "select" ||
-    field.key === "company_id" ||
-    field.key === "branch_id" ||
-    field.key === "cash_account_id" ||
-    field.key === "account_id" ||
-    field.key === "accounts_id" ||
-    field.key === "category_id" ||
-    field.key === "parent_category_id" ||
-    field.key === "supplier_id" ||
-    field.key === "product_id"
-  );
-}
-
-function isFileField(field: InputField) {
-  return getFieldType(field) === "file";
-}
-
-function isTextareaField(field: InputField) {
-  return getFieldType(field) === "textarea";
-}
-
-function isFinanceTransaction({
-  title,
-  moduleKey,
-}: {
-  title: string;
-  moduleKey?: string;
-}) {
-  const normalized = `${title} ${moduleKey ?? ""}`.toLowerCase();
-
-  return (
-    normalized.includes("finance") ||
-    normalized.includes("transaction") ||
-    moduleKey === "overview" ||
-    moduleKey === "transactions"
-  );
-}
-
 function normalizeRows(data: unknown): RawRow[] {
   if (Array.isArray(data)) return data as RawRow[];
 
@@ -145,671 +163,300 @@ function normalizeRows(data: unknown): RawRow[] {
 
   const record = data as Record<string, unknown>;
 
-  if (Array.isArray(record.items)) return record.items as RawRow[];
-  if (Array.isArray(record.data)) return record.data as RawRow[];
-  if (Array.isArray(record.results)) return record.results as RawRow[];
-  if (Array.isArray(record.rows)) return record.rows as RawRow[];
-  if (Array.isArray(record.branches)) return record.branches as RawRow[];
-  if (Array.isArray(record.cash_accounts)) return record.cash_accounts as RawRow[];
+  const keys = [
+    "items",
+    "data",
+    "results",
+    "rows",
+    "records",
+    "companies",
+    "branches",
+    "employees",
+    "leave_types",
+    "leaveTypes",
+    "products",
+    "categories",
+    "suppliers",
+    "cash_accounts",
+    "transactions",
+    "periods",
+    "tax_rates",
+    "leads",
+    "contacts",
+    "deals",
+  ];
 
-  if (Array.isArray(record.categories)) return record.categories as RawRow[];
-  if (Array.isArray(record.suppliers)) return record.suppliers as RawRow[];
-  if (Array.isArray(record.products)) return record.products as RawRow[];
+  for (const key of keys) {
+    const value = record[key];
+
+    if (Array.isArray(value)) return value as RawRow[];
+
+    if (value && typeof value === "object") {
+      const nested = normalizeRows(value);
+
+      if (nested.length > 0) return nested;
+    }
+  }
+
+  const firstArray = Object.values(record).find((value) => Array.isArray(value));
+
+  if (Array.isArray(firstArray)) return firstArray as RawRow[];
 
   return [];
 }
 
-function pickString(row: RawRow, keys: string[]) {
+function pick(row: RawRow, keys: string[]) {
   for (const key of keys) {
     const value = row[key];
 
-    if (value !== undefined && value !== null && String(value).trim() !== "") {
-      return String(value);
-    }
+    if (hasValue(value)) return String(value);
   }
 
   return "";
 }
 
 function getOptionId(row: RawRow) {
-  return pickString(row, [
+  return pick(row, [
     "id",
     "uuid",
     "value",
-
+    "company_id",
     "branch_id",
-    "company_branch_id",
-
-    "cash_account_id",
-    "account_id",
-
-    "category_id",
-    "parent_category_id",
-    "product_category_id",
-
-    "supplier_id",
-    "product_supplier_id",
-
+    "employee_id",
+    "leave_type_id",
     "product_id",
+    "category_id",
+    "supplier_id",
+    "cash_account_id",
+    "transaction_id",
+    "period_id",
+    "tax_rate_id",
+    "lead_id",
+    "contact_id",
+    "deal_id",
   ]);
 }
 
-function getOptionLabel(row: RawRow) {
-  return (
-    pickString(row, [
+function getOptionLabel(row: RawRow, key: string) {
+  const label =
+    pick(row, [
+      "full_name",
+      "employee_name",
       "name",
+      "leave_type_name",
       "company_name",
-
-      "category_name",
-      "product_category_name",
-
-      "supplier_name",
-      "product_supplier_name",
-
-      "product_name",
-
       "branch_name",
-      "company_branch_name",
-      "outlet_name",
-      "store_name",
-      "warehouse_name",
-      "location_name",
-
-      "account_name",
+      "product_name",
+      "category_name",
+      "supplier_name",
       "cash_account_name",
-      "bank_name",
-
+      "account_name",
       "title",
-      "sku",
-      "code",
       "email",
+      "phone",
+      "code",
       "id",
-      "uuid",
-    ]) || "-"
+    ]) || "-";
+
+  const employeeNo = pick(row, ["employee_no", "employee_code"]);
+  const code = pick(row, ["code"]);
+  const sku = pick(row, ["sku"]);
+
+  if (
+    [
+      "employee_id",
+      "reviewer_id",
+      "reviewer_user_id",
+      "approved_by",
+      "approved_by_id",
+      "assigned_to",
+      "assigned_by_id",
+    ].includes(key)
+  ) {
+    return employeeNo ? `${label} (${employeeNo})` : label;
+  }
+
+  if (key === "leave_type_id") {
+    return code && code !== label ? `${label} (${code})` : label;
+  }
+
+  if (key === "product_id") {
+    return sku ? `${label} (${sku})` : label;
+  }
+
+  return code && code !== label ? `${label} (${code})` : label;
+}
+
+function rowsToOptions(rows: RawRow[], key: string): ModuleFieldOption[] {
+  return rows
+    .map((row) => {
+      const id = getOptionId(row);
+
+      if (!id) return null;
+
+      return {
+        value: id,
+        label: getOptionLabel(row, key),
+      };
+    })
+    .filter((item): item is ModuleFieldOption => Boolean(item));
+}
+
+async function fetchRows(
+  endpoints: string[],
+  params?: Record<string, unknown>
+): Promise<RawRow[]> {
+  for (const endpoint of endpoints) {
+    try {
+      const response = await api.get(endpoint, {
+        params,
+      });
+
+      const rows = normalizeRows(response.data);
+
+      if (rows.length > 0) return rows;
+    } catch {
+      // coba endpoint berikutnya
+    }
+  }
+
+  return [];
+}
+
+async function fetchBranches(companyId: string) {
+  if (!isValidUuid(companyId)) return [];
+
+  return fetchRows(
+    [`/api/v1/companies/${companyId}/branches`, "/api/v1/branches"],
+    {
+      company_id: companyId,
+      limit: 100,
+      sort_by: "name",
+      sort_order: "asc",
+    }
   );
 }
 
-function rowsToOptions(rows: RawRow[]): ModuleFieldOption[] {
-  return rows
-    .map((row) => {
-      const id = getOptionId(row);
-
-      if (!id) return null;
-
-      return {
-        value: id,
-        label: getOptionLabel(row),
-      };
-    })
-    .filter((item): item is ModuleFieldOption => Boolean(item));
-}
-
-function rowsToCashAccountOptions(rows: RawRow[]): ModuleFieldOption[] {
-  return rows
-    .map((row) => {
-      const id = getOptionId(row);
-
-      if (!id) return null;
-
-      const name =
-        pickString(row, [
-          "name",
-          "account_name",
-          "cash_account_name",
-          "bank_name",
-          "account_holder_name",
-          "code",
-        ]) || id;
-
-      const accountNumber = pickString(row, [
-        "account_number",
-        "account_no",
-        "number",
-        "code",
-      ]);
-
-      const label =
-        name && accountNumber && name !== accountNumber
-          ? `${name} - ${accountNumber}`
-          : name;
-
-      return {
-        value: id,
-        label,
-      };
-    })
-    .filter((item): item is ModuleFieldOption => Boolean(item));
-}
-
-function rowsToProductOptions(rows: RawRow[]): ModuleFieldOption[] {
-  return rows
-    .map((row) => {
-      const id = getOptionId(row);
-
-      if (!id) return null;
-
-      const sku = pickString(row, ["sku", "code"]);
-      const name = pickString(row, ["name", "product_name", "title"]) || id;
-
-      return {
-        value: id,
-        label: sku ? `${sku} - ${name}` : name,
-      };
-    })
-    .filter((item): item is ModuleFieldOption => Boolean(item));
-}
-
-async function fetchApiRows(
-  endpoint: string,
-  params?: Record<string, unknown>,
-  options?: {
-    silent?: boolean;
-  }
-): Promise<RawRow[]> {
-  try {
-    const response = await api.get(endpoint, {
-      params,
-    });
-
-    return normalizeRows(response.data);
-  } catch (error) {
-    if (!options?.silent) {
-      console.warn(`Failed to fetch ${endpoint}:`, error);
-    }
-
-    return [];
-  }
-}
-
-async function fetchCompanies() {
-  return fetchApiRows("/api/v1/companies", undefined, {
-    silent: true,
-  });
-}
-
-async function fetchBranchesByCompany(companyId: string) {
-  if (!companyId || !isValidUuid(companyId)) return [];
-
-  const candidates: Array<{
-    endpoint: string;
-    params?: Record<string, unknown>;
-  }> = [
-    {
-      endpoint: `/api/v1/companies/${companyId}/branches`,
-    },
-    {
-      endpoint: "/api/v1/branches",
-      params: {
-        company_id: companyId,
-      },
-    },
-    {
-      endpoint: "/api/v1/company/branches",
-      params: {
-        company_id: companyId,
-      },
-    },
-    {
-      endpoint: "/api/v1/admin/branches",
-      params: {
-        company_id: companyId,
-      },
-    },
-  ];
-
-  for (const candidate of candidates) {
-    const rows = await fetchApiRows(candidate.endpoint, candidate.params, {
-      silent: true,
-    });
-
-    if (rows.length > 0) {
-      return rows;
-    }
-  }
-
-  return [];
-}
-
-async function fetchCashAccountsByCompany(companyId: string) {
-  if (!companyId || !isValidUuid(companyId)) return [];
-
-  const candidates: Array<{
-    endpoint: string;
-    params?: Record<string, unknown>;
-  }> = [
-    {
-      endpoint: "/api/v1/finance/cash-accounts",
-      params: {
-        company_id: companyId,
-        limit: 100,
-        sort_by: "created_at",
-        sort_order: "asc",
-      },
-    },
-    {
-      endpoint: "/api/v1/finance/cash_accounts",
-      params: {
-        company_id: companyId,
-      },
-    },
-    {
-      endpoint: "/api/v1/finance/accounts/cash",
-      params: {
-        company_id: companyId,
-      },
-    },
-    {
-      endpoint: "/api/v1/finance/accounts",
-      params: {
-        company_id: companyId,
-      },
-    },
-    {
-      endpoint: "/api/v1/accounts",
-      params: {
-        company_id: companyId,
-      },
-    },
-  ];
-
-  for (const candidate of candidates) {
-    const rows = await fetchApiRows(candidate.endpoint, candidate.params, {
-      silent: true,
-    });
-
-    if (rows.length > 0) {
-      return rows;
-    }
-  }
-
-  return [];
-}
-
-async function fetchProductCategoriesByCompany(companyId: string) {
-  if (!companyId || !isValidUuid(companyId)) return [];
-
-  const candidates: Array<{
-    endpoint: string;
-    params?: Record<string, unknown>;
-  }> = [
-    {
-      endpoint: "/api/v1/products/categories",
-      params: {
-        company_id: companyId,
-        limit: 100,
-        sort_by: "name",
-        sort_order: "asc",
-      },
-    },
-    {
-      endpoint: "/api/v1/product-categories",
-      params: {
-        company_id: companyId,
-        limit: 100,
-      },
-    },
-    {
-      endpoint: "/api/v1/categories",
-      params: {
-        company_id: companyId,
-        limit: 100,
-      },
-    },
-  ];
-
-  for (const candidate of candidates) {
-    const rows = await fetchApiRows(candidate.endpoint, candidate.params, {
-      silent: true,
-    });
-
-    if (rows.length > 0) {
-      return rows;
-    }
-  }
-
-  return [];
-}
-
-async function fetchProductSuppliersByCompany(companyId: string) {
-  if (!companyId || !isValidUuid(companyId)) return [];
-
-  const candidates: Array<{
-    endpoint: string;
-    params?: Record<string, unknown>;
-  }> = [
-    {
-      endpoint: "/api/v1/products/suppliers",
-      params: {
-        company_id: companyId,
-        limit: 100,
-        sort_by: "name",
-        sort_order: "asc",
-      },
-    },
-    {
-      endpoint: "/api/v1/suppliers",
-      params: {
-        company_id: companyId,
-        limit: 100,
-      },
-    },
-    {
-      endpoint: "/api/v1/product-suppliers",
-      params: {
-        company_id: companyId,
-        limit: 100,
-      },
-    },
-  ];
-
-  for (const candidate of candidates) {
-    const rows = await fetchApiRows(candidate.endpoint, candidate.params, {
-      silent: true,
-    });
-
-    if (rows.length > 0) {
-      return rows;
-    }
-  }
-
-  return [];
-}
-
-async function fetchProductsByCompany(companyId: string) {
-  if (!companyId || !isValidUuid(companyId)) return [];
-
-  const candidates: Array<{
-    endpoint: string;
-    params?: Record<string, unknown>;
-  }> = [
-    {
-      endpoint: "/api/v1/products",
-      params: {
-        company_id: companyId,
-        limit: 100,
-        sort_by: "name",
-        sort_order: "asc",
-      },
-    },
-    {
-      endpoint: "/api/v1/products/items",
-      params: {
-        company_id: companyId,
-        limit: 100,
-      },
-    },
-  ];
-
-  for (const candidate of candidates) {
-    const rows = await fetchApiRows(candidate.endpoint, candidate.params, {
-      silent: true,
-    });
-
-    if (rows.length > 0) {
-      return rows;
-    }
-  }
-
-  return [];
-}
-
-function getBackendBaseUrl() {
-  const rawBaseUrl =
-    process.env.NEXT_PUBLIC_API_URL ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    "http://localhost:8000";
-
-  return rawBaseUrl.replace(/\/$/, "");
-}
-
-function getBackendOriginUrl() {
-  const baseUrl = getBackendBaseUrl();
-
-  if (baseUrl.endsWith("/api/v1")) {
-    return baseUrl.replace(/\/api\/v1$/, "");
-  }
-
-  return baseUrl;
-}
-
-function getUploadUrl() {
-  const baseUrl = getBackendBaseUrl();
-
-  if (baseUrl.endsWith("/api/v1")) {
-    return `${baseUrl}/files/upload`;
-  }
-
-  return `${baseUrl}/api/v1/files/upload`;
-}
-
-function normalizeUploadedUrl(url: string) {
-  if (url.startsWith("http://") || url.startsWith("https://")) {
-    return url;
-  }
-
-  if (url.startsWith("/")) {
-    return `${getBackendOriginUrl()}${url}`;
-  }
-
-  return url;
-}
-
-function getUploadContext(fieldKey: string, moduleKey?: string) {
-  const normalized = `${fieldKey} ${moduleKey ?? ""}`.toLowerCase();
+function getDefaultCompanyId() {
+  const currentCompanyId = getCurrentCompanyId();
+  const selectedCompanyId = getSelectedCompanyId();
 
   if (
-    normalized.includes("image_url") ||
-    normalized.includes("photo") ||
-    normalized.includes("product")
+    currentCompanyId &&
+    isValidUuid(currentCompanyId) &&
+    !isCurrentUserSuperAdmin()
   ) {
-    return "product-photo";
+    return currentCompanyId;
   }
 
   if (
-    normalized.includes("employee") ||
-    normalized.includes("avatar") ||
-    normalized.includes("photo_url")
+    selectedCompanyId &&
+    selectedCompanyId !== "all" &&
+    isValidUuid(selectedCompanyId)
   ) {
-    return "employee-photo";
-  }
-
-  if (
-    normalized.includes("proof") ||
-    normalized.includes("receipt") ||
-    normalized.includes("attachment") ||
-    normalized.includes("transaction")
-  ) {
-    return "transaction-proof";
-  }
-
-  if (normalized.includes("logo") || normalized.includes("company")) {
-    return "company-logo";
-  }
-
-  return "general";
-}
-
-function extractUploadedUrl(data: unknown): string | null {
-  if (!data || typeof data !== "object") return null;
-
-  const record = data as Record<string, unknown>;
-
-  const candidates = [
-    record.url,
-    record.file_url,
-    record.fileUrl,
-    record.public_url,
-    record.publicUrl,
-    record.path,
-    record.file_path,
-    record.filePath,
-    record.attachment_url,
-    record.attachmentUrl,
-  ];
-
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.length > 0) {
-      return normalizeUploadedUrl(candidate);
-    }
-  }
-
-  if (record.data && typeof record.data === "object") {
-    return extractUploadedUrl(record.data);
-  }
-
-  if (record.file && typeof record.file === "object") {
-    return extractUploadedUrl(record.file);
-  }
-
-  return null;
-}
-
-function formatUploadError(data: unknown) {
-  if (!data || typeof data !== "object") {
-    return "Unknown upload error.";
-  }
-
-  const record = data as Record<string, unknown>;
-
-  if (typeof record.detail === "string") {
-    return record.detail;
-  }
-
-  if (Array.isArray(record.detail)) {
-    return record.detail
-      .map((item) => {
-        if (!item || typeof item !== "object") return String(item);
-
-        const errorItem = item as Record<string, unknown>;
-        const location = Array.isArray(errorItem.loc)
-          ? errorItem.loc.join(".")
-          : "unknown";
-        const message =
-          typeof errorItem.msg === "string" ? errorItem.msg : "Validation error";
-
-        return `${location}: ${message}`;
-      })
-      .join("\n");
-  }
-
-  return JSON.stringify(data);
-}
-
-async function uploadRecordFile({
-  file,
-  fieldKey,
-  moduleKey,
-  companyId,
-}: {
-  file: File;
-  fieldKey: string;
-  moduleKey?: string;
-  companyId?: string;
-}) {
-  const context = getUploadContext(fieldKey, moduleKey);
-
-  const formData = new FormData();
-  formData.append("context", context);
-  formData.append("file", file, file.name);
-
-  if (companyId && companyId !== "all" && isValidUuid(companyId)) {
-    formData.append("company_id", companyId);
-  }
-
-  const response = await fetch(getUploadUrl(), {
-    method: "POST",
-    body: formData,
-  });
-
-  const responseData: unknown = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    console.log("Upload failed:", responseData);
-    throw new Error(formatUploadError(responseData));
-  }
-
-  const uploadedUrl = extractUploadedUrl(responseData);
-
-  if (!uploadedUrl) {
-    console.log("Upload response:", responseData);
-    throw new Error("Upload berhasil, tapi backend tidak mengembalikan url/path.");
-  }
-
-  return uploadedUrl;
-}
-
-function getStatusDefault(field: InputField) {
-  const options = getStaticOptions(field);
-
-  if (options.some((option) => option.value === "active")) return "active";
-  if (options.some((option) => option.value === "draft")) return "draft";
-
-  return options[0]?.value ? String(options[0].value) : "";
-}
-
-function getDefaultValue(field: InputField) {
-  if (field.key === "transaction_type") return "income";
-  if (field.key === "cashflow_activity") return "operating";
-  if (field.key === "payment_method") return "cash";
-
-  if (field.key === "product_type") return "physical";
-  if (field.key === "track_stock") return "true";
-  if (field.key === "unit") return "pcs";
-
-  if (field.key === "status") {
-    return getStatusDefault(field);
+    return selectedCompanyId;
   }
 
   return "";
 }
 
-function buildInitialValues(
-  inputFields: InputField[],
-  initialRow?: ModuleRow | null
-): ModuleRow {
-  const values: ModuleRow = {};
-
-  inputFields.forEach((field) => {
-    const existingValue = initialRow?.[field.key];
-
-    if (existingValue !== undefined && existingValue !== null) {
-      values[field.key] = String(existingValue);
-      return;
-    }
-
-    values[field.key] = getDefaultValue(field);
-  });
-
-  const currentCompanyId = getCurrentCompanyId();
-  const selectedCompanyId = getSelectedCompanyId();
-
-  if (hasField(inputFields, "company_id")) {
-    if (initialRow?.company_id) {
-      values.company_id = String(initialRow.company_id);
-    } else if (
-      isCurrentUserSuperAdmin() &&
-      selectedCompanyId &&
-      selectedCompanyId !== "all"
-    ) {
-      values.company_id = selectedCompanyId;
-    } else if (currentCompanyId) {
-      values.company_id = currentCompanyId;
-    }
-  }
-
-  if (hasField(inputFields, "total_amount") && !values.total_amount && values.amount) {
-    values.total_amount = values.amount;
+function getSortBy(key: string) {
+  if (
+    key === "employee_id" ||
+    key === "reviewer_id" ||
+    key === "reviewer_user_id" ||
+    key === "approved_by" ||
+    key === "approved_by_id" ||
+    key === "assigned_to" ||
+    key === "assigned_by_id"
+  ) {
+    return "full_name";
   }
 
   if (
-    hasField(inputFields, "subtotal_amount") &&
-    !values.subtotal_amount &&
-    values.amount
+    key === "leave_type_id" ||
+    key === "product_id" ||
+    key === "category_id" ||
+    key === "supplier_id" ||
+    key === "company_id" ||
+    key === "branch_id"
   ) {
-    values.subtotal_amount = values.amount;
+    return "name";
   }
 
-  return values;
+  return "created_at";
+}
+
+function buildInitialValues(fields: InputField[], initialRow?: ModuleRow | null) {
+  const result: ModuleRow = {};
+
+  fields.forEach((field) => {
+    result[field.key] =
+      initialRow?.[field.key] !== undefined && initialRow?.[field.key] !== null
+        ? String(initialRow[field.key])
+        : "";
+  });
+
+  const defaultCompanyId = getDefaultCompanyId();
+
+  if (!result.company_id && defaultCompanyId) {
+    result.company_id = defaultCompanyId;
+  }
+
+  return result;
+}
+
+function isPreviewableImage(value: string) {
+  const text = value.toLowerCase();
+
+  return (
+    text.startsWith("http://") ||
+    text.startsWith("https://") ||
+    text.startsWith("/uploads") ||
+    text.endsWith(".jpg") ||
+    text.endsWith(".jpeg") ||
+    text.endsWith(".png") ||
+    text.endsWith(".webp") ||
+    text.endsWith(".gif")
+  );
+}
+
+async function uploadRecordFile(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const endpoints = [
+    "/api/v1/uploads",
+    "/api/v1/upload",
+    "/api/v1/files/upload",
+    "/api/v1/files",
+  ];
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await api.post(endpoint, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      const data = response.data as Record<string, unknown>;
+
+      const url =
+        data.url ??
+        data.file_url ??
+        data.fileUrl ??
+        data.path ??
+        data.location ??
+        data.public_url;
+
+      if (url) return String(url);
+    } catch {
+      // lanjut endpoint berikutnya
+    }
+  }
+
+  throw new Error("Upload gagal. Endpoint upload belum tersedia.");
 }
 
 export function RecordModal({
@@ -828,366 +475,123 @@ export function RecordModal({
     return fields && fields.length > 0 ? fields : columns;
   }, [fields, columns]);
 
-  const initialValues = useMemo<ModuleRow>(() => {
-    return buildInitialValues(inputFields, initialRow);
-  }, [inputFields, initialRow]);
+  const [values, setValues] = useState<ModuleRow>(() =>
+    buildInitialValues(inputFields, initialRow)
+  );
 
-  const [values, setValues] = useState<ModuleRow>({});
+  const [optionsByKey, setOptionsByKey] = useState<
+    Record<string, ModuleFieldOption[]>
+  >({});
+
+  const [loadingKey, setLoadingKey] = useState<Record<string, boolean>>({});
+  const [searchByKey, setSearchByKey] = useState<Record<string, string>>({});
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
 
-  const [companyOptions, setCompanyOptions] = useState<ModuleFieldOption[]>([]);
-  const [branchOptions, setBranchOptions] = useState<ModuleFieldOption[]>([]);
-  const [cashAccountOptions, setCashAccountOptions] = useState<
-    ModuleFieldOption[]
-  >([]);
-
-  const [categoryOptions, setCategoryOptions] = useState<ModuleFieldOption[]>([]);
-  const [supplierOptions, setSupplierOptions] = useState<ModuleFieldOption[]>([]);
-  const [productOptions, setProductOptions] = useState<ModuleFieldOption[]>([]);
-
-  const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
-  const [isLoadingBranches, setIsLoadingBranches] = useState(false);
-  const [isLoadingCashAccounts, setIsLoadingCashAccounts] = useState(false);
-
-  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
-  const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
-
-  const currentCompanyId = getCurrentCompanyId();
-  const isSuperAdmin = isCurrentUserSuperAdmin();
-
-  const canChooseCompany = isSuperAdmin || !currentCompanyId;
-
-  const shouldFetchCompanies = hasField(inputFields, "company_id");
-  const shouldFetchBranches = hasField(inputFields, "branch_id");
-  const shouldFetchCashAccounts =
-    hasField(inputFields, "cash_account_id") ||
-    hasField(inputFields, "account_id") ||
-    hasField(inputFields, "accounts_id");
-
-  const shouldFetchCategories =
-    hasField(inputFields, "category_id") ||
-    hasField(inputFields, "parent_category_id");
-
-  const shouldFetchSuppliers = hasField(inputFields, "supplier_id");
-  const shouldFetchProducts = hasField(inputFields, "product_id");
-
-  function getModalCompanyId() {
-    if (canChooseCompany) {
-      const selectedCompanyId = String(values.company_id ?? "");
-
-      if (
-        selectedCompanyId &&
-        selectedCompanyId !== "all" &&
-        isValidUuid(selectedCompanyId)
-      ) {
-        return selectedCompanyId;
-      }
-
-      return "";
-    }
-
-    if (currentCompanyId && isValidUuid(currentCompanyId)) {
-      return currentCompanyId;
-    }
-
-    return "";
-  }
+  const companyId = String(values.company_id ?? "");
+  const canChooseCompany =
+    isCurrentUserSuperAdmin() || !getCurrentCompanyId();
 
   useEffect(() => {
     if (!open) return;
 
-    setValues(initialValues);
+    setValues(buildInitialValues(inputFields, initialRow));
+    setOptionsByKey({});
+    setLoadingKey({});
+    setSearchByKey({});
     setUploadingKey(null);
-    setBranchOptions([]);
-    setCashAccountOptions([]);
-
-    setCategoryOptions([]);
-    setSupplierOptions([]);
-    setProductOptions([]);
-  }, [open, initialValues]);
+  }, [open, inputFields, initialRow]);
 
   useEffect(() => {
-    if (!open || !shouldFetchCompanies) return;
+    if (!open) return;
 
-    let ignore = false;
+    let cancelled = false;
 
-    async function loadCompanies() {
-      try {
-        setIsLoadingCompanies(true);
+    async function loadLookups() {
+      const selectFields = inputFields.filter((field) => {
+        if (!isSelectField(field)) return false;
+        if (getStaticOptions(field).length > 0) return false;
 
-        const rows = await fetchCompanies();
+        return true;
+      });
 
-        if (ignore) return;
-
-        const options = rowsToOptions(rows);
-
-        if (!canChooseCompany && currentCompanyId) {
-          const existing = options.find(
-            (option) => option.value === currentCompanyId
-          );
-
-          const fixedCompanyOption = existing ?? {
-            label: "Company sedang login",
-            value: currentCompanyId,
-          };
-
-          setCompanyOptions([fixedCompanyOption]);
-
-          setValues((current) => ({
+      await Promise.all(
+        selectFields.map(async (field) => {
+          setLoadingKey((current) => ({
             ...current,
-            company_id: currentCompanyId,
+            [field.key]: true,
           }));
 
-          return;
-        }
+          try {
+            let rows: RawRow[] = [];
 
-        setCompanyOptions(options);
-      } finally {
-        if (!ignore) {
-          setIsLoadingCompanies(false);
-        }
-      }
+            if (field.key === "branch_id") {
+              rows = await fetchBranches(companyId);
+            } else {
+              const endpoints = lookupEndpointMap[field.key];
+
+              if (endpoints) {
+                const params: Record<string, unknown> = {
+                  limit: 100,
+                  sort_by: getSortBy(field.key),
+                  sort_order: "asc",
+                };
+
+                if (companyId && field.key !== "company_id") {
+                  params.company_id = companyId;
+                }
+
+                rows = await fetchRows(endpoints, params);
+
+                /**
+                 * Fallback:
+                 * employee dan leave type kadang endpoint-nya tidak pakai company_id.
+                 */
+                if (
+                  rows.length === 0 &&
+                  [
+                    "employee_id",
+                    "reviewer_id",
+                    "reviewer_user_id",
+                    "approved_by",
+                    "approved_by_id",
+                    "assigned_to",
+                    "assigned_by_id",
+                    "leave_type_id",
+                  ].includes(field.key)
+                ) {
+                  rows = await fetchRows(endpoints, {
+                    limit: 100,
+                    sort_by: getSortBy(field.key),
+                    sort_order: "asc",
+                  });
+                }
+              }
+            }
+
+            if (cancelled) return;
+
+            setOptionsByKey((current) => ({
+              ...current,
+              [field.key]: rowsToOptions(rows, field.key),
+            }));
+          } finally {
+            if (!cancelled) {
+              setLoadingKey((current) => ({
+                ...current,
+                [field.key]: false,
+              }));
+            }
+          }
+        })
+      );
     }
 
-    void loadCompanies();
+    void loadLookups();
 
     return () => {
-      ignore = true;
+      cancelled = true;
     };
-  }, [open, shouldFetchCompanies, canChooseCompany, currentCompanyId]);
-
-  useEffect(() => {
-    if (!open || !shouldFetchBranches) return;
-
-    const companyId = getModalCompanyId();
-
-    if (!companyId) {
-      setBranchOptions([]);
-      setIsLoadingBranches(false);
-      return;
-    }
-
-    let ignore = false;
-
-    async function loadBranches() {
-      try {
-        setIsLoadingBranches(true);
-
-        const rows = await fetchBranchesByCompany(companyId);
-        const options = rowsToOptions(rows);
-
-        if (ignore) return;
-
-        setBranchOptions(options);
-
-        if (!values.branch_id && options.length === 1) {
-          setValues((current) => ({
-            ...current,
-            branch_id: String(options[0].value),
-          }));
-        }
-      } finally {
-        if (!ignore) {
-          setIsLoadingBranches(false);
-        }
-      }
-    }
-
-    void loadBranches();
-
-    return () => {
-      ignore = true;
-    };
-  }, [
-    open,
-    shouldFetchBranches,
-    values.company_id,
-    canChooseCompany,
-    currentCompanyId,
-  ]);
-
-  useEffect(() => {
-    if (!open || !shouldFetchCashAccounts) return;
-
-    const companyId = getModalCompanyId();
-
-    if (!companyId) {
-      setCashAccountOptions([]);
-      setIsLoadingCashAccounts(false);
-      return;
-    }
-
-    let ignore = false;
-
-    async function loadCashAccounts() {
-      try {
-        setIsLoadingCashAccounts(true);
-
-        const rows = await fetchCashAccountsByCompany(companyId);
-        const options = rowsToCashAccountOptions(rows);
-
-        if (ignore) return;
-
-        setCashAccountOptions(options);
-
-        const selectedCashAccount =
-          values.cash_account_id || values.account_id || values.accounts_id;
-
-        if (!selectedCashAccount && options.length === 1) {
-          setValues((current) => ({
-            ...current,
-            cash_account_id: String(options[0].value),
-          }));
-        }
-      } finally {
-        if (!ignore) {
-          setIsLoadingCashAccounts(false);
-        }
-      }
-    }
-
-    void loadCashAccounts();
-
-    return () => {
-      ignore = true;
-    };
-  }, [
-    open,
-    shouldFetchCashAccounts,
-    values.company_id,
-    canChooseCompany,
-    currentCompanyId,
-  ]);
-
-  useEffect(() => {
-    if (!open || !shouldFetchCategories) return;
-
-    const companyId = getModalCompanyId();
-
-    if (!companyId) {
-      setCategoryOptions([]);
-      setIsLoadingCategories(false);
-      return;
-    }
-
-    let ignore = false;
-
-    async function loadCategories() {
-      try {
-        setIsLoadingCategories(true);
-
-        const rows = await fetchProductCategoriesByCompany(companyId);
-        const options = rowsToOptions(rows);
-
-        if (ignore) return;
-
-        setCategoryOptions(options);
-      } finally {
-        if (!ignore) {
-          setIsLoadingCategories(false);
-        }
-      }
-    }
-
-    void loadCategories();
-
-    return () => {
-      ignore = true;
-    };
-  }, [
-    open,
-    shouldFetchCategories,
-    values.company_id,
-    canChooseCompany,
-    currentCompanyId,
-  ]);
-
-  useEffect(() => {
-    if (!open || !shouldFetchSuppliers) return;
-
-    const companyId = getModalCompanyId();
-
-    if (!companyId) {
-      setSupplierOptions([]);
-      setIsLoadingSuppliers(false);
-      return;
-    }
-
-    let ignore = false;
-
-    async function loadSuppliers() {
-      try {
-        setIsLoadingSuppliers(true);
-
-        const rows = await fetchProductSuppliersByCompany(companyId);
-        const options = rowsToOptions(rows);
-
-        if (ignore) return;
-
-        setSupplierOptions(options);
-      } finally {
-        if (!ignore) {
-          setIsLoadingSuppliers(false);
-        }
-      }
-    }
-
-    void loadSuppliers();
-
-    return () => {
-      ignore = true;
-    };
-  }, [
-    open,
-    shouldFetchSuppliers,
-    values.company_id,
-    canChooseCompany,
-    currentCompanyId,
-  ]);
-
-  useEffect(() => {
-    if (!open || !shouldFetchProducts) return;
-
-    const companyId = getModalCompanyId();
-
-    if (!companyId) {
-      setProductOptions([]);
-      setIsLoadingProducts(false);
-      return;
-    }
-
-    let ignore = false;
-
-    async function loadProducts() {
-      try {
-        setIsLoadingProducts(true);
-
-        const rows = await fetchProductsByCompany(companyId);
-        const options = rowsToProductOptions(rows);
-
-        if (ignore) return;
-
-        setProductOptions(options);
-      } finally {
-        if (!ignore) {
-          setIsLoadingProducts(false);
-        }
-      }
-    }
-
-    void loadProducts();
-
-    return () => {
-      ignore = true;
-    };
-  }, [
-    open,
-    shouldFetchProducts,
-    values.company_id,
-    canChooseCompany,
-    currentCompanyId,
-  ]);
+  }, [open, inputFields, companyId]);
 
   function updateValue(key: string, value: string) {
     setValues((current) => {
@@ -1197,460 +601,298 @@ export function RecordModal({
       };
 
       if (key === "company_id") {
-        setBranchOptions([]);
-        setCashAccountOptions([]);
-
-        setCategoryOptions([]);
-        setSupplierOptions([]);
-        setProductOptions([]);
-
         next.branch_id = "";
-        next.cash_account_id = "";
-        next.account_id = "";
-        next.accounts_id = "";
-
-        next.category_id = "";
-        next.parent_category_id = "";
-        next.supplier_id = "";
+        next.employee_id = "";
+        next.leave_type_id = "";
         next.product_id = "";
-      }
-
-      if (
-        key === "amount" &&
-        hasField(inputFields, "total_amount") &&
-        (!current.total_amount || current.total_amount === current.amount)
-      ) {
-        next.total_amount = value;
-      }
-
-      if (
-        key === "amount" &&
-        hasField(inputFields, "subtotal_amount") &&
-        (!current.subtotal_amount || current.subtotal_amount === current.amount)
-      ) {
-        next.subtotal_amount = value;
+        next.category_id = "";
+        next.supplier_id = "";
       }
 
       return next;
     });
   }
 
-  function getFieldOptions(field: InputField): ModuleFieldOption[] {
-    if (field.key === "company_id") {
-      return companyOptions;
-    }
+  function getOptions(field: InputField) {
+    const staticOptions = getStaticOptions(field);
 
-    if (field.key === "branch_id") {
-      return branchOptions;
-    }
+    if (staticOptions.length > 0) return staticOptions;
 
-    if (
-      field.key === "cash_account_id" ||
-      field.key === "account_id" ||
-      field.key === "accounts_id"
-    ) {
-      return cashAccountOptions;
-    }
+    return optionsByKey[field.key] ?? [];
+  }
 
-    if (field.key === "category_id" || field.key === "parent_category_id") {
-      return categoryOptions;
-    }
+  function getFilteredOptions(field: InputField) {
+    const options = getOptions(field);
+    const keyword = String(searchByKey[field.key] ?? "").toLowerCase().trim();
 
-    if (field.key === "supplier_id") {
-      return supplierOptions;
-    }
+    if (!keyword) return options;
 
-    if (field.key === "product_id") {
-      return productOptions;
-    }
-
-    return getStaticOptions(field);
+    return options.filter((option) => {
+      return (
+        option.label.toLowerCase().includes(keyword) ||
+        option.value.toLowerCase().includes(keyword)
+      );
+    });
   }
 
   function getSelectPlaceholder(field: InputField) {
-    if (field.key === "company_id") {
-      if (isLoadingCompanies) return "Loading companies...";
-      if (!canChooseCompany && currentCompanyId) return "Company akun ini";
-      if (companyOptions.length === 0) return "Company belum tersedia";
+    if (loadingKey[field.key]) return `Loading ${field.label}...`;
 
-      return "Pilih Company";
+    if (field.key === "branch_id" && !companyId) {
+      return "Pilih company dulu";
     }
 
-    if (field.key === "branch_id") {
-      const companyId = getModalCompanyId();
-
-      if (!companyId) return "Pilih company dulu";
-      if (isLoadingBranches) return "Loading branches...";
-
-      if (branchOptions.length === 0) {
-        return "Branch belum tersedia";
-      }
-
-      return "Pilih Branch";
-    }
-
-    if (
-      field.key === "cash_account_id" ||
-      field.key === "account_id" ||
-      field.key === "accounts_id"
-    ) {
-      const companyId = getModalCompanyId();
-
-      if (!companyId) return "Pilih company dulu";
-      if (isLoadingCashAccounts) return "Loading cash accounts...";
-
-      if (cashAccountOptions.length === 0) {
-        return "Cash account belum tersedia";
-      }
-
-      return "Pilih Cash Account";
-    }
-
-    if (field.key === "category_id" || field.key === "parent_category_id") {
-      const companyId = getModalCompanyId();
-
-      if (!companyId) return "Pilih company dulu";
-      if (isLoadingCategories) return "Loading categories...";
-
-      if (categoryOptions.length === 0) {
-        return "Category belum tersedia";
-      }
-
-      return field.key === "parent_category_id"
-        ? "Pilih Parent Category"
-        : "Pilih Category";
-    }
-
-    if (field.key === "supplier_id") {
-      const companyId = getModalCompanyId();
-
-      if (!companyId) return "Pilih company dulu";
-      if (isLoadingSuppliers) return "Loading suppliers...";
-
-      if (supplierOptions.length === 0) {
-        return "Supplier belum tersedia";
-      }
-
-      return "Pilih Supplier";
-    }
-
-    if (field.key === "product_id") {
-      const companyId = getModalCompanyId();
-
-      if (!companyId) return "Pilih company dulu";
-      if (isLoadingProducts) return "Loading products...";
-
-      if (productOptions.length === 0) {
-        return "Product belum tersedia";
-      }
-
-      return "Pilih Product";
+    if (isSelectField(field) && getOptions(field).length === 0) {
+      return `${field.label} belum tersedia`;
     }
 
     return `Pilih ${field.label}`;
   }
 
-  function getSelectDisabled(field: InputField) {
-    if (isSubmitting || Boolean(uploadingKey)) return true;
+  function isSelectDisabled(field: InputField) {
+    if (isSubmitting || uploadingKey) return true;
 
-    if (field.key === "company_id") {
-      return isLoadingCompanies || !canChooseCompany;
-    }
+    if (field.key === "company_id" && !canChooseCompany) return true;
 
-    if (field.key === "branch_id") {
-      const companyId = getModalCompanyId();
+    if (field.key === "branch_id" && !companyId) return true;
 
-      return !companyId || isLoadingBranches;
-    }
-
-    if (
-      field.key === "cash_account_id" ||
-      field.key === "account_id" ||
-      field.key === "accounts_id"
-    ) {
-      const companyId = getModalCompanyId();
-
-      return !companyId || isLoadingCashAccounts;
-    }
-
-    if (field.key === "category_id" || field.key === "parent_category_id") {
-      return isLoadingCategories;
-    }
-
-    if (field.key === "supplier_id") {
-      return isLoadingSuppliers;
-    }
-
-    if (field.key === "product_id") {
-      return isLoadingProducts;
-    }
-
-    return false;
+    return Boolean(loadingKey[field.key]);
   }
 
-  async function handleUpload(field: InputField, file: File | null) {
-    if (!file) {
-      window.alert("File belum dipilih.");
-      return;
-    }
+  async function handleFileChange(
+    event: ChangeEvent<HTMLInputElement>,
+    field: InputField
+  ) {
+    const file = event.target.files?.[0];
 
-    const companyId = getModalCompanyId();
+    if (!file) return;
 
     try {
       setUploadingKey(field.key);
 
-      const uploadedUrl = await uploadRecordFile({
-        file,
-        fieldKey: field.key,
-        moduleKey,
-        companyId,
-      });
+      const url = await uploadRecordFile(file);
 
-      updateValue(field.key, uploadedUrl);
+      updateValue(field.key, url);
     } catch (error) {
-      console.error("Upload error:", error);
-      window.alert(
-        error instanceof Error
-          ? `Upload gagal:\n${error.message}`
-          : "Upload gagal. Cek console/network."
-      );
+      console.error(error);
+      alert(error instanceof Error ? error.message : "Upload gagal.");
     } finally {
       setUploadingKey(null);
+      event.target.value = "";
     }
-  }
-
-  function handleFileChange(
-    event: ChangeEvent<HTMLInputElement>,
-    field: InputField
-  ) {
-    const file = event.target.files?.[0] ?? null;
-
-    void handleUpload(field, file);
-
-    event.target.value = "";
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const row: ModuleRow = {
-      ...values,
-    };
-
-    const modalCompanyId = getModalCompanyId();
-
-    if (hasField(inputFields, "company_id") && modalCompanyId) {
-      row.company_id = modalCompanyId;
-    }
-
-    if (isFinanceTransaction({ title, moduleKey })) {
-      if (!row.transaction_type && row.type) {
-        row.transaction_type = row.type;
-        delete row.type;
-      }
-
-      if (!row.cashflow_activity) {
-        row.cashflow_activity = "operating";
-      }
-
-      if (!row.status) {
-        row.status = "draft";
-      }
-
-      if (row.amount && !row.total_amount) {
-        row.total_amount = row.amount;
-      }
-
-      if (row.amount && !row.subtotal_amount) {
-        row.subtotal_amount = row.amount;
-      }
-
-      if (!row.cash_account_id && row.account_id) {
-        row.cash_account_id = row.account_id;
-      }
-
-      if (!row.cash_account_id && row.accounts_id) {
-        row.cash_account_id = row.accounts_id;
-      }
-
-      delete row.account_id;
-      delete row.accounts_id;
-      delete row.account_name;
-    }
-
-    await onSubmit(row);
+    await onSubmit(values);
   }
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-900 dark:bg-[#050816]">
-        <div className="mb-6 flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm">
+      <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl dark:border-slate-900 dark:bg-[#050816]">
+        <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5 dark:border-slate-900">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700 dark:text-blue-400">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">
               {mode === "edit" ? "Edit Record" : "New Record"}
             </p>
 
-            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950 dark:text-white">
-              {mode === "edit" ? "Edit" : "Tambah"} {title}
+            <h2 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">
+              {title}
             </h2>
 
-            <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-500">
-              {moduleKey
-                ? `Module: ${moduleKey}`
-                : "Isi form sesuai kebutuhan data module."}
-            </p>
+            {moduleKey ? (
+              <p className="mt-1 text-sm font-semibold text-slate-500">
+                Module: {moduleKey}
+              </p>
+            ) : null}
           </div>
 
           <button
             type="button"
             onClick={onClose}
             disabled={isSubmitting || Boolean(uploadingKey)}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-900 dark:hover:bg-[#02040a]"
+            className="rounded-2xl border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:hover:bg-slate-900"
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 md:grid-cols-2">
-            {inputFields.map((field) => {
-              const fieldType = getFieldType(field);
-              const required = getFieldRequired(field);
-              const placeholder = getFieldPlaceholder(field);
-              const options = getFieldOptions(field);
-              const currentValue = String(values[field.key] ?? "");
-              const isUploading = uploadingKey === field.key;
-              const selectDisabled = getSelectDisabled(field);
+          <div className="max-h-[62vh] overflow-y-auto px-6 py-5">
+            <div className="grid gap-4 md:grid-cols-2">
+              {inputFields
+                .filter((field) => !isHiddenField(field))
+                .map((field) => {
+                  const fieldType = getFieldType(field);
+                  const required = getFieldRequired(field);
+                  const value = String(values[field.key] ?? "");
+                  const options = getFilteredOptions(field);
+                  const allOptions = getOptions(field);
+                  const isSearchable = searchableSelectKeys.has(field.key);
 
-              return (
-                <div
-                  key={field.key}
-                  className={
-                    fieldType === "textarea" || fieldType === "file"
-                      ? "md:col-span-2"
-                      : ""
-                  }
-                >
-                  <label className="mb-2 block text-xs font-black uppercase tracking-[0.12em] text-slate-500">
-                    {field.label}
-                    {required ? (
-                      <span className="text-rose-500"> *</span>
-                    ) : null}
-                  </label>
-
-                  {isTextareaField(field) ? (
-                    <textarea
-                      value={currentValue}
-                      required={required}
-                      onChange={(event) =>
-                        updateValue(field.key, event.target.value)
+                  return (
+                    <div
+                      key={field.key}
+                      className={
+                        isTextareaField(field) || isFileField(field)
+                          ? "space-y-2 md:col-span-2"
+                          : "space-y-2"
                       }
-                      placeholder={placeholder}
-                      className="min-h-28 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800 outline-none transition focus:border-blue-600 dark:border-slate-900 dark:bg-[#02040a] dark:text-white"
-                    />
-                  ) : isSelectField(field) ? (
-                    <select
-                      value={currentValue}
-                      required={required}
-                      disabled={selectDisabled}
-                      onChange={(event) =>
-                        updateValue(field.key, event.target.value)
-                      }
-                      className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-800 outline-none transition focus:border-blue-600 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-900 dark:bg-[#02040a] dark:text-white dark:disabled:bg-slate-900"
                     >
-                      <option value="">{getSelectPlaceholder(field)}</option>
+                      <label className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                        {field.label}
+                        {required ? (
+                          <span className="text-rose-500"> *</span>
+                        ) : null}
+                      </label>
 
-                      {options.map((option) => (
-                        <option
-                          key={String(option.value)}
-                          value={String(option.value)}
-                        >
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  ) : isFileField(field) ? (
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-900 dark:bg-[#02040a]">
-                      <div className="flex flex-col gap-4 md:flex-row md:items-center">
-                        <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-900 dark:bg-[#050816]">
-                          {currentValue && isPreviewableImage(currentValue) ? (
-                            <img
-                              src={currentValue}
-                              alt={field.label}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <ImagePlus
-                              size={30}
-                              className="text-slate-400 dark:text-slate-600"
-                            />
-                          )}
-                        </div>
+                      {isTextareaField(field) ? (
+                        <textarea
+                          value={value}
+                          required={required}
+                          disabled={isSubmitting || Boolean(uploadingKey)}
+                          placeholder={getFieldPlaceholder(field)}
+                          onChange={(event) =>
+                            updateValue(field.key, event.target.value)
+                          }
+                          className="min-h-28 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800 outline-none transition focus:border-blue-600 disabled:bg-slate-100 dark:border-slate-900 dark:bg-[#02040a] dark:text-white"
+                        />
+                      ) : isSelectField(field) ? (
+                        <div className="space-y-2">
+                          {isSearchable ? (
+                            <div className="relative">
+                              <Search
+                                size={16}
+                                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                              />
 
-                        <div className="flex-1">
-                          <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-2xl bg-[#0f2a5f] px-4 text-sm font-black text-white transition hover:bg-blue-950 dark:bg-blue-700 dark:hover:bg-blue-600">
-                            {isUploading ? (
-                              <Loader2 size={17} className="animate-spin" />
-                            ) : (
-                              <UploadCloud size={17} />
-                            )}
+                              <input
+                                type="text"
+                                value={searchByKey[field.key] ?? ""}
+                                disabled={isSelectDisabled(field)}
+                                onChange={(event) =>
+                                  setSearchByKey((current) => ({
+                                    ...current,
+                                    [field.key]: event.target.value,
+                                  }))
+                                }
+                                placeholder={`Search ${field.label.toLowerCase()}...`}
+                                className="h-10 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 text-sm font-bold text-slate-800 outline-none transition focus:border-blue-600 disabled:bg-slate-100 dark:border-slate-900 dark:bg-[#02040a] dark:text-white"
+                              />
+                            </div>
+                          ) : null}
 
-                            {isUploading ? "Uploading..." : "Upload File"}
-
-                            <input
-                              type="file"
-                              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
-                              className="hidden"
-                              disabled={isUploading}
-                              required={required && !currentValue}
-                              onChange={(event) =>
-                                handleFileChange(event, field)
-                              }
-                            />
-                          </label>
-
-                          <input
-                            type="text"
-                            value={currentValue}
+                          <select
+                            value={value}
+                            required={required}
+                            disabled={isSelectDisabled(field)}
                             onChange={(event) =>
                               updateValue(field.key, event.target.value)
                             }
-                            placeholder="URL file akan muncul otomatis setelah upload"
-                            className="mt-3 h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-800 outline-none transition focus:border-blue-600 dark:border-slate-900 dark:bg-[#050816] dark:text-white"
-                          />
+                            className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-800 outline-none transition focus:border-blue-600 disabled:bg-slate-100 dark:border-slate-900 dark:bg-[#02040a] dark:text-white"
+                          >
+                            <option value="">{getSelectPlaceholder(field)}</option>
 
-                          <p className="mt-2 text-xs leading-5 text-slate-500">
-                            Setelah file berhasil di-upload, URL-nya akan masuk
-                            ke field <b>{field.key}</b>.
-                          </p>
+                            {options.map((option) => (
+                              <option
+                                key={option.value}
+                                value={option.value}
+                              >
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+
+                          {isSearchable && allOptions.length > 0 ? (
+                            <p className="text-xs font-semibold text-slate-400">
+                              {options.length} dari {allOptions.length} pilihan
+                              tersedia.
+                            </p>
+                          ) : null}
                         </div>
-                      </div>
+                      ) : isFileField(field) ? (
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-900 dark:bg-[#02040a]">
+                          <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                            <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-900 dark:bg-[#050816]">
+                              {value && isPreviewableImage(value) ? (
+                                <img
+                                  src={value}
+                                  alt={field.label}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <ImagePlus
+                                  size={30}
+                                  className="text-slate-400"
+                                />
+                              )}
+                            </div>
+
+                            <div className="flex-1">
+                              <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-2xl bg-[#0f2a5f] px-4 text-sm font-black text-white transition hover:bg-blue-950">
+                                {uploadingKey === field.key ? (
+                                  <Loader2
+                                    size={17}
+                                    className="animate-spin"
+                                  />
+                                ) : (
+                                  <UploadCloud size={17} />
+                                )}
+
+                                {uploadingKey === field.key
+                                  ? "Uploading..."
+                                  : "Upload File"}
+
+                                <input
+                                  type="file"
+                                  className="hidden"
+                                  disabled={Boolean(uploadingKey)}
+                                  onChange={(event) =>
+                                    handleFileChange(event, field)
+                                  }
+                                />
+                              </label>
+
+                              <input
+                                type="text"
+                                value={value}
+                                onChange={(event) =>
+                                  updateValue(field.key, event.target.value)
+                                }
+                                placeholder="URL file"
+                                className="mt-3 h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-800 outline-none transition focus:border-blue-600 dark:border-slate-900 dark:bg-[#050816] dark:text-white"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <input
+                          type={getInputType(fieldType)}
+                          value={value}
+                          required={required}
+                          disabled={isSubmitting || Boolean(uploadingKey)}
+                          placeholder={getFieldPlaceholder(field)}
+                          onChange={(event) =>
+                            updateValue(field.key, event.target.value)
+                          }
+                          className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-800 outline-none transition focus:border-blue-600 disabled:bg-slate-100 dark:border-slate-900 dark:bg-[#02040a] dark:text-white"
+                        />
+                      )}
                     </div>
-                  ) : (
-                    <input
-                      type={getInputType(fieldType)}
-                      value={currentValue}
-                      required={required}
-                      onChange={(event) =>
-                        updateValue(field.key, event.target.value)
-                      }
-                      placeholder={placeholder}
-                      className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-800 outline-none transition focus:border-blue-600 dark:border-slate-900 dark:bg-[#02040a] dark:text-white"
-                    />
-                  )}
-                </div>
-              );
-            })}
+                  );
+                })}
+            </div>
           </div>
 
-          <div className="mt-7 flex justify-end gap-3">
+          <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-5 dark:border-slate-900">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting || Boolean(uploadingKey)}
-              className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-black text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-900 dark:bg-[#02040a] dark:text-slate-300 dark:hover:bg-[#0b1120]"
+              className="h-11 rounded-2xl border border-slate-200 px-5 text-sm font-black text-slate-600 transition hover:bg-slate-100 disabled:opacity-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
             >
               Cancel
             </button>
@@ -1658,13 +900,13 @@ export function RecordModal({
             <button
               type="submit"
               disabled={isSubmitting || Boolean(uploadingKey)}
-              className="rounded-2xl bg-[#0f2a5f] px-5 py-2.5 text-sm font-black text-white transition hover:bg-blue-950 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-blue-700 dark:hover:bg-blue-600"
+              className="inline-flex h-11 items-center gap-2 rounded-2xl bg-[#0f2a5f] px-5 text-sm font-black text-white transition hover:bg-blue-950 disabled:opacity-60"
             >
-              {isSubmitting
-                ? "Saving..."
-                : mode === "edit"
-                  ? "Update Record"
-                  : "Save Record"}
+              {isSubmitting ? (
+                <Loader2 size={17} className="animate-spin" />
+              ) : null}
+
+              {mode === "edit" ? "Save Changes" : "Create Record"}
             </button>
           </div>
         </form>

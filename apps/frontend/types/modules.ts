@@ -1,16 +1,19 @@
-import type { LucideIcon } from "lucide-react";
+import type { ComponentType } from "react";
 
-export type ModuleMetric = {
-  label: string;
-  value: string;
-  helper: string;
-  trend?: string;
-};
+export type ModuleRow = Record<string, any>;
 
-export type ModuleColumn = {
-  key: string;
-  label: string;
-};
+export type ModuleFieldType =
+  | "text"
+  | "email"
+  | "password"
+  | "number"
+  | "date"
+  | "datetime-local"
+  | "time"
+  | "select"
+  | "textarea"
+  | "file"
+  | "hidden";
 
 export type ModuleFieldOption = {
   label: string;
@@ -20,42 +23,63 @@ export type ModuleFieldOption = {
 export type ModuleField = {
   key: string;
   label: string;
-  type?:
-    | "text"
-    | "number"
-    | "date"
-    | "datetime-local"
-    | "textarea"
-    | "select"
-    | "email"
-    | "password"
-    | "file";
-  placeholder?: string;
+  type?: ModuleFieldType;
   required?: boolean;
+  placeholder?: string;
   options?: ModuleFieldOption[];
+  disabled?: boolean;
+  readOnly?: boolean;
+  hidden?: boolean;
+  accept?: string;
+  helper?: string;
 };
 
-export type ModuleRow = Record<string, string>;
+export type ModuleColumn = {
+  key: string;
+  label: string;
+  hidden?: boolean;
+  className?: string;
+};
+
+export type ModuleMetric = {
+  label: string;
+  value: string;
+  helper?: string;
+  trend?: string;
+};
+
+export type ModuleData = {
+  rows: ModuleRow[];
+  metrics?: ModuleMetric[];
+  aiNotes?: string[];
+};
+
+export type ModuleIcon = ComponentType<{
+  size?: number;
+  className?: string;
+  strokeWidth?: number;
+}>;
+
+export type ModuleAction = {
+  label: string;
+  icon?: ModuleIcon;
+  onClick?: () => void | Promise<void>;
+  href?: string;
+  disabled?: boolean;
+  variant?: "primary" | "secondary" | "danger";
+};
 
 export type ModuleConfig = {
   badge: string;
   title: string;
-  description: string;
-  icon: LucideIcon;
-  columns: ModuleColumn[];
-  formFields?: ModuleField[];
-  detailFields?: ModuleField[];
+  description?: string;
+  icon?: ModuleIcon;
   tableTitle?: string;
   tableDescription?: string;
-};
-
-export type ModuleData = {
-  metrics: ModuleMetric[];
-  rows: ModuleRow[];
-  aiNotes: string[];
-};
-
-export type ModuleAction = {
-  label: string;
-  variant?: "primary" | "secondary";
+  columns: ModuleColumn[];
+  formFields: ModuleField[];
+  detailFields?: ModuleField[];
+  createButtonLabel?: string;
+  emptyTitle?: string;
+  emptyDescription?: string;
 };

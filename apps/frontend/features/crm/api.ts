@@ -19,6 +19,7 @@ const endpointMap: Record<CRMModuleKey, string> = {
   contacts: "/api/v1/crm/contacts",
   deals: "/api/v1/crm/deals",
   activities: "/api/v1/crm/activities",
+  campaigns: "/api/v1/crm/campaigns",
 };
 
 const sortMap: Record<CRMModuleKey, string> = {
@@ -26,11 +27,11 @@ const sortMap: Record<CRMModuleKey, string> = {
   contacts: "created_at",
   deals: "created_at",
   activities: "created_at",
+  campaigns: "created_at",
 };
 
 function normalizeRows(data: unknown): ModuleRow[] {
   if (Array.isArray(data)) return data as ModuleRow[];
-
   if (!data || typeof data !== "object") return [];
 
   const record = data as ApiListResponse;
@@ -57,10 +58,7 @@ function pick(row: ModuleRow, keys: string[]) {
 
 function parseMoneyNumber(value: unknown) {
   if (value === undefined || value === null || value === "") return null;
-
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : null;
-  }
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
 
   const raw = String(value)
     .replaceAll("Rp", "")
@@ -71,9 +69,6 @@ function parseMoneyNumber(value: unknown) {
   if (!raw) return null;
 
   const cleaned = raw.replace(/[^\d.,-]/g, "");
-
-  if (!cleaned) return null;
-
   const hasComma = cleaned.includes(",");
   const hasDot = cleaned.includes(".");
 
@@ -83,34 +78,21 @@ function parseMoneyNumber(value: unknown) {
     const lastCommaIndex = cleaned.lastIndexOf(",");
     const lastDotIndex = cleaned.lastIndexOf(".");
 
-    if (lastCommaIndex > lastDotIndex) {
-      normalized = cleaned.replaceAll(".", "").replace(",", ".");
-    } else {
-      normalized = cleaned.replaceAll(",", "");
-    }
+    normalized =
+      lastCommaIndex > lastDotIndex
+        ? cleaned.replaceAll(".", "").replace(",", ".")
+        : cleaned.replaceAll(",", "");
   } else if (hasDot) {
     const parts = cleaned.split(".");
-
-    if (parts.length === 2 && parts[1].length <= 6) {
-      normalized = cleaned;
-    } else {
-      normalized = cleaned.replaceAll(".", "");
-    }
+    normalized = parts.length === 2 && parts[1].length <= 6 ? cleaned : cleaned.replaceAll(".", "");
   } else if (hasComma) {
     const parts = cleaned.split(",");
-
-    if (parts.length === 2 && parts[1].length <= 2) {
-      normalized = cleaned.replace(",", ".");
-    } else {
-      normalized = cleaned.replaceAll(",", "");
-    }
+    normalized = parts.length === 2 && parts[1].length <= 2 ? cleaned.replace(",", ".") : cleaned.replaceAll(",", "");
   }
 
   const parsed = Number(normalized);
 
-  if (Number.isNaN(parsed)) return null;
-
-  return parsed;
+  return Number.isNaN(parsed) ? null : parsed;
 }
 
 function formatRupiah(value: unknown) {
@@ -127,24 +109,17 @@ function formatRupiah(value: unknown) {
 
 function normalizeLeadRows(rows: ModuleRow[]) {
   return rows.map((row) => {
-    const rawEstimatedValue = pick(row, [
-      "estimated_value",
-      "value",
-      "amount",
-    ]);
+    const rawEstimatedValue = pick(row, ["estimated_value", "value", "amount"]);
 
     return {
       ...row,
-
       name: pick(row, ["name", "lead_name", "full_name"]),
       company_name: pick(row, ["company_name", "customer_company_name"]),
       email: pick(row, ["email"]),
       phone: pick(row, ["phone"]),
       source: pick(row, ["source"]),
-
       estimated_value_raw: rawEstimatedValue,
       estimated_value: formatRupiah(rawEstimatedValue),
-
       status: pick(row, ["status"]),
     };
   });
@@ -164,30 +139,17 @@ function normalizeContactRows(rows: ModuleRow[]) {
 
 function normalizeDealRows(rows: ModuleRow[]) {
   return rows.map((row) => {
-    const rawExpectedValue = pick(row, [
-      "expected_value",
-      "amount",
-      "value",
-    ]);
+    const rawExpectedValue = pick(row, ["expected_value", "amount", "value"]);
 
     return {
       ...row,
-
       title: pick(row, ["title", "deal_title", "name"]),
       lead_name: pick(row, ["lead_name", "lead"]),
       contact_name: pick(row, ["contact_name", "contact"]),
-
       expected_value_raw: rawExpectedValue,
       expected_value: formatRupiah(rawExpectedValue),
-
-      probability_percent: pick(row, [
-        "probability_percent",
-        "probability",
-      ]),
-      expected_close_date: pick(row, [
-        "expected_close_date",
-        "close_date",
-      ]),
+      probability_percent: pick(row, ["probability_percent", "probability"]),
+      expected_close_date: pick(row, ["expected_close_date", "close_date"]),
       stage: pick(row, ["stage", "status"]),
     };
   });
@@ -201,9 +163,27 @@ function normalizeActivityRows(rows: ModuleRow[]) {
     lead_name: pick(row, ["lead_name", "lead"]),
     contact_name: pick(row, ["contact_name", "contact"]),
     deal_title: pick(row, ["deal_title", "deal_name", "deal"]),
-    activity_date: pick(row, ["activity_date", "scheduled_at", "created_at"]),
+    activity_date: pick(row, ["activity_date", "due_at", "scheduled_at", "created_at"]),
     status: pick(row, ["status"]),
   }));
+}
+
+function normalizeCampaignRows(rows: ModuleRow[]) {
+  return rows.map((row) => {
+    const budget = pick(row, ["budget_amount", "budget", "amount"]);
+
+    return {
+      ...row,
+      name: pick(row, ["name", "campaign_name", "title"]),
+      channel: pick(row, ["channel", "source"]),
+      budget_amount: budget,
+      budget_amount_display: formatRupiah(budget),
+      leads_count: pick(row, ["leads_count", "lead_count", "leads"]),
+      start_date: pick(row, ["start_date"]),
+      end_date: pick(row, ["end_date"]),
+      status: pick(row, ["status"]),
+    };
+  });
 }
 
 function normalizeByModule(moduleKey: CRMModuleKey, rows: ModuleRow[]) {
@@ -211,33 +191,19 @@ function normalizeByModule(moduleKey: CRMModuleKey, rows: ModuleRow[]) {
   if (moduleKey === "contacts") return normalizeContactRows(rows);
   if (moduleKey === "deals") return normalizeDealRows(rows);
   if (moduleKey === "activities") return normalizeActivityRows(rows);
+  if (moduleKey === "campaigns") return normalizeCampaignRows(rows);
 
   return rows;
 }
 
-function buildMetrics(
-  moduleKey: CRMModuleKey,
-  rows: ModuleRow[]
-): ModuleMetric[] {
+function buildMetrics(moduleKey: CRMModuleKey, rows: ModuleRow[]): ModuleMetric[] {
   const total = rows.length;
+  const statusText = (row: ModuleRow) => String(row.status ?? row.stage ?? "").toLowerCase();
 
-  const won = rows.filter((row) =>
-    ["won", "converted", "done"].includes(
-      String(row.status ?? row.stage ?? "").toLowerCase()
-    )
-  ).length;
-
+  const won = rows.filter((row) => ["won", "converted", "done", "completed"].includes(statusText(row))).length;
   const needFollowUp = rows.filter((row) =>
-    [
-      "new",
-      "contacted",
-      "qualified",
-      "prospecting",
-      "proposal",
-      "negotiation",
-      "planned",
-    ].some((status) =>
-      String(row.status ?? row.stage ?? "").toLowerCase().includes(status)
+    ["new", "contacted", "qualified", "prospecting", "proposal", "negotiation", "planned", "draft", "running"].some((status) =>
+      statusText(row).includes(status)
     )
   ).length;
 
@@ -248,22 +214,19 @@ function buildMetrics(
       helper: `Total data CRM ${moduleKey}.`,
     },
     {
-      label: "Won / Converted",
+      label: "Won / Completed",
       value: String(won),
-      helper: "Deal won, lead converted, atau activity done.",
+      helper: "Deal won, lead converted, activity done, atau campaign completed.",
     },
     {
       label: "Need Follow Up",
       value: String(needFollowUp),
-      helper: "Lead/deal/activity yang masih perlu ditindaklanjuti.",
+      helper: "Data CRM yang masih perlu ditindaklanjuti.",
     },
   ];
 }
 
-export async function getCRMModuleData({
-  moduleKey,
-  companyId,
-}: GetCRMModuleDataParams) {
+export async function getCRMModuleData({ moduleKey, companyId }: GetCRMModuleDataParams) {
   const endpoint = endpointMap[moduleKey];
 
   const response = await api.get(endpoint, {

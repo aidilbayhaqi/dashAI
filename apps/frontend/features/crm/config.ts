@@ -1,6 +1,7 @@
 import {
   Activity,
   BadgeDollarSign,
+  Megaphone,
   ContactRound,
   UserRoundPlus,
 } from "lucide-react";
@@ -238,6 +239,67 @@ const activityFormFields: ModuleField[] = [
   },
 ];
 
+
+const campaignFormFields: ModuleField[] = [
+  ...companyBranchFields,
+  {
+    key: "name",
+    label: "Campaign Name",
+    placeholder: "Campaign Ramadhan / Launching Product",
+    required: true,
+  },
+  {
+    key: "channel",
+    label: "Channel",
+    type: "select",
+    options: [
+      { label: "Instagram", value: "instagram" },
+      { label: "WhatsApp", value: "whatsapp" },
+      { label: "Email", value: "email" },
+      { label: "Website", value: "website" },
+      { label: "Referral", value: "referral" },
+      { label: "Other", value: "other" },
+    ],
+  },
+  {
+    key: "budget_amount",
+    label: "Budget Amount",
+    type: "number",
+  },
+  {
+    key: "leads_count",
+    label: "Leads Count",
+    type: "number",
+  },
+  {
+    key: "start_date",
+    label: "Start Date",
+    type: "date",
+  },
+  {
+    key: "end_date",
+    label: "End Date",
+    type: "date",
+  },
+  {
+    key: "status",
+    label: "Status",
+    type: "select",
+    options: [
+      { label: "Draft", value: "draft" },
+      { label: "Running", value: "running" },
+      { label: "Paused", value: "paused" },
+      { label: "Completed", value: "completed" },
+      { label: "Cancelled", value: "cancelled" },
+    ],
+  },
+  {
+    key: "notes",
+    label: "Notes",
+    type: "textarea",
+  },
+];
+
 export const crmModuleConfig: Record<CRMModuleKey, ModuleConfig> = {
   leads: {
     badge: "CRM / Leads",
@@ -316,5 +378,25 @@ export const crmModuleConfig: Record<CRMModuleKey, ModuleConfig> = {
       { key: "status", label: "Status" },
     ],
     formFields: activityFormFields,
+  },
+
+  campaigns: {
+    badge: "CRM / Campaigns",
+    title: "Campaigns",
+    description:
+      "Kelola campaign marketing, channel, budget, jumlah leads, periode, dan status campaign.",
+    icon: Megaphone,
+    tableTitle: "Campaign Records",
+    tableDescription: "Daftar campaign CRM berdasarkan company, channel, budget, dan status.",
+    columns: [
+      { key: "name", label: "Campaign" },
+      { key: "channel", label: "Channel" },
+      { key: "budget_amount_display", label: "Budget" },
+      { key: "leads_count", label: "Leads" },
+      { key: "start_date", label: "Start Date" },
+      { key: "end_date", label: "End Date" },
+      { key: "status", label: "Status" },
+    ],
+    formFields: campaignFormFields,
   },
 };
