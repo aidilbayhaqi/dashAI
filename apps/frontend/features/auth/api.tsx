@@ -1,8 +1,11 @@
-import { api } from "@/lib/api";
+import {
+  api,
+} from "@/lib/api";
 
 import {
   clearAuthSession,
   setAuthSession,
+  setAuthUser,
 } from "@/lib/auth";
 
 import type {
@@ -15,13 +18,20 @@ import type {
 
 
 function cleanOptionalString(
-  value: string | null | undefined
+  value:
+    | string
+    | null
+    | undefined
 ): string | undefined {
-  const normalized = String(
-    value ?? ""
-  ).trim();
+  const normalized =
+    String(
+      value ?? ""
+    ).trim();
 
-  return normalized || undefined;
+  return (
+    normalized
+    || undefined
+  );
 }
 
 
@@ -33,27 +43,32 @@ function prepareRegisterPayload(
       payload.account_type,
 
     full_name:
-      payload.full_name.trim(),
+      payload
+        .full_name
+        .trim(),
 
     email:
-      payload.email
+      payload
+        .email
         .trim()
         .toLowerCase(),
 
-    phone: cleanOptionalString(
-      payload.phone
-    ),
+    phone:
+      cleanOptionalString(
+        payload.phone
+      ),
 
     password:
       payload.password,
 
     confirm_password:
-      payload.confirm_password,
+      payload
+        .confirm_password,
   };
 
   if (
-    payload.account_type ===
-    "company_user"
+    payload.account_type
+    === "company_user"
   ) {
     return {
       ...commonPayload,
@@ -70,7 +85,8 @@ function prepareRegisterPayload(
 
       department_name:
         cleanOptionalString(
-          payload.department_name
+          payload
+            .department_name
         ),
     };
   }
@@ -100,7 +116,8 @@ function prepareRegisterPayload(
 
     company_industry:
       cleanOptionalString(
-        payload.company_industry
+        payload
+          .company_industry
       ),
 
     company_size:
@@ -156,21 +173,26 @@ export async function login(
 
 export async function getRegisterCompanies(
   search?: string
-): Promise<RegisterCompanyOption[]> {
-  const response = await api.get<
-    RegisterCompanyOption[]
-  >(
-    "/api/v1/auth/register/companies",
-    {
-      params: {
-        search:
-          search?.trim() ||
-          undefined,
-      },
-    }
-  );
+): Promise<
+  RegisterCompanyOption[]
+> {
+  const response =
+    await api.get<
+      RegisterCompanyOption[]
+    >(
+      "/api/v1/auth/register/companies",
+      {
+        params: {
+          search:
+            search?.trim()
+            || undefined,
+        },
+      }
+    );
 
-  return Array.isArray(response.data)
+  return Array.isArray(
+    response.data
+  )
     ? response.data
     : [];
 }
@@ -182,13 +204,11 @@ export async function register(
   const response =
     await api.post<LoginResponse>(
       "/api/v1/auth/register",
-      prepareRegisterPayload(payload)
+      prepareRegisterPayload(
+        payload
+      )
     );
 
-  /*
-   * Backend register mengembalikan LoginResponse,
-   * sehingga user langsung dianggap login.
-   */
   setAuthSession(
     response.data.token,
     response.data.user
@@ -198,31 +218,27 @@ export async function register(
 }
 
 
-export async function getMe(): Promise<AuthUser> {
+export async function getMe():
+Promise<AuthUser> {
   const response =
     await api.get<AuthUser>(
       "/api/v1/auth/me"
     );
 
+  setAuthUser(
+    response.data
+  );
+
   return response.data;
 }
 
 
-export async function logout(): Promise<void> {
-  const refreshToken =
-    typeof window !== "undefined"
-      ? sessionStorage.getItem(
-          "dashai_refresh_token"
-        )
-      : null;
-
+export async function logout():
+Promise<void> {
   try {
     await api.post(
       "/api/v1/auth/logout",
-      {
-        refresh_token:
-          refreshToken,
-      }
+      {}
     );
   } finally {
     clearAuthSession();
@@ -233,41 +249,53 @@ export async function logout(): Promise<void> {
 export function getAuthApiError(
   error: unknown
 ): string {
-  const candidate = error as {
-    message?: string;
+  const candidate =
+    error as {
+      message?: string;
 
-    response?: {
-      status?: number;
+      response?: {
+        status?: number;
 
-      data?: {
-        detail?: unknown;
-        message?: unknown;
+        data?: {
+          detail?: unknown;
+          message?: unknown;
+        };
       };
     };
-  };
 
   const detail =
-    candidate.response?.data?.detail;
+    candidate
+      .response
+      ?.data
+      ?.detail;
 
-  if (typeof detail === "string") {
+  if (
+    typeof detail
+    === "string"
+  ) {
     return detail;
   }
 
-  if (Array.isArray(detail)) {
+  if (
+    Array.isArray(
+      detail
+    )
+  ) {
     return detail
       .map((item) => {
         if (
-          typeof item === "object" &&
-          item !== null &&
-          "msg" in item
+          typeof item
+            === "object"
+          && item !== null
+          && "msg" in item
         ) {
           return String(
             (
               item as {
                 msg?: unknown;
               }
-            ).msg ??
-              "Data tidak valid"
+            ).msg
+            ?? "Data tidak valid"
           );
         }
 
@@ -277,48 +305,71 @@ export function getAuthApiError(
   }
 
   const message =
-    candidate.response?.data?.message;
+    candidate
+      .response
+      ?.data
+      ?.message;
 
-  if (typeof message === "string") {
+  if (
+    typeof message
+    === "string"
+  ) {
     return message;
   }
 
   if (
-    candidate.response?.status === 404
+    candidate
+      .response
+      ?.status
+    === 404
   ) {
     return (
-      "Endpoint atau company tidak ditemukan. " +
-      "Pastikan backend terbaru sedang berjalan."
+      "Endpoint atau company "
+      + "tidak ditemukan. "
+      + "Pastikan backend terbaru "
+      + "sedang berjalan."
     );
   }
 
   if (
-    candidate.response?.status === 409
+    candidate
+      .response
+      ?.status
+    === 409
   ) {
     return (
-      "Email atau company sudah terdaftar."
+      "Email atau company "
+      + "sudah terdaftar."
     );
   }
 
   if (
-    candidate.response?.status === 422
+    candidate
+      .response
+      ?.status
+    === 422
   ) {
     return (
-      "Data register belum lengkap atau tidak valid."
+      "Data register belum "
+      + "lengkap atau tidak valid."
     );
   }
 
   if (
-    candidate.response?.status === 429
+    candidate
+      .response
+      ?.status
+    === 429
   ) {
     return (
-      "Terlalu banyak percobaan. " +
-      "Silakan tunggu beberapa saat."
+      "Terlalu banyak percobaan. "
+      + "Silakan tunggu "
+      + "beberapa saat."
     );
   }
 
   return (
-    candidate.message ??
-    "Registrasi gagal diproses."
+    candidate.message
+    ?? "Registrasi gagal diproses."
   );
 }

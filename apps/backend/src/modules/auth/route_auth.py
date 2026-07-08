@@ -1,49 +1,55 @@
+from typing import Annotated
+
 from fastapi import (
     APIRouter,
+    Cookie,
     Depends,
+    HTTPException,
     Query,
+    Request,
+    Response,
     status,
 )
-
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
 )
 
+from src.core.config import settings
 from src.db.database import get_db
-
 from src.modules.auth.schema_auth import (
     AuthUserResponse,
     LoginRequest,
     LoginResponse,
-    LogoutRequest,
-    RefreshTokenRequest,
     RegisterCompanyOption,
     RegisterRequest,
     TokenResponse,
 )
-
 from src.modules.auth.service_auth import (
     AuthService,
 )
-
+from src.security.authentication.cookies import (
+    clear_refresh_cookie,
+    set_refresh_cookie,
+    verify_trusted_origin,
+)
 from src.security.authentication.jwt import (
     decode_token,
 )
-
 from src.security.authentication.token_store import (
     revoke_refresh_token,
 )
-
 from src.security.dependencies import (
     CurrentUser,
     get_current_user,
-    revoke_current_access_token,
+    revoke_access_token_if_present,
 )
 
 
 router = APIRouter(
     prefix="/auth",
-    tags=["Authentication"],
+    tags=[
+        "Authentication"
+    ],
 )
 
 
@@ -62,51 +68,65 @@ async def get_register_companies(
         get_db
     ),
 ):
-    """
-    Endpoint public untuk menampilkan
-    daftar company aktif pada halaman
-    register user.
-    """
-
     service = AuthService(db)
 
-    return await service.get_register_companies(
-        search=search
+    return await (
+        service
+        .get_register_companies(
+            search=search
+        )
     )
 
 
 @router.post(
     "/register",
     response_model=LoginResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=(
+        status.HTTP_201_CREATED
+    ),
 )
 async def register(
     payload: RegisterRequest,
+    request: Request,
+    response: Response,
     db: AsyncSession = Depends(
         get_db
     ),
 ):
-    """
-    company_owner:
-    - membuat company baru
-    - membuat Head Office
-    - membuat role owner, admin, staff
-    - membuat satu akun owner
-    - login otomatis
-
-    company_user:
-    - menggunakan company existing
-    - membuat akun user
-    - memberikan role staff
-    - memberikan akses Head Office
-    - login otomatis
-    """
+    verify_trusted_origin(
+        request
+    )
 
     service = AuthService(db)
 
-    return await service.register(
+    result = await service.register(
         payload
     )
+
+    refresh_token = (
+        result
+        .token
+        .refresh_token
+    )
+
+    if not refresh_token:
+        raise HTTPException(
+            status_code=(
+                status
+                .HTTP_500_INTERNAL_SERVER_ERROR
+            ),
+            detail=(
+                "Refresh session "
+                "gagal dibuat"
+            ),
+        )
+
+    set_refresh_cookie(
+        response,
+        refresh_token,
+    )
+
+    return result
 
 
 @router.post(
@@ -115,17 +135,50 @@ async def register(
 )
 async def login(
     payload: LoginRequest,
+    request: Request,
+    response: Response,
     db: AsyncSession = Depends(
         get_db
     ),
 ):
+    verify_trusted_origin(
+        request
+    )
+
     service = AuthService(db)
 
-    return await service.login(
+    result = await service.login(
         email=payload.email,
         password=payload.password,
-        company_id=payload.company_id,
+        company_id=(
+            payload.company_id
+        ),
     )
+
+    refresh_token = (
+        result
+        .token
+        .refresh_token
+    )
+
+    if not refresh_token:
+        raise HTTPException(
+            status_code=(
+                status
+                .HTTP_500_INTERNAL_SERVER_ERROR
+            ),
+            detail=(
+                "Refresh session "
+                "gagal dibuat"
+            ),
+        )
+
+    set_refresh_cookie(
+        response,
+        refresh_token,
+    )
+
+    return result
 
 
 @router.post(
@@ -133,46 +186,147 @@ async def login(
     response_model=TokenResponse,
 )
 async def refresh_token(
-    payload: RefreshTokenRequest,
+    request: Request,
+    response: Response,
+
+    refresh_cookie: Annotated[
+        str | None,
+        Cookie(
+            alias=(
+                settings
+                .REFRESH_COOKIE_NAME
+            ),
+        ),
+    ] = None,
+
     db: AsyncSession = Depends(
         get_db
     ),
 ):
+    verify_trusted_origin(
+        request
+    )
+
+    if not refresh_cookie:
+        clear_refresh_cookie(
+            response
+        )
+
+        raise HTTPException(
+            status_code=(
+                status
+                .HTTP_401_UNAUTHORIZED
+            ),
+            detail=(
+                "Missing refresh session"
+            ),
+        )
+
     service = AuthService(db)
 
-    return await service.refresh(
-        payload.refresh_token
+    try:
+        result = await service.refresh(
+            refresh_cookie
+        )
+
+    except HTTPException:
+        clear_refresh_cookie(
+            response
+        )
+
+        raise
+
+    new_refresh_token = (
+        result.refresh_token
     )
+
+    if not new_refresh_token:
+        clear_refresh_cookie(
+            response
+        )
+
+        raise HTTPException(
+            status_code=(
+                status
+                .HTTP_500_INTERNAL_SERVER_ERROR
+            ),
+            detail=(
+                "Refresh session "
+                "gagal dirotasi"
+            ),
+        )
+
+    set_refresh_cookie(
+        response,
+        new_refresh_token,
+    )
+
+    return result
 
 
 @router.post(
     "/logout",
-    status_code=status.HTTP_200_OK,
+    status_code=(
+        status.HTTP_200_OK
+    ),
 )
 async def logout(
-    payload: LogoutRequest,
+    request: Request,
+    response: Response,
+
+    refresh_cookie: Annotated[
+        str | None,
+        Cookie(
+            alias=(
+                settings
+                .REFRESH_COOKIE_NAME
+            ),
+        ),
+    ] = None,
+
     _: bool = Depends(
-        revoke_current_access_token
+        revoke_access_token_if_present
     ),
 ):
-    if payload.refresh_token:
+    verify_trusted_origin(
+        request
+    )
+
+    if refresh_cookie:
         try:
-            refresh_payload = decode_token(
-                payload.refresh_token
+            refresh_payload = (
+                decode_token(
+                    refresh_cookie
+                )
             )
 
             if (
-                refresh_payload.get("type")
+                refresh_payload.get(
+                    "type"
+                )
                 == "refresh"
+                and refresh_payload.get(
+                    "jti"
+                )
             ):
-                await revoke_refresh_token(
-                    refresh_payload["jti"]
+                await (
+                    revoke_refresh_token(
+                        str(
+                            refresh_payload[
+                                "jti"
+                            ]
+                        )
+                    )
                 )
 
         except Exception:
-            # Logout tetap dianggap berhasil
-            # meskipun refresh token invalid.
+            # Cookie tetap dibersihkan
+            # meskipun token sudah invalid.
             pass
+
+    clear_refresh_cookie(
+        response
+    )
 
     return {
         "success": True,
@@ -184,28 +338,53 @@ async def logout(
 
 @router.get(
     "/me",
-    response_model=AuthUserResponse,
+    response_model=(
+        AuthUserResponse
+    ),
 )
 async def me(
-    current_user: CurrentUser = Depends(
+    current_user: (
+        CurrentUser
+    ) = Depends(
         get_current_user
     ),
 ):
     return AuthUserResponse(
-        id=current_user.user_id,
-        full_name=current_user.full_name,
-        email=current_user.email,
+        id=(
+            current_user
+            .user_id
+        ),
+
+        full_name=(
+            current_user
+            .full_name
+        ),
+
+        email=(
+            current_user.email
+        ),
+
         is_superuser=(
-            current_user.is_superuser
+            current_user
+            .is_superuser
         ),
+
         company_id=(
-            current_user.company_id
+            current_user
+            .company_id
         ),
-        role_id=current_user.role_id,
+
+        role_id=(
+            current_user.role_id
+        ),
+
         permissions=(
-            current_user.permissions
+            current_user
+            .permissions
         ),
+
         branch_ids=(
-            current_user.branch_ids
+            current_user
+            .branch_ids
         ),
     )

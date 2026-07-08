@@ -38,8 +38,8 @@ const highlights = [
 export default function LoginPage() {
   const router = useRouter();
 
-  const [email, setEmail] = useState("superadmin@dashai.test");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const loginMutation = useMutation({

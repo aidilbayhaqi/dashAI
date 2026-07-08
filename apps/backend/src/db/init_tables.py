@@ -1,18 +1,21 @@
-import asyncio
+"""
+Legacy compatibility command.
 
-from src.db.base import Base
-from src.db.database import engine
+DashAI tidak lagi membuat schema memakai
+Base.metadata.create_all().
 
-# Penting: import semua model agar terdaftar ke Base.metadata
-import src.db.model_registry  # noqa: F401
+Gunakan Alembic agar riwayat schema konsisten
+dan dapat di-upgrade atau di-downgrade.
+"""
+
+from src.scripts.db_startup import (
+    upgrade_database,
+)
 
 
-async def init_tables():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    print("✅ Database tables created successfully.")
+def init_tables() -> None:
+    upgrade_database()
 
 
 if __name__ == "__main__":
-    asyncio.run(init_tables())
+    init_tables()

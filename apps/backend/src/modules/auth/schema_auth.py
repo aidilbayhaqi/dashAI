@@ -57,7 +57,17 @@ class LogoutRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
-    refresh_token: str
+
+    # Refresh token tetap dapat dipakai
+    # secara internal oleh route untuk
+    # memasang cookie, tetapi tidak pernah
+    # masuk ke JSON response.
+    refresh_token: str | None = Field(
+        default=None,
+        exclude=True,
+        repr=False,
+    )
+
     token_type: str = "bearer"
 
 

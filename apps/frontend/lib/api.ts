@@ -1,97 +1,214 @@
-import axios from "axios";
+import axios, {
+  AxiosError,
+  type InternalAxiosRequestConfig,
+} from "axios";
+
 import {
   clearAuthSession,
   getAccessToken,
-  getRefreshToken,
   setAccessToken,
 } from "@/lib/auth";
-import type { TokenResponse } from "@/types/backend";
 
-export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
+import type {
+  TokenResponse,
+} from "@/types/backend";
 
-api.interceptors.request.use((config) => {
-  const accessToken = getAccessToken();
 
-  if (accessToken) {
-    config.headers.Authorization = `Bearer ${accessToken}`;
+const API_URL =
+  process.env
+    .NEXT_PUBLIC_API_URL
+  || "http://localhost:8000";
+
+
+export const api =
+  axios.create({
+    baseURL: API_URL,
+
+    withCredentials: true,
+
+    headers: {
+      Accept:
+        "application/json",
+
+      "Content-Type":
+        "application/json",
+    },
+  });
+
+
+const refreshClient =
+  axios.create({
+    baseURL: API_URL,
+
+    withCredentials: true,
+
+    headers: {
+      Accept:
+        "application/json",
+
+      "Content-Type":
+        "application/json",
+    },
+  });
+
+
+type RetryableRequestConfig =
+  InternalAxiosRequestConfig & {
+    _retry?: boolean;
+  };
+
+
+api.interceptors.request.use(
+  (config) => {
+    const accessToken =
+      getAccessToken();
+
+    if (accessToken) {
+      config
+        .headers
+        .Authorization =
+        `Bearer ${accessToken}`;
+    }
+
+    return config;
+  }
+);
+
+
+let refreshPromise:
+  | Promise<string>
+  | null = null;
+
+
+async function refreshAccessToken():
+Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise =
+      refreshClient
+        .post<TokenResponse>(
+          "/api/v1/auth/refresh",
+          {}
+        )
+        .then(
+          (response) => {
+            const accessToken =
+              response
+                .data
+                .access_token;
+
+            setAccessToken(
+              accessToken
+            );
+
+            return accessToken;
+          }
+        )
+        .finally(() => {
+          refreshPromise = null;
+        });
   }
 
-  return config;
-});
-
-let isRefreshing = false;
-let refreshQueue: Array<(token: string | null) => void> = [];
-
-function resolveRefreshQueue(token: string | null) {
-  refreshQueue.forEach((callback) => callback(token));
-  refreshQueue = [];
+  return refreshPromise;
 }
+
+
+function isAuthenticationEndpoint(
+  requestUrl: string
+) {
+  return [
+    "/auth/login",
+    "/auth/register",
+    "/auth/refresh",
+    "/auth/logout",
+  ].some(
+    (endpoint) =>
+      requestUrl.includes(
+        endpoint
+      )
+  );
+}
+
+
+function redirectToLogin() {
+  if (
+    typeof window
+    === "undefined"
+  ) {
+    return;
+  }
+
+  if (
+    window.location.pathname
+      === "/login"
+    || window.location.pathname
+      === "/register"
+  ) {
+    return;
+  }
+
+  window.location.replace(
+    "/login"
+  );
+}
+
 
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
 
-    const isUnauthorized = error.response?.status === 401;
-    const isRefreshRequest = originalRequest?.url?.includes("/auth/refresh");
+  async (
+    error: AxiosError
+  ) => {
+    const originalRequest =
+      error.config as
+        | RetryableRequestConfig
+        | undefined;
 
-    if (!isUnauthorized || originalRequest?._retry || isRefreshRequest) {
-      return Promise.reject(error);
+    const status =
+      error.response?.status;
+
+    const requestUrl =
+      originalRequest?.url
+      ?? "";
+
+    if (
+      status !== 401
+      || !originalRequest
+      || originalRequest._retry
+      || isAuthenticationEndpoint(
+        requestUrl
+      )
+    ) {
+      return Promise.reject(
+        error
+      );
     }
 
-    originalRequest._retry = true;
-
-    if (isRefreshing) {
-      return new Promise((resolve, reject) => {
-        refreshQueue.push((newToken) => {
-          if (!newToken) {
-            reject(error);
-            return;
-          }
-
-          originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          resolve(api(originalRequest));
-        });
-      });
-    }
-
-    isRefreshing = true;
+    originalRequest._retry =
+      true;
 
     try {
-      const refreshToken = getRefreshToken();
+      const newAccessToken =
+        await refreshAccessToken();
 
-      if (!refreshToken) {
-        throw new Error("Missing refresh token");
-      }
+      originalRequest
+        .headers
+        .Authorization =
+        `Bearer ${newAccessToken}`;
 
-      const response = await api.post<TokenResponse>("/api/v1/auth/refresh", {
-        refresh_token: refreshToken,
-      });
+      return api(
+        originalRequest
+      );
 
-      setAccessToken(response.data.access_token);
-      sessionStorage.setItem("dashai_refresh_token", response.data.refresh_token);
-
-      resolveRefreshQueue(response.data.access_token);
-
-      originalRequest.headers.Authorization = `Bearer ${response.data.access_token}`;
-
-      return api(originalRequest);
-    } catch (refreshError) {
+    } catch (
+      refreshError
+    ) {
       clearAuthSession();
-      resolveRefreshQueue(null);
 
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
-      }
+      redirectToLogin();
 
-      return Promise.reject(refreshError);
-    } finally {
-      isRefreshing = false;
+      return Promise.reject(
+        refreshError
+      );
     }
   }
 );
