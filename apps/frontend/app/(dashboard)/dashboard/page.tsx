@@ -320,6 +320,55 @@ export default function DashboardPage() {
         })}
       </section>
 
+      <section className="grid gap-5 md:grid-cols-2">
+        {[
+          {
+            title: "System Security",
+            value: "Healthy",
+            icon: ShieldCheck,
+          },
+          {
+            title: "Pending Approvals",
+            value: "14 Items",
+            icon: CheckCircle2,
+          },
+          {
+            title: "Upcoming Deadline",
+            value: "3 Days",
+            icon: CalendarClock,
+          },
+          {
+            title: "Inventory Attention",
+            value: "18 SKU",
+            icon: Package,
+          },
+        ].map((item) => {
+          const Icon = item.icon;
+
+          return (
+            <div
+              key={item.title}
+              className="rounded-[1.5rem] border border-slate-200/80 bg-white/85 p-5 shadow-sm dark:border-slate-900 dark:bg-[#050816]/90"
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-[#0f2a5f] dark:bg-blue-950/30 dark:text-blue-300">
+                  <Icon size={20} />
+                </div>
+
+                <div>
+                  <p className="text-sm font-bold text-slate-500 dark:text-slate-500">
+                    {item.title}
+                  </p>
+                  <p className="mt-1 text-lg font-black text-slate-950 dark:text-white">
+                    {item.value}
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </section>
+
       <section className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
         <DashboardCard
           title="Financial Performance"
@@ -599,54 +648,6 @@ export default function DashboardPage() {
         </DashboardCard>
       </section>
 
-      <section className="grid gap-5 md:grid-cols-3">
-        {[
-          {
-            title: "System Security",
-            value: "Healthy",
-            icon: ShieldCheck,
-          },
-          {
-            title: "Pending Approvals",
-            value: "14 Items",
-            icon: CheckCircle2,
-          },
-          {
-            title: "Upcoming Deadline",
-            value: "3 Days",
-            icon: CalendarClock,
-          },
-          {
-            title: "Inventory Attention",
-            value: "18 SKU",
-            icon: Package,
-          },
-        ].map((item) => {
-          const Icon = item.icon;
-
-          return (
-            <div
-              key={item.title}
-              className="rounded-[1.5rem] border border-slate-200/80 bg-white/85 p-5 shadow-sm dark:border-slate-900 dark:bg-[#050816]/90"
-            >
-              <div className="flex items-center gap-4">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-[#0f2a5f] dark:bg-blue-950/30 dark:text-blue-300">
-                  <Icon size={20} />
-                </div>
-
-                <div>
-                  <p className="text-sm font-bold text-slate-500 dark:text-slate-500">
-                    {item.title}
-                  </p>
-                  <p className="mt-1 text-lg font-black text-slate-950 dark:text-white">
-                    {item.value}
-                  </p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </section>
     </div>
   );
 }

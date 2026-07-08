@@ -1,5 +1,5 @@
-import { AdminModuleClient } from "@/features/admin/client";
+import { CompaniesClient } from "@/features/companies/client";
 
 export default function CompaniesPage() {
-  return <AdminModuleClient moduleKey="companies" />;
+  return <CompaniesClient />;
 }
