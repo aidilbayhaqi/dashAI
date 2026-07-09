@@ -5,6 +5,7 @@ import {
 import {
   clearAuthSession,
   setAuthSession,
+  setAuthUser,
 } from "@/lib/auth";
 
 import type {
@@ -21,9 +22,7 @@ function cleanOptionalString(
     | string
     | null
     | undefined
-):
-  | string
-  | undefined {
+): string | undefined {
   const normalized =
     String(
       value ?? ""
@@ -37,13 +36,11 @@ function cleanOptionalString(
 
 
 function prepareRegisterPayload(
-  payload:
-    RegisterPayload
+  payload: RegisterPayload
 ): RegisterPayload {
   const commonPayload = {
     account_type:
-      payload
-        .account_type,
+      payload.account_type,
 
     full_name:
       payload
@@ -51,7 +48,8 @@ function prepareRegisterPayload(
         .trim(),
 
     email:
-      payload.email
+      payload
+        .email
         .trim()
         .toLowerCase(),
 
@@ -98,8 +96,7 @@ function prepareRegisterPayload(
 
     company_name:
       cleanOptionalString(
-        payload
-          .company_name
+        payload.company_name
       ),
 
     legal_name:
@@ -109,14 +106,12 @@ function prepareRegisterPayload(
 
     company_email:
       cleanOptionalString(
-        payload
-          .company_email
+        payload.company_email
       )?.toLowerCase(),
 
     company_phone:
       cleanOptionalString(
-        payload
-          .company_phone
+        payload.company_phone
       ),
 
     company_industry:
@@ -127,14 +122,12 @@ function prepareRegisterPayload(
 
     company_size:
       cleanOptionalString(
-        payload
-          .company_size
+        payload.company_size
       ),
 
     address_line:
       cleanOptionalString(
-        payload
-          .address_line
+        payload.address_line
       ),
 
     city:
@@ -154,8 +147,7 @@ function prepareRegisterPayload(
 
     postal_code:
       cleanOptionalString(
-        payload
-          .postal_code
+        payload.postal_code
       ),
   };
 }
@@ -165,9 +157,7 @@ export async function login(
   payload: LoginPayload
 ): Promise<LoginResponse> {
   const response =
-    await api.post<
-      LoginResponse
-    >(
+    await api.post<LoginResponse>(
       "/api/v1/auth/login",
       payload
     );
@@ -181,8 +171,7 @@ export async function login(
 }
 
 
-export async function
-getRegisterCompanies(
+export async function getRegisterCompanies(
   search?: string
 ): Promise<
   RegisterCompanyOption[]
@@ -201,24 +190,19 @@ getRegisterCompanies(
       }
     );
 
-  return (
-    Array.isArray(
-      response.data
-    )
-      ? response.data
-      : []
-  );
+  return Array.isArray(
+    response.data
+  )
+    ? response.data
+    : [];
 }
 
 
 export async function register(
-  payload:
-    RegisterPayload
+  payload: RegisterPayload
 ): Promise<LoginResponse> {
   const response =
-    await api.post<
-      LoginResponse
-    >(
+    await api.post<LoginResponse>(
       "/api/v1/auth/register",
       prepareRegisterPayload(
         payload
@@ -235,18 +219,22 @@ export async function register(
 
 
 export async function getMe():
-  Promise<AuthUser> {
+Promise<AuthUser> {
   const response =
     await api.get<AuthUser>(
       "/api/v1/auth/me"
     );
+
+  setAuthUser(
+    response.data
+  );
 
   return response.data;
 }
 
 
 export async function logout():
-  Promise<void> {
+Promise<void> {
   try {
     await api.post(
       "/api/v1/auth/logout",
@@ -333,23 +321,13 @@ export function getAuthApiError(
     candidate
       .response
       ?.status
-    === 401
-  ) {
-    return (
-      "Email atau password " +
-      "tidak valid."
-    );
-  }
-
-  if (
-    candidate
-      .response
-      ?.status
     === 404
   ) {
     return (
-      "Endpoint atau company " +
-      "tidak ditemukan."
+      "Endpoint atau company "
+      + "tidak ditemukan. "
+      + "Pastikan backend terbaru "
+      + "sedang berjalan."
     );
   }
 
@@ -360,8 +338,8 @@ export function getAuthApiError(
     === 409
   ) {
     return (
-      "Email atau company " +
-      "sudah terdaftar."
+      "Email atau company "
+      + "sudah terdaftar."
     );
   }
 
@@ -372,8 +350,8 @@ export function getAuthApiError(
     === 422
   ) {
     return (
-      "Data belum lengkap " +
-      "atau tidak valid."
+      "Data register belum "
+      + "lengkap atau tidak valid."
     );
   }
 
@@ -384,15 +362,14 @@ export function getAuthApiError(
     === 429
   ) {
     return (
-      "Terlalu banyak " +
-      "percobaan. Silakan " +
-      "tunggu beberapa saat."
+      "Terlalu banyak percobaan. "
+      + "Silakan tunggu "
+      + "beberapa saat."
     );
   }
 
   return (
     candidate.message
-    ?? "Request autentikasi " +
-      "gagal diproses."
+    ?? "Registrasi gagal diproses."
   );
 }
