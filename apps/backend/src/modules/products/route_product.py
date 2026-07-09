@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.database import get_db
@@ -27,6 +27,11 @@ from src.modules.products.schema_product import (
 )
 from src.modules.products.service_product import ProductStockService
 from src.security.dependencies import CurrentUser, require_permission
+from src.security.idempotency import (
+    build_idempotency_context,
+    execute_idempotent,
+    get_idempotency_key,
+)
 from src.security.tenant import (
     ensure_branch_belongs_to_company,
     get_record_or_404,
@@ -98,50 +103,64 @@ router.include_router(
 )
 async def create_stock_movement(
     payload: ProductStockMovementCreate,
+    request: Request,
+    idempotency_key: str = Depends(get_idempotency_key),
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(
         require_permission("products.movements.create")
     ),
 ):
-    company_id = resolve_company_id(
+    context = await build_idempotency_context(
+        request=request,
         current_user=current_user,
-        requested_company_id=payload.company_id,
-        required_for_superuser=True,
+        raw_key=idempotency_key,
     )
 
-    if company_id is None:
-        raise tenant_not_found("Company not found")
+    async def operation():
+        company_id = resolve_company_id(
+            current_user=current_user,
+            requested_company_id=payload.company_id,
+            required_for_superuser=True,
+        )
 
-    await ensure_branch_belongs_to_company(
-        db=db,
-        branch_id=payload.branch_id,
-        company_id=company_id,
-        current_user=current_user,
-    )
+        if company_id is None:
+            raise tenant_not_found("Company not found")
 
-    product = await get_record_or_404(
-        db=db,
-        model_class=Product,
-        item_id=payload.product_id,
-        detail="Product not found",
-    )
+        await ensure_branch_belongs_to_company(
+            db=db,
+            branch_id=payload.branch_id,
+            company_id=company_id,
+            current_user=current_user,
+        )
 
-    if product.company_id != company_id:
-        raise tenant_not_found("Product not found")
+        product = await get_record_or_404(
+            db=db,
+            model_class=Product,
+            item_id=payload.product_id,
+            detail="Product not found",
+        )
 
-    if product.branch_id is not None and product.branch_id != payload.branch_id:
-        raise tenant_not_found("Product is not available in selected branch")
+        if product.company_id != company_id:
+            raise tenant_not_found("Product not found")
 
-    secure_payload = payload.model_copy(
-        update={
-            "company_id": company_id,
-            "created_by_id": current_user.user_id,
-        }
-    )
+        if product.branch_id is not None and product.branch_id != payload.branch_id:
+            raise tenant_not_found("Product is not available in selected branch")
 
-    service = ProductStockService(db)
+        secure_payload = payload.model_copy(
+            update={
+                "company_id": company_id,
+                "created_by_id": current_user.user_id,
+            }
+        )
 
-    return await service.adjust_stock(
-        secure_payload,
-        company_id=company_id,
+        service = ProductStockService(db)
+        return await service.adjust_stock(
+            secure_payload,
+            company_id=company_id,
+        )
+
+    return await execute_idempotent(
+        context=context,
+        operation=operation,
+        response_model=ProductStockMovementResponse,
     )

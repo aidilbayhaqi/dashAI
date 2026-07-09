@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.schemas.pagination import PaginationMeta
 from src.security.tenant import TenantParentConfig
+from src.service.domain_integrity import commit_or_raise
 
 
 class CRUDService:
@@ -20,12 +21,8 @@ class CRUDService:
 
         self.db.add(item)
 
-        try:
-            await self.db.commit()
-            await self.db.refresh(item)
-        except Exception:
-            await self.db.rollback()
-            raise
+        await commit_or_raise(self.db)
+        await self.db.refresh(item)
 
         return item
 
@@ -140,12 +137,8 @@ class CRUDService:
             if hasattr(item, field):
                 setattr(item, field, value)
 
-        try:
-            await self.db.commit()
-            await self.db.refresh(item)
-        except Exception:
-            await self.db.rollback()
-            raise
+        await commit_or_raise(self.db)
+        await self.db.refresh(item)
 
         return item
 
@@ -157,11 +150,7 @@ class CRUDService:
 
         await self.db.delete(item)
 
-        try:
-            await self.db.commit()
-        except Exception:
-            await self.db.rollback()
-            raise
+        await commit_or_raise(self.db)
 
         return True
 

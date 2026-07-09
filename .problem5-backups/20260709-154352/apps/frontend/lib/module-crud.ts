@@ -1,0 +1,511 @@
+import { api } from "@/lib/api";
+import { getCurrentCompanyId, isCurrentUserSuperAdmin } from "@/lib/auth-scope";
+import { getSelectedCompanyId } from "@/lib/company-scope";
+import type { ModuleRow } from "@/types/modules";
+
+export type FeatureKey = "product" | "hr" | "crm" | "finance" | "admin";
+
+type EndpointMap = Record<string, string>;
+
+const endpointMap: Record<FeatureKey, EndpointMap> = {
+  product: {
+    overview: "/api/v1/products/items",
+    categories: "/api/v1/products/categories",
+    stock: "/api/v1/products/stocks",
+    suppliers: "/api/v1/products/suppliers",
+  },
+
+  hr: {
+    overview: "/api/v1/hr/employees",
+    employees: "/api/v1/hr/employees",
+    attendance: "/api/v1/hr/attendance",
+    "leave-types": "/api/v1/hr/leave-types",
+    "leave-requests": "/api/v1/hr/leave-requests",
+    leave: "/api/v1/hr/leave-requests",
+    "payroll-runs": "/api/v1/hr/payroll-runs",
+    payroll: "/api/v1/hr/payroll-runs",
+    "kpi-reviews": "/api/v1/hr/kpi-reviews",
+    kpi: "/api/v1/hr/kpi-reviews",
+  },
+
+  crm: {
+    overview: "/api/v1/crm/leads",
+    leads: "/api/v1/crm/leads",
+    customers: "/api/v1/crm/contacts",
+    contacts: "/api/v1/crm/contacts",
+    pipeline: "/api/v1/crm/deals",
+    deals: "/api/v1/crm/deals",
+    campaigns: "/api/v1/crm/campaigns",
+  },
+
+  finance: {
+    overview: "/api/v1/finance/transactions",
+    transactions: "/api/v1/finance/transactions",
+    invoices: "/api/v1/finance/invoices",
+    cashflow: "/api/v1/finance/cashflow-snapshots",
+    taxes: "/api/v1/finance/tax-records",
+    ledger: "/api/v1/finance/journal-entries",
+  },
+
+  admin: {
+    companies: "/api/v1/companies",
+    users: "/api/v1/users",
+    settings: "/api/v1/admin/settings",
+  },
+};
+
+const companyScopedFeatures: FeatureKey[] = ["product", "hr", "crm", "finance"];
+
+const numericKeys = new Set([
+  "cost_price",
+  "selling_price",
+  "quantity_on_hand",
+  "reserved_quantity",
+  "reorder_point",
+  "subtotal_amount",
+  "discount_amount",
+  "tax_amount",
+  "total_amount",
+  "paid_amount",
+  "amount",
+  "score",
+  "salary",
+  "base_salary",
+  "max_days",
+  "default_days_per_year",
+  "total_days",
+  "work_minutes",
+  "overtime_minutes",
+  "weight_score",
+  "completion_score",
+  "total_score",
+  "total_gross",
+  "total_deduction",
+  "total_deductions",
+  "total_tax",
+  "total_net",
+  "target_value",
+  "actual_value",
+  "weight_percent",
+  "lead_time_days",
+  "estimated_value",
+  "expected_value",
+  "probability_percent",
+]);
+
+const booleanKeys = new Set([
+  "track_stock",
+  "is_active",
+  "is_paid",
+  "is_default",
+  "is_balanced",
+]);
+
+const uuidKeys = new Set([
+  "id",
+  "company_id",
+  "branch_id",
+  "category_id",
+  "created_by_id",
+  "parent_category_id",
+  "product_id",
+  "employee_id",
+  "reviewer_user_id",
+  "reviewer_id",
+  "approved_by_id",
+  "assigned_by_id",
+  "user_id",
+  "leave_type_id",
+  "transaction_id",
+  "period_id",
+  "cash_account_id",
+  "tax_rate_id",
+  "supplier_id",
+  "customer_id",
+  "lead_id",
+  "deal_id",
+  "contact_id",
+  "owner_user_id",
+]);
+
+const readonlyKeys = new Set([
+  "id",
+  "created_at",
+  "updated_at",
+  "deleted_at",
+  "created_by_id",
+
+  "photo",
+  "stock",
+  "price",
+  "products",
+  "revenue",
+  "product",
+  "branch",
+  "reserved",
+  "reorder",
+  "leadTime",
+
+  "employee_name",
+  "leave_type_name",
+  "status_label",
+  "type_label",
+  "employment_type_label",
+  "is_paid_label",
+  "is_active_label",
+
+  "period_start_display",
+  "period_end_display",
+  "start_date_display",
+  "end_date_display",
+  "attendance_date_display",
+  "check_in_display",
+  "check_out_display",
+  "paid_at_display",
+  "payment_date_display",
+
+  "base_salary_display",
+  "total_gross_display",
+  "total_deduction_display",
+  "total_deductions_display",
+  "total_tax_display",
+  "total_net_display",
+]);
+
+function isValidUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value
+  );
+}
+
+function parseNumberValue(value: unknown) {
+  const text = String(value ?? "").trim();
+
+  if (!text) return undefined;
+
+  const cleaned = text
+    .replaceAll("Rp", "")
+    .replaceAll("IDR", "")
+    .replaceAll(" ", "")
+    .replace(/[^\d.,-]/g, "");
+
+  if (!cleaned) return undefined;
+
+  const hasComma = cleaned.includes(",");
+  const hasDot = cleaned.includes(".");
+
+  let normalized = cleaned;
+
+  if (hasComma && hasDot) {
+    const lastCommaIndex = cleaned.lastIndexOf(",");
+    const lastDotIndex = cleaned.lastIndexOf(".");
+
+    normalized =
+      lastCommaIndex > lastDotIndex
+        ? cleaned.replaceAll(".", "").replace(",", ".")
+        : cleaned.replaceAll(",", "");
+  } else if (hasComma) {
+    normalized = cleaned.replace(",", ".");
+  }
+
+  const numberValue = Number(normalized);
+
+  if (Number.isNaN(numberValue)) return undefined;
+
+  return numberValue;
+}
+
+function cleanValue(key: string, value: unknown) {
+  const trimmedValue = String(value ?? "").trim();
+
+  if (trimmedValue === "") return undefined;
+
+  if (uuidKeys.has(key)) {
+    if (!isValidUuid(trimmedValue)) return undefined;
+    return trimmedValue;
+  }
+
+  if (booleanKeys.has(key)) {
+    return trimmedValue === "true";
+  }
+
+  if (numericKeys.has(key)) {
+    return parseNumberValue(value);
+  }
+
+  return trimmedValue;
+}
+
+function normalizePayloadAliases({
+  featureKey,
+  moduleKey,
+  payload,
+}: {
+  featureKey: FeatureKey;
+  moduleKey?: string;
+  payload: ModuleRow;
+}) {
+  const clone: ModuleRow = {
+    ...payload,
+  };
+
+  if (featureKey === "product" && moduleKey === "stock") {
+    if (!clone.quantity_on_hand && clone.stock) {
+      clone.quantity_on_hand = clone.stock;
+    }
+
+    if (!clone.reserved_quantity && clone.reserved) {
+      clone.reserved_quantity = clone.reserved;
+    }
+
+    if (!clone.reorder_point && clone.reorder) {
+      clone.reorder_point = clone.reorder;
+    }
+  }
+
+  if (featureKey === "hr" && moduleKey === "attendance") {
+    if (!clone.check_in_at && clone.clock_in) clone.check_in_at = clone.clock_in;
+    if (!clone.check_out_at && clone.clock_out) {
+      clone.check_out_at = clone.clock_out;
+    }
+
+    delete clone.clock_in;
+    delete clone.clock_out;
+  }
+
+  if (featureKey === "hr" && moduleKey === "leave-types") {
+    if (!clone.default_days_per_year && clone.max_days) {
+      clone.default_days_per_year = clone.max_days;
+    }
+
+    delete clone.max_days;
+  }
+
+  if (featureKey === "hr" && moduleKey === "leave-requests") {
+    /**
+     * Backend biasanya auto set approval status.
+     * Kalau status dikirim saat create, sering bikin schema mismatch.
+     */
+    delete clone.status;
+    delete clone.status_label;
+  }
+
+  if (featureKey === "hr" && moduleKey === "payroll-runs") {
+    /**
+     * Backend PayrollRunCreate biasanya hanya nerima:
+     * company_id, branch_id, payroll_no, period_start, period_end
+     * Gross/deduction/net dihitung backend, jadi jangan dikirim saat create.
+     */
+    delete clone.payment_date;
+    delete clone.paid_at;
+    delete clone.status;
+    delete clone.notes;
+
+    delete clone.total_gross;
+    delete clone.total_deduction;
+    delete clone.total_deductions;
+    delete clone.total_tax;
+    delete clone.total_net;
+
+    delete clone.gross;
+    delete clone.deduction;
+    delete clone.net;
+  }
+
+  if (featureKey === "hr" && moduleKey === "kpi-reviews") {
+    /**
+     * Backend KPIReviewCreate kamu sebelumnya nolak:
+     * target_value, actual_value, weight_score.
+     * Jadi form KPI create hanya kirim employee_id, period_start, period_end,
+     * total_score, rating, status.
+     */
+    if (!clone.reviewer_user_id && clone.reviewer_id) {
+      clone.reviewer_user_id = clone.reviewer_id;
+    }
+
+    delete clone.reviewer_id;
+    delete clone.target_value;
+    delete clone.actual_value;
+    delete clone.weight_score;
+  }
+
+  return clone;
+}
+
+function cleanPayload(payload: ModuleRow) {
+  const result: Record<string, unknown> = {};
+
+  Object.entries(payload).forEach(([key, value]) => {
+    if (readonlyKeys.has(key)) return;
+
+    const cleanedValue = cleanValue(key, value);
+
+    if (cleanedValue === undefined) return;
+
+    result[key] = cleanedValue;
+  });
+
+  return result;
+}
+
+function stripReadonlyFields(payload: Record<string, unknown>) {
+  const clone = { ...payload };
+
+  readonlyKeys.forEach((key) => {
+    delete clone[key];
+  });
+
+  return clone;
+}
+
+export function getModuleEndpoint(featureKey: FeatureKey, moduleKey?: string) {
+  const endpoint = endpointMap[featureKey]?.[moduleKey ?? "overview"];
+
+  if (!endpoint) {
+    throw new Error(`Endpoint belum dibuat untuk ${featureKey}/${moduleKey}`);
+  }
+
+  return endpoint;
+}
+
+export function getScopedQueryParams(
+  featureKey: FeatureKey,
+  params: Record<string, unknown> = {}
+) {
+  if (!companyScopedFeatures.includes(featureKey)) {
+    return params;
+  }
+
+  const currentCompanyId = getCurrentCompanyId();
+  const selectedCompanyId = getSelectedCompanyId();
+
+  if (
+    currentCompanyId &&
+    isValidUuid(currentCompanyId) &&
+    !isCurrentUserSuperAdmin()
+  ) {
+    return {
+      ...params,
+      company_id: currentCompanyId,
+    };
+  }
+
+  if (
+    selectedCompanyId &&
+    selectedCompanyId !== "all" &&
+    isValidUuid(selectedCompanyId)
+  ) {
+    return {
+      ...params,
+      company_id: selectedCompanyId,
+    };
+  }
+
+  return params;
+}
+
+function withCompanyId(featureKey: FeatureKey, payload: ModuleRow) {
+  const cleaned = cleanPayload(payload);
+
+  if (!companyScopedFeatures.includes(featureKey)) {
+    return cleaned;
+  }
+
+  const currentCompanyId = getCurrentCompanyId();
+  const selectedCompanyId = getSelectedCompanyId();
+
+  if (
+    currentCompanyId &&
+    isValidUuid(currentCompanyId) &&
+    !isCurrentUserSuperAdmin()
+  ) {
+    return {
+      ...cleaned,
+      company_id: currentCompanyId,
+    };
+  }
+
+  if (
+    selectedCompanyId &&
+    selectedCompanyId !== "all" &&
+    isValidUuid(selectedCompanyId)
+  ) {
+    return {
+      ...cleaned,
+      company_id: selectedCompanyId,
+    };
+  }
+
+  if (
+    typeof cleaned.company_id === "string" &&
+    isValidUuid(cleaned.company_id)
+  ) {
+    return cleaned;
+  }
+
+  return cleaned;
+}
+
+export async function createModuleRecord({
+  featureKey,
+  moduleKey,
+  payload,
+}: {
+  featureKey: FeatureKey;
+  moduleKey?: string;
+  payload: ModuleRow;
+}) {
+  const endpoint = getModuleEndpoint(featureKey, moduleKey);
+
+  const normalizedPayload = normalizePayloadAliases({
+    featureKey,
+    moduleKey,
+    payload,
+  });
+
+  const body = stripReadonlyFields(withCompanyId(featureKey, normalizedPayload));
+
+  const response = await api.post(endpoint, body);
+
+  return response.data;
+}
+
+export async function updateModuleRecord({
+  featureKey,
+  moduleKey,
+  id,
+  payload,
+}: {
+  featureKey: FeatureKey;
+  moduleKey?: string;
+  id: string;
+  payload: ModuleRow;
+}) {
+  const endpoint = getModuleEndpoint(featureKey, moduleKey);
+
+  const normalizedPayload = normalizePayloadAliases({
+    featureKey,
+    moduleKey,
+    payload,
+  });
+
+  const body = stripReadonlyFields(cleanPayload(normalizedPayload));
+
+  const response = await api.patch(`${endpoint}/${id}`, body);
+
+  return response.data;
+}
+
+export async function deleteModuleRecord({
+  featureKey,
+  moduleKey,
+  id,
+}: {
+  featureKey: FeatureKey;
+  moduleKey?: string;
+  id: string;
+}) {
+  const endpoint = getModuleEndpoint(featureKey, moduleKey);
+
+  await api.delete(`${endpoint}/${id}`);
+}

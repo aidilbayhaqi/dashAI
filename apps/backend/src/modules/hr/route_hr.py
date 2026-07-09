@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.database import get_db
@@ -42,6 +42,11 @@ from src.modules.hr.schema_hr import (
 )
 from src.modules.hr.service_hr import PayrollRunService
 from src.security.dependencies import CurrentUser, require_permission
+from src.security.idempotency import (
+    build_idempotency_context,
+    execute_idempotent,
+    get_idempotency_key,
+)
 from src.security.tenant import ensure_item_access, get_record_or_404
 
 
@@ -171,35 +176,49 @@ router.include_router(
 )
 async def calculate_payroll(
     payroll_run_id: UUID,
+    request: Request,
+    idempotency_key: str = Depends(get_idempotency_key),
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(
         require_permission("hr.payroll.manage")
     ),
 ):
-    payroll_run = await get_record_or_404(
-        db=db,
-        model_class=PayrollRun,
-        item_id=payroll_run_id,
-        detail="Payroll run not found",
-    )
-
-    await ensure_item_access(
-        db=db,
-        item=payroll_run,
+    context = await build_idempotency_context(
+        request=request,
         current_user=current_user,
-        detail="Payroll run not found",
+        raw_key=idempotency_key,
     )
 
-    service = PayrollRunService(db)
-    result = await service.calculate_payroll(payroll_run.id)
-
-    if result is None:
-        raise HTTPException(
-            status_code=404,
+    async def operation():
+        payroll_run = await get_record_or_404(
+            db=db,
+            model_class=PayrollRun,
+            item_id=payroll_run_id,
             detail="Payroll run not found",
         )
 
-    return result
+        await ensure_item_access(
+            db=db,
+            item=payroll_run,
+            current_user=current_user,
+            detail="Payroll run not found",
+        )
+
+        service = PayrollRunService(db)
+        result = await service.calculate_payroll(payroll_run.id)
+
+        if result is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Payroll run not found",
+            )
+        return result
+
+    return await execute_idempotent(
+        context=context,
+        operation=operation,
+        response_model=PayrollRunResponse,
+    )
 
 
 @router.post(
@@ -208,32 +227,46 @@ async def calculate_payroll(
 )
 async def create_payroll_finance_transaction(
     payroll_run_id: UUID,
+    request: Request,
+    idempotency_key: str = Depends(get_idempotency_key),
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(
         require_permission("hr.payroll.manage")
     ),
 ):
-    payroll_run = await get_record_or_404(
-        db=db,
-        model_class=PayrollRun,
-        item_id=payroll_run_id,
-        detail="Payroll run not found",
-    )
-
-    await ensure_item_access(
-        db=db,
-        item=payroll_run,
+    context = await build_idempotency_context(
+        request=request,
         current_user=current_user,
-        detail="Payroll run not found",
+        raw_key=idempotency_key,
     )
 
-    service = PayrollRunService(db)
-    result = await service.create_finance_transaction(payroll_run.id)
-
-    if result is None:
-        raise HTTPException(
-            status_code=404,
+    async def operation():
+        payroll_run = await get_record_or_404(
+            db=db,
+            model_class=PayrollRun,
+            item_id=payroll_run_id,
             detail="Payroll run not found",
         )
 
-    return result
+        await ensure_item_access(
+            db=db,
+            item=payroll_run,
+            current_user=current_user,
+            detail="Payroll run not found",
+        )
+
+        service = PayrollRunService(db)
+        result = await service.create_finance_transaction(payroll_run.id)
+
+        if result is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Payroll run not found",
+            )
+        return result
+
+    return await execute_idempotent(
+        context=context,
+        operation=operation,
+        response_model=PayrollRunResponse,
+    )

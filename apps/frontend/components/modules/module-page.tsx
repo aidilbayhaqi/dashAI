@@ -45,6 +45,7 @@ import { ModuleError } from "./module-error";
 import { ModuleEmpty } from "./module-empty";
 import { RecordModal } from "./record-modal";
 
+import { formatModuleValue } from "@/lib/value-format";
 import {
   getCurrentCompanyId,
   isCurrentUserSuperAdmin,
@@ -310,21 +311,23 @@ function TableCellValue({
   isPrimary,
 }: {
   column: ModuleColumn;
-  value: string;
+  value: unknown;
   isPrimary: boolean;
 }) {
+  const rawText = value === null || value === undefined ? "-" : String(value);
+
   if (isImageColumn(column)) {
     return (
       <div className="flex items-center gap-3">
-        {isUrlImage(value) ? (
+        {isUrlImage(rawText) ? (
           <img
-            src={value}
+            src={rawText}
             alt={column.label}
             className="h-10 w-10 rounded-2xl object-cover"
           />
         ) : (
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#0f2a5f] text-xs font-black text-white dark:bg-blue-700">
-            {value && value !== "-" ? value.slice(0, 2).toUpperCase() : "DA"}
+            {rawText && rawText !== "-" ? rawText.slice(0, 2).toUpperCase() : "DA"}
           </div>
         )}
       </div>
@@ -340,7 +343,7 @@ function TableCellValue({
           : "font-semibold text-slate-500 dark:text-slate-500"
       )}
     >
-      {value}
+      {formatModuleValue(value, column)}
     </span>
   );
 }
@@ -397,8 +400,9 @@ function DetailModal({
 
         <div className="grid gap-4 md:grid-cols-2">
           {visibleFields.map((field) => {
-            const rawValue = row[field.key] ?? "-";
-            const value = String(rawValue || "-");
+            const rawValue = row[field.key];
+            const rawText = String(rawValue ?? "").trim();
+            const value = rawText || "-";
 
             return (
               <div
@@ -409,9 +413,9 @@ function DetailModal({
                   {field.label}
                 </p>
 
-                {isImageColumn(field) && isUrlImage(value) ? (
+                {isImageColumn(field) && isUrlImage(rawText) ? (
                   <img
-                    src={value}
+                    src={rawText}
                     alt={field.label}
                     className="mt-3 h-32 w-32 rounded-2xl object-cover"
                   />
@@ -899,8 +903,7 @@ export function ModulePage({
                       className="group transition hover:bg-slate-50/80 dark:hover:bg-[#050816]"
                     >
                       {columns.map((column, columnIndex) => {
-                        const rawValue = row[column.key] ?? "-";
-                        const value = String(rawValue);
+                        const value = row[column.key] ?? "-";
 
                         const isStatus =
                           column.key.toLowerCase().includes("status") ||
@@ -915,7 +918,7 @@ export function ModulePage({
                               <span
                                 className={cn(
                                   "inline-flex rounded-full px-3 py-1 text-xs font-black ring-1",
-                                  getStatusClass(value)
+                                  getStatusClass(String(value))
                                 )}
                               >
                                 {value}

@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, model_validator
 
 from src.modules.hr.model_hr import (
     ApprovalStatus,
@@ -36,6 +36,18 @@ class EmployeeCreate(BaseModel):
     hire_date: date | None = None
     resign_date: date | None = None
     base_salary: Decimal = Decimal("0.00")
+
+    @model_validator(mode="after")
+    def validate_employee_values(self):
+        if self.base_salary < 0:
+            raise ValueError("Base salary cannot be negative")
+        if (
+            self.hire_date is not None
+            and self.resign_date is not None
+            and self.resign_date < self.hire_date
+        ):
+            raise ValueError("Resign date cannot be earlier than hire date")
+        return self
 
 
 class EmployeeUpdate(BaseModel):
@@ -73,6 +85,18 @@ class AttendanceCreate(BaseModel):
     overtime_minutes: int = 0
     notes: str | None = None
 
+    @model_validator(mode="after")
+    def validate_attendance_values(self):
+        if self.work_minutes < 0 or self.overtime_minutes < 0:
+            raise ValueError("Attendance minutes cannot be negative")
+        if (
+            self.check_in_at is not None
+            and self.check_out_at is not None
+            and self.check_out_at < self.check_in_at
+        ):
+            raise ValueError("Check-out cannot be earlier than check-in")
+        return self
+
 
 class AttendanceUpdate(BaseModel):
     check_in_at: datetime | None = None
@@ -95,6 +119,12 @@ class LeaveTypeCreate(BaseModel):
     is_paid: bool = True
     is_active: bool = True
 
+    @model_validator(mode="after")
+    def validate_default_days(self):
+        if self.default_days_per_year < 0:
+            raise ValueError("Default leave days cannot be negative")
+        return self
+
 
 class LeaveTypeResponse(LeaveTypeCreate, ORMBase):
     id: UUID
@@ -109,6 +139,14 @@ class LeaveRequestCreate(BaseModel):
     end_date: date
     total_days: Decimal
     reason: str | None = None
+
+    @model_validator(mode="after")
+    def validate_leave_request(self):
+        if self.end_date < self.start_date:
+            raise ValueError("End date cannot be earlier than start date")
+        if self.total_days <= 0:
+            raise ValueError("Total leave days must be greater than zero")
+        return self
 
 
 class LeaveRequestUpdate(BaseModel):
@@ -171,6 +209,22 @@ class PayrollRunCreate(BaseModel):
     total_tax: Decimal = Decimal("0.00")
     total_net: Decimal = Decimal("0.00")
 
+    @model_validator(mode="after")
+    def validate_payroll_values(self):
+        if self.period_end < self.period_start:
+            raise ValueError("Payroll period end cannot precede period start")
+        totals = (
+            self.total_gross,
+            self.total_deductions,
+            self.total_tax,
+            self.total_net,
+        )
+        if any(value < 0 for value in totals):
+            raise ValueError("Payroll amounts cannot be negative")
+        if self.total_net > self.total_gross:
+            raise ValueError("Payroll net cannot exceed gross amount")
+        return self
+
 
 class PayrollRunUpdate(BaseModel):
     branch_id: UUID | None = None
@@ -205,6 +259,12 @@ class KPIIndicatorCreate(BaseModel):
     target_value: Decimal = Decimal("0.0000")
     is_active: bool = True
 
+    @model_validator(mode="after")
+    def validate_kpi_indicator(self):
+        if self.weight_percent < 0 or self.weight_percent > 100:
+            raise ValueError("KPI weight must be between 0 and 100")
+        return self
+
 
 class KPIIndicatorUpdate(BaseModel):
     branch_id: UUID | None = None
@@ -230,6 +290,22 @@ class KPIReviewCreate(BaseModel):
     total_score: Decimal = Decimal("0.0000")
     rating: str | None = None
     status: ApprovalStatus = ApprovalStatus.DRAFT
+
+    @field_validator("rating")
+    @classmethod
+    def normalize_rating(cls, value: str | None):
+        if value is None:
+            return None
+        normalized = value.strip().upper()
+        return normalized or None
+
+    @model_validator(mode="after")
+    def validate_kpi_review(self):
+        if self.period_end < self.period_start:
+            raise ValueError("KPI period end cannot precede period start")
+        if self.total_score < 0 or self.total_score > 100:
+            raise ValueError("KPI total score must be between 0 and 100")
+        return self
 
 
 class KPIReviewUpdate(BaseModel):

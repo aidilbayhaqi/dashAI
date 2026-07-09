@@ -4,6 +4,10 @@ import {
   isCurrentUserSuperAdmin,
 } from "@/lib/auth-scope";
 import { getSelectedCompanyId } from "@/lib/company-scope";
+import {
+  idempotencyHeaders,
+  retainIdempotencyKey,
+} from "@/lib/idempotency";
 import type { ModuleRow } from "@/types/modules";
 
 type PayrollMode = "create" | "update";
@@ -242,7 +246,11 @@ function preparePayrollBody(
 export async function createPayrollRun(payload: ModuleRow) {
   const body = preparePayrollBody(payload, "create");
 
-  const response = await api.post(PAYROLL_ENDPOINT, body);
+  const operation = `POST:${PAYROLL_ENDPOINT}`;
+  const { key, headers } = idempotencyHeaders(operation, body);
+
+  const response = await api.post(PAYROLL_ENDPOINT, body, { headers });
+  retainIdempotencyKey(operation, body, key);
 
   return response.data;
 }

@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from src.modules.products.model_product import (
     ProductStatus,
@@ -56,6 +56,12 @@ class ProductCreate(BaseModel):
     track_stock: bool = True
     status: ProductStatus = ProductStatus.ACTIVE
 
+    @model_validator(mode="after")
+    def validate_prices(self):
+        if self.cost_price < 0 or self.selling_price < 0:
+            raise ValueError("Product prices cannot be negative")
+        return self
+
 
 class ProductUpdate(BaseModel):
     branch_id: UUID | None = None
@@ -87,6 +93,21 @@ class ProductStockCreate(BaseModel):
     reserved_quantity: Decimal = Decimal("0.0000")
     reorder_point: Decimal = Decimal("0.0000")
 
+    @model_validator(mode="after")
+    def validate_stock_quantities(self):
+        values = (
+            self.quantity_on_hand,
+            self.reserved_quantity,
+            self.reorder_point,
+        )
+        if any(value < 0 for value in values):
+            raise ValueError("Stock quantities cannot be negative")
+        if self.reserved_quantity > self.quantity_on_hand:
+            raise ValueError(
+                "Reserved quantity cannot exceed quantity on hand"
+            )
+        return self
+
 
 class ProductStockUpdate(BaseModel):
     quantity_on_hand: Decimal | None = None
@@ -112,6 +133,17 @@ class ProductStockMovementCreate(BaseModel):
     source_id: UUID | None = None
     notes: str | None = None
 
+    @model_validator(mode="after")
+    def validate_movement_values(self):
+        if self.unit_cost < 0:
+            raise ValueError("Unit cost cannot be negative")
+        if self.movement_type == StockMovementType.ADJUSTMENT:
+            if self.quantity == 0:
+                raise ValueError("Adjustment quantity cannot be zero")
+        elif self.quantity <= 0:
+            raise ValueError("Movement quantity must be greater than zero")
+        return self
+
 
 class ProductStockMovementResponse(ProductStockMovementCreate, ORMBase):
     id: UUID
@@ -127,6 +159,12 @@ class ProductSupplierCreate(BaseModel):
     address: str | None = None
     lead_time_days: int = 0
     status: ProductSupplierStatus = ProductSupplierStatus.ACTIVE
+
+    @model_validator(mode="after")
+    def validate_lead_time(self):
+        if self.lead_time_days < 0:
+            raise ValueError("Lead time cannot be negative")
+        return self
 
 
 class ProductSupplierUpdate(BaseModel):

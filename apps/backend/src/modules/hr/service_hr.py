@@ -2,8 +2,9 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import HTTPException, status
 
 from src.service.base_domain_service import BaseDomainService
 from src.modules.finance.model_finance import (
@@ -23,6 +24,13 @@ from src.modules.hr.model_hr import (
     PayrollRun,
     PayrollSlip,
     PayrollStatus,
+)
+
+from src.service.domain_integrity import (
+    commit_or_raise,
+    ensure_date_range,
+    ensure_non_negative,
+    flush_or_raise,
 )
 
 
@@ -110,21 +118,64 @@ class KPIReviewService(BaseDomainService):
 class PayrollRunService(BaseDomainService):
     model_class = PayrollRun
 
+    async def _get_locked_payroll_run(self, payroll_run_id: UUID):
+        result = await self.db.execute(
+            select(PayrollRun)
+            .where(PayrollRun.id == payroll_run_id)
+            .with_for_update()
+        )
+        return result.scalar_one_or_none()
+
     async def calculate_payroll(self, payroll_run_id: UUID):
-        payroll_run = await self.get_by_id(payroll_run_id)
+        payroll_run = await self._get_locked_payroll_run(payroll_run_id)
 
         if payroll_run is None:
             return None
 
-        result = await self.db.execute(
-            select(Employee)
-            .where(
-                Employee.company_id == payroll_run.company_id,
-                Employee.status == "active",
-            )
+        ensure_date_range(
+            payroll_run.period_start,
+            payroll_run.period_end,
+            start_field="period_start",
+            end_field="period_end",
         )
 
+        if payroll_run.status in {
+            PayrollStatus.CALCULATED,
+            PayrollStatus.APPROVED,
+            PayrollStatus.PAID,
+        }:
+            return payroll_run
+
+        if payroll_run.status == PayrollStatus.CANCELLED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cancelled payroll cannot be calculated",
+            )
+
+        employee_query = select(Employee).where(
+            Employee.company_id == payroll_run.company_id,
+            Employee.status == "active",
+        )
+
+        if payroll_run.branch_id is not None:
+            employee_query = employee_query.where(
+                or_(
+                    Employee.branch_id == payroll_run.branch_id,
+                    Employee.branch_id.is_(None),
+                )
+            )
+
+        result = await self.db.execute(employee_query)
         employees = list(result.scalars().all())
+
+        # Membersihkan slip lama dari implementasi sebelumnya. Proses ini
+        # masih berada di transaksi yang sama sehingga tidak menyisakan
+        # payroll setengah jadi ketika terjadi error.
+        await self.db.execute(
+            delete(PayrollSlip).where(
+                PayrollSlip.payroll_run_id == payroll_run.id
+            )
+        )
 
         total_gross = Decimal("0.00")
         total_deductions = Decimal("0.00")
@@ -132,13 +183,24 @@ class PayrollRunService(BaseDomainService):
         total_net = Decimal("0.00")
 
         for employee in employees:
-            base_salary = employee.base_salary
+            base_salary = Decimal(employee.base_salary or 0)
+            ensure_non_negative(base_salary, field_name="base_salary")
+
             allowance = Decimal("0.00")
             bonus = Decimal("0.00")
             overtime = Decimal("0.00")
             deduction = Decimal("0.00")
-            tax = (base_salary * Decimal("0.05")).quantize(Decimal("0.01"))
-            net_pay = base_salary + allowance + bonus + overtime - deduction - tax
+            tax = (base_salary * Decimal("0.05")).quantize(
+                Decimal("0.01")
+            )
+            net_pay = (
+                base_salary
+                + allowance
+                + bonus
+                + overtime
+                - deduction
+                - tax
+            )
 
             slip = PayrollSlip(
                 payroll_run_id=payroll_run.id,
@@ -151,7 +213,6 @@ class PayrollRunService(BaseDomainService):
                 tax_amount=tax,
                 net_pay=net_pay,
             )
-
             self.db.add(slip)
 
             total_gross += base_salary + allowance + bonus + overtime
@@ -165,16 +226,55 @@ class PayrollRunService(BaseDomainService):
         payroll_run.total_net = total_net
         payroll_run.status = PayrollStatus.CALCULATED
 
-        await self.db.commit()
+        await commit_or_raise(self.db)
         await self.db.refresh(payroll_run)
-
         return payroll_run
 
     async def create_finance_transaction(self, payroll_run_id: UUID):
-        payroll_run = await self.get_by_id(payroll_run_id)
+        payroll_run = await self._get_locked_payroll_run(payroll_run_id)
 
         if payroll_run is None:
             return None
+
+        if payroll_run.finance_transaction_id is not None:
+            return payroll_run
+
+        if payroll_run.status not in {
+            PayrollStatus.CALCULATED,
+            PayrollStatus.APPROVED,
+            PayrollStatus.PAID,
+        }:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Payroll must be calculated before finance posting",
+            )
+
+        ensure_non_negative(
+            Decimal(payroll_run.total_net or 0),
+            field_name="total_net",
+        )
+
+        existing_result = await self.db.execute(
+            select(FinanceTransaction).where(
+                FinanceTransaction.company_id == payroll_run.company_id,
+                or_(
+                    FinanceTransaction.id == payroll_run.finance_transaction_id,
+                    (
+                        (FinanceTransaction.source_module == "hr_payroll")
+                        & (FinanceTransaction.source_id == payroll_run.id)
+                    ),
+                    FinanceTransaction.transaction_no
+                    == f"PAYROLL-{payroll_run.payroll_no}",
+                ),
+            )
+        )
+        existing_transaction = existing_result.scalars().first()
+
+        if existing_transaction is not None:
+            payroll_run.finance_transaction_id = existing_transaction.id
+            await commit_or_raise(self.db)
+            await self.db.refresh(payroll_run)
+            return payroll_run
 
         transaction = FinanceTransaction(
             company_id=payroll_run.company_id,
@@ -192,11 +292,9 @@ class PayrollRunService(BaseDomainService):
         )
 
         self.db.add(transaction)
-        await self.db.flush()
-
+        await flush_or_raise(self.db)
         payroll_run.finance_transaction_id = transaction.id
 
-        await self.db.commit()
+        await commit_or_raise(self.db)
         await self.db.refresh(payroll_run)
-
         return payroll_run

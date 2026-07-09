@@ -274,6 +274,13 @@ class KPIReview(Base):
     items = relationship("KPIReviewItem", back_populates="review", cascade="all, delete-orphan")
 
     __table_args__ = (
+        UniqueConstraint(
+            "company_id",
+            "employee_id",
+            "period_start",
+            "period_end",
+            name="uq_kpi_review_company_employee_period",
+        ),
         Index("ix_kpi_reviews_company_period", "company_id", "period_start", "period_end"),
         Index("ix_kpi_reviews_employee_period", "employee_id", "period_start", "period_end"),
     )

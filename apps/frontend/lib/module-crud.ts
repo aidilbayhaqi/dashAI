@@ -1,6 +1,10 @@
 import { api } from "@/lib/api";
 import { getCurrentCompanyId, isCurrentUserSuperAdmin } from "@/lib/auth-scope";
 import { getSelectedCompanyId } from "@/lib/company-scope";
+import {
+  idempotencyHeaders,
+  retainIdempotencyKey,
+} from "@/lib/idempotency";
 import type { ModuleRow } from "@/types/modules";
 
 export type FeatureKey = "product" | "hr" | "crm" | "finance" | "admin";
@@ -465,7 +469,11 @@ export async function createModuleRecord({
 
   const body = stripReadonlyFields(withCompanyId(featureKey, normalizedPayload));
 
-  const response = await api.post(endpoint, body);
+  const operation = `POST:${endpoint}`;
+  const { key, headers } = idempotencyHeaders(operation, body);
+
+  const response = await api.post(endpoint, body, { headers });
+  retainIdempotencyKey(operation, body, key);
 
   return response.data;
 }

@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from src.modules.finance.model_finance import (
     AccountType,
@@ -39,6 +39,14 @@ class FinanceAccountingPeriodCreate(BaseModel):
     end_date: date
     status: PeriodStatus = PeriodStatus.OPEN
     is_active: bool = True
+
+    @model_validator(mode="after")
+    def validate_period(self):
+        if self.end_date < self.start_date:
+            raise ValueError("Accounting period end cannot precede start")
+        if self.period_number < 1 or self.period_number > 12:
+            raise ValueError("Period number must be between 1 and 12")
+        return self
 
 
 class FinanceAccountingPeriodUpdate(BaseModel):
@@ -184,6 +192,20 @@ class FinanceTransactionCreate(BaseModel):
     description: str | None = None
     posted_at: datetime | None = None
     created_by: UUID | None = None
+
+    @model_validator(mode="after")
+    def validate_transaction_amounts(self):
+        amounts = (
+            self.subtotal_amount,
+            self.discount_amount,
+            self.tax_amount,
+            self.total_amount,
+        )
+        if any(value < 0 for value in amounts):
+            raise ValueError("Transaction amounts cannot be negative")
+        if self.total_amount <= 0:
+            raise ValueError("Transaction total amount must be greater than zero")
+        return self
 
 
 class FinanceTransactionUpdate(BaseModel):
@@ -569,6 +591,24 @@ class FinanceInvoiceCreate(BaseModel):
     source_id: UUID | None = None
     attachment_url: str | None = None
     notes: str | None = None
+
+    @model_validator(mode="after")
+    def validate_invoice_values(self):
+        amounts = (
+            self.subtotal_amount,
+            self.tax_amount,
+            self.total_amount,
+            self.paid_amount,
+        )
+        if any(value < 0 for value in amounts):
+            raise ValueError("Invoice amounts cannot be negative")
+        if self.total_amount <= 0:
+            raise ValueError("Invoice total amount must be greater than zero")
+        if self.paid_amount > self.total_amount:
+            raise ValueError("Paid amount cannot exceed invoice total")
+        if self.due_date is not None and self.due_date < self.invoice_date:
+            raise ValueError("Invoice due date cannot precede invoice date")
+        return self
 
 
 class FinanceInvoiceUpdate(BaseModel):

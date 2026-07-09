@@ -1,0 +1,39 @@
+from pathlib import Path
+
+import pytest
+
+
+pytestmark = pytest.mark.static
+
+
+def _frontend_root() -> Path:
+    return Path(__file__).resolve().parents[3] / "frontend"
+
+
+def test_frontend_create_requests_keep_success_replay_key():
+    frontend = _frontend_root()
+
+    module_crud = (
+        frontend / "lib" / "module-crud.ts"
+    ).read_text(encoding="utf-8")
+
+    payroll_service = (
+        frontend / "features" / "hr" / "payroll-service.ts"
+    ).read_text(encoding="utf-8")
+
+    for source in (module_crud, payroll_service):
+        assert "retainIdempotencyKey(" in source
+        assert (
+            "clearIdempotencyKey(operation, body, key);"
+            not in source
+        )
+
+
+def test_frontend_idempotency_has_pending_and_replay_ttl():
+    source = (
+        _frontend_root() / "lib" / "idempotency.ts"
+    ).read_text(encoding="utf-8")
+
+    assert "PENDING_KEY_TTL_MS" in source
+    assert "SUCCESS_REPLAY_TTL_MS" in source
+    assert "export function retainIdempotencyKey(" in source

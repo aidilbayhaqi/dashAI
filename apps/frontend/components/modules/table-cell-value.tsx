@@ -1,10 +1,12 @@
 "use client";
 
-import type { ModuleField } from "@/types/modules";
+import { AuthenticatedFilePreview } from "@/components/files/authenticated-file-preview";
+import { formatModuleValue } from "@/lib/value-format";
+import type { ModuleColumn } from "@/types/modules";
 
 type TableCellValueProps = {
   value: unknown;
-  column?: ModuleField;
+  column?: ModuleColumn;
 };
 
 function hasValue(value: unknown) {
@@ -77,14 +79,13 @@ export function TableCellValue({ value, column }: TableCellValueProps) {
 
     return (
       <div className="flex items-center gap-3">
-        <img
-          src={imageUrl}
-          alt={column?.label ?? "Image"}
-          className="h-12 w-12 rounded-2xl border border-slate-200 object-cover dark:border-slate-800"
-          onError={(event) => {
-            event.currentTarget.style.display = "none";
-          }}
-        />
+        <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
+          <AuthenticatedFilePreview
+            src={imageUrl}
+            alt={column?.label ?? "Image"}
+            className="h-12 w-12 object-cover"
+          />
+        </div>
 
         <a
           href={imageUrl}
@@ -121,7 +122,7 @@ export function TableCellValue({ value, column }: TableCellValueProps) {
 
   return (
     <span className="break-words text-sm font-semibold text-slate-700 dark:text-slate-200">
-      {stringValue}
+      {column ? formatModuleValue(value, column) : stringValue}
     </span>
   );
 }

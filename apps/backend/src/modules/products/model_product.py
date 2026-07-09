@@ -283,4 +283,14 @@ class ProductStockMovement(Base):
         Index("ix_stock_movements_company_date", "company_id", "movement_date"),
         Index("ix_stock_movements_product_date", "product_id", "movement_date"),
         Index("ix_stock_movements_source", "source_module", "source_id"),
+        Index(
+            "uq_stock_movement_source",
+            "company_id",
+            "source_module",
+            "source_id",
+            "product_id",
+            "branch_id",
+            unique=True,
+            postgresql_where=source_id.is_not(None),
+        ),
     )

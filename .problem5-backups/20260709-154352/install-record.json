@@ -1,0 +1,33 @@
+{
+  "installed_at": "20260709-154352",
+  "project_root": "D:\\Documents\\CODING\\DashAI\\DashAI",
+  "backup_root": "D:\\Documents\\CODING\\DashAI\\DashAI\\.problem5-backups\\20260709-154352",
+  "previous_alembic_head": "959810c0f3b0",
+  "files": [
+    "apps/backend/src/security/idempotency.py",
+    "apps/backend/src/service/domain_integrity.py",
+    "apps/backend/src/service/crud_service.py",
+    "apps/backend/src/routes/crud_factory.py",
+    "apps/backend/src/modules/products/model_product.py",
+    "apps/backend/src/modules/products/schema_product.py",
+    "apps/backend/src/modules/products/service_product.py",
+    "apps/backend/src/modules/products/route_product.py",
+    "apps/backend/src/modules/hr/model_hr.py",
+    "apps/backend/src/modules/hr/schema_hr.py",
+    "apps/backend/src/modules/hr/service_hr.py",
+    "apps/backend/src/modules/hr/route_hr.py",
+    "apps/backend/src/modules/finance/schema_finance.py",
+    "apps/backend/src/tests/test_14_idempotency_domain_static.py",
+    "apps/backend/migrations/versions/5d9a1c7e4b20_problem_5_domain_integrity.py",
+    "apps/frontend/lib/idempotency.ts",
+    "apps/frontend/lib/value-format.ts",
+    "apps/frontend/lib/module-crud.ts",
+    "apps/frontend/features/hr/payroll-service.ts",
+    "apps/frontend/types/modules.ts",
+    "apps/frontend/components/modules/module-page.tsx",
+    "apps/frontend/components/modules/table-cell-value.tsx",
+    "apps/frontend/features/product/config.ts",
+    "apps/frontend/features/hr/config.ts",
+    "apps/frontend/features/finance/config.ts"
+  ]
+}

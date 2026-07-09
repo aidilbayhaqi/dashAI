@@ -34,11 +34,29 @@ export type ModuleField = {
   helper?: string;
 };
 
+export type ModuleColumnFormat =
+  | "text"
+  | "currency"
+  | "number"
+  | "decimal"
+  | "percent"
+  | "rating"
+  | "date"
+  | "datetime"
+  | "boolean"
+  | "file"
+  | "image";
+
 export type ModuleColumn = {
   key: string;
   label: string;
   hidden?: boolean;
   className?: string;
+  format?: ModuleColumnFormat;
+  currency?: string;
+  minimumFractionDigits?: number;
+  maximumFractionDigits?: number;
+  unit?: string;
 };
 
 export type ModuleMetric = {

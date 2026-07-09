@@ -1,12 +1,17 @@
 from datetime import date, datetime, time
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.database import get_db
 from src.schemas.pagination import PaginatedResponse
 from src.security.dependencies import CurrentUser, require_permission
+from src.security.idempotency import (
+    build_idempotency_context,
+    execute_idempotent,
+    get_idempotency_key,
+)
 from src.security.tenant import (
     ensure_branch_belongs_to_company,
     ensure_item_access,
@@ -116,39 +121,58 @@ def create_crud_router(
     )
     async def create_item(
         payload: create_schema,
+        request: Request,
+        idempotency_key: str = Depends(get_idempotency_key),
         db: AsyncSession = Depends(get_db),
         current_user: CurrentUser | None = Depends(create_permission)
         if create_permission
         else None,
     ):
-        service = CRUDService(db, model_class)
-        data = payload.model_dump()
-
         if current_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication is required",
+            )
+
+        context = await build_idempotency_context(
+            request=request,
+            current_user=current_user,
+            raw_key=idempotency_key,
+        )
+
+        async def operation():
+            service = CRUDService(db, model_class)
+            data = payload.model_dump()
+
+            company_id = await resolve_create_company_id(
+                db=db,
+                data=data,
+                model_class=model_class,
+                current_user=current_user,
+                tenant_parent=tenant_parent,
+            )
+
+            for field_name in tenant_config.current_user_fields:
+                if hasattr(model_class, field_name) or field_name in data:
+                    data[field_name] = current_user.user_id
+
+            await validate_payload_tenant_references(
+                db=db,
+                data=data,
+                company_id=company_id,
+                current_user=current_user,
+                tenant_relations=tenant_config.tenant_relations,
+                user_company_fields=set(tenant_config.user_company_fields),
+            )
+
             return await service.create(data)
 
-        company_id = await resolve_create_company_id(
-            db=db,
-            data=data,
-            model_class=model_class,
-            current_user=current_user,
-            tenant_parent=tenant_parent,
+        return await execute_idempotent(
+            context=context,
+            operation=operation,
+            response_model=response_schema,
+            success_status_code=status.HTTP_201_CREATED,
         )
-
-        for field_name in tenant_config.current_user_fields:
-            if hasattr(model_class, field_name) or field_name in data:
-                data[field_name] = current_user.user_id
-
-        await validate_payload_tenant_references(
-            db=db,
-            data=data,
-            company_id=company_id,
-            current_user=current_user,
-            tenant_relations=tenant_config.tenant_relations,
-            user_company_fields=set(tenant_config.user_company_fields),
-        )
-
-        return await service.create(data)
 
     @router.get(
         "",
