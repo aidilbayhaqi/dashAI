@@ -21,6 +21,9 @@ coverage
 
 problem-*
 .problem*-backups
+.problem*-reports
+.priority-fix-backups
+.docker-context-backups
 
 .vscode
 .idea

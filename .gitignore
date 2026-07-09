@@ -82,3 +82,14 @@ Thumbs.db
 !.vscode/settings.json
 
 .idea/
+# Temporary priority fix backups
+.priority-fix-backups/
+
+# Temporary priority fix backups
+.priority-fix-backups/
+
+# Temporary priority fix backups
+.priority-fix-backups/
+
+# Temporary Docker context backups
+.docker-context-backups/

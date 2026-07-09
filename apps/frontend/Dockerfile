@@ -6,14 +6,15 @@ ENV PNPM_HOME="/pnpm" \
     PATH="/pnpm:${PATH}" \
     NEXT_TELEMETRY_DISABLED=1
 
-RUN corepack enable
+RUN corepack enable \
+    && corepack prepare pnpm@11.5.3 --activate
 
 WORKDIR /app
 
 
 FROM base AS deps
 
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile
@@ -43,16 +44,19 @@ ENV NODE_ENV=production \
 WORKDIR /app
 
 RUN addgroup --system --gid 10001 app \
-    && adduser --system --uid 10001 --ingroup app app
+    && adduser \
+        --system \
+        --uid 10001 \
+        --ingroup app \
+        app
 
 COPY --from=builder --chown=app:app /app/package.json ./package.json
 COPY --from=builder --chown=app:app /app/node_modules ./node_modules
 COPY --from=builder --chown=app:app /app/.next ./.next
+COPY --from=builder --chown=app:app /app/public ./public
 
-RUN mkdir -p /app/public /app/.next/cache \
+RUN mkdir -p /app/.next/cache \
     && chown -R app:app /app
-
-COPY --from=builder --chown=app:app /app/public* ./public/
 
 USER app
 
