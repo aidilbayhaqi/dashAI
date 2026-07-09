@@ -10,11 +10,6 @@ import {
   isCurrentUserSuperAdmin,
 } from "@/lib/auth-scope";
 import { getSelectedCompanyId } from "@/lib/company-scope";
-import type { UploadContext } from "@/lib/file-access";
-import {
-  isPreviewableImage,
-  uploadRecordFile,
-} from "./record-modal/upload";
 import type {
   ModuleColumn,
   ModuleField,
@@ -22,7 +17,6 @@ import type {
   ModuleRow,
 } from "@/types/modules";
 
-import { AuthenticatedFilePreview } from "@/components/files/authenticated-file-preview";
 type RecordModalProps = {
   open: boolean;
   title: string;
@@ -412,94 +406,57 @@ function buildInitialValues(fields: InputField[], initialRow?: ModuleRow | null)
   return result;
 }
 
-function getUploadContext(
-  fieldKey: string,
-  moduleKey?: string
-): UploadContext {
-  const normalizedField = fieldKey
-    .trim()
-    .toLowerCase();
+function isPreviewableImage(value: string) {
+  const text = value.toLowerCase();
 
-  const normalizedModule = String(
-    moduleKey ?? ""
-  )
-    .trim()
-    .toLowerCase();
+  return (
+    text.startsWith("http://") ||
+    text.startsWith("https://") ||
+    text.startsWith("/uploads") ||
+    text.endsWith(".jpg") ||
+    text.endsWith(".jpeg") ||
+    text.endsWith(".png") ||
+    text.endsWith(".webp") ||
+    text.endsWith(".gif")
+  );
+}
 
-  if (
-    normalizedField === "logo_url" ||
-    normalizedField === "company_logo_url"
-  ) {
-    return "company-logo";
-  }
+async function uploadRecordFile(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
 
-  if (
-    normalizedModule.includes("employee") ||
-    normalizedModule.includes("attendance") ||
-    normalizedModule.includes("payroll") ||
-    normalizedModule.includes("leave") ||
-    normalizedModule.includes("kpi")
-  ) {
-    if (
-      normalizedField.includes("photo") ||
-      normalizedField.includes("avatar") ||
-      normalizedField.includes("image")
-    ) {
-      return "employee-photo";
+  const endpoints = [
+    "/api/v1/uploads",
+    "/api/v1/upload",
+    "/api/v1/files/upload",
+    "/api/v1/files",
+  ];
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await api.post(endpoint, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      const data = response.data as Record<string, unknown>;
+
+      const url =
+        data.url ??
+        data.file_url ??
+        data.fileUrl ??
+        data.path ??
+        data.location ??
+        data.public_url;
+
+      if (url) return String(url);
+    } catch {
+      // lanjut endpoint berikutnya
     }
   }
 
-  if (
-    [
-      "avatar_url",
-      "employee_photo_url",
-      "employee_image_url",
-    ].includes(normalizedField)
-  ) {
-    return "employee-photo";
-  }
-
-  if (
-    normalizedModule.includes("transaction") ||
-    normalizedModule.includes("invoice") ||
-    normalizedModule.includes("tax")
-  ) {
-    if (
-      normalizedField.includes("attachment") ||
-      normalizedField.includes("proof") ||
-      normalizedField.includes("receipt") ||
-      normalizedField.includes("evidence") ||
-      normalizedField.includes("document")
-    ) {
-      return "transaction-proof";
-    }
-  }
-
-  if (
-    [
-      "attachment_url",
-      "proof_url",
-      "receipt_url",
-      "evidence_url",
-      "payment_proof_url",
-      "transaction_proof_url",
-    ].includes(normalizedField)
-  ) {
-    return "transaction-proof";
-  }
-
-  if (
-    [
-      "image_url",
-      "photo_url",
-      "product_image_url",
-      "thumbnail_url",
-    ].includes(normalizedField)
-  ) {
-    return "product-photo";
-  }
-
-  return "general";
+  throw new Error("Upload gagal. Endpoint upload belum tersedia.");
 }
 
 export function RecordModal({
@@ -713,15 +670,7 @@ export function RecordModal({
     try {
       setUploadingKey(field.key);
 
-      const url = await uploadRecordFile(file, {
-        context: getUploadContext(
-          field.key,
-          moduleKey
-        ),
-        companyId: String(
-          values.company_id ?? ""
-        ).trim() || undefined,
-      });
+      const url = await uploadRecordFile(file);
 
       updateValue(field.key, url);
     } catch (error) {
@@ -869,7 +818,7 @@ export function RecordModal({
                           <div className="flex flex-col gap-4 md:flex-row md:items-center">
                             <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-900 dark:bg-[#050816]">
                               {value && isPreviewableImage(value) ? (
-                                <AuthenticatedFilePreview
+                                <img
                                   src={value}
                                   alt={field.label}
                                   className="h-full w-full object-cover"

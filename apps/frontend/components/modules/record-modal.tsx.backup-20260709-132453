@@ -22,7 +22,6 @@ import type {
   ModuleRow,
 } from "@/types/modules";
 
-import { AuthenticatedFilePreview } from "@/components/files/authenticated-file-preview";
 type RecordModalProps = {
   open: boolean;
   title: string;
@@ -869,7 +868,7 @@ export function RecordModal({
                           <div className="flex flex-col gap-4 md:flex-row md:items-center">
                             <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-900 dark:bg-[#050816]">
                               {value && isPreviewableImage(value) ? (
-                                <AuthenticatedFilePreview
+                                <img
                                   src={value}
                                   alt={field.label}
                                   className="h-full w-full object-cover"
