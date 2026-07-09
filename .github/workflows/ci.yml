@@ -85,38 +85,42 @@ jobs:
       - name: Run integration tests
         run: pytest -m integration -q
 
-  frontend:
-    name: Frontend checks
-    runs-on: ubuntu-latest
+frontend:
+  name: Frontend checks
+  runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: apps/frontend
+  defaults:
+    run:
+      working-directory: apps/frontend
 
-    env:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      NEXT_TELEMETRY_DISABLED: "1"
+  env:
+    NEXT_PUBLIC_API_URL: http://localhost:8000
+    NEXT_TELEMETRY_DISABLED: "1"
 
-    steps:
-      - uses: actions/checkout@v5
+  steps:
+    - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v5
-        with:
-          node-version: "24"
-          cache: pnpm
-          cache-dependency-path: apps/frontend/pnpm-lock.yaml
+    - name: Install pnpm
+      uses: pnpm/action-setup@v6
+      with:
+        version: 11.5.3
+        run_install: false
 
-      - name: Enable Corepack
-        run: corepack enable
+    - name: Setup Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version: "24"
+        cache: pnpm
+        cache-dependency-path: apps/frontend/pnpm-lock.yaml
 
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
+    - name: Install frontend dependencies
+      run: pnpm install --frozen-lockfile
 
-      - name: TypeScript
-        run: pnpm exec tsc --noEmit
+    - name: TypeScript
+      run: pnpm exec tsc --noEmit
 
-      - name: Production build
-        run: pnpm build
+    - name: Production build
+      run: pnpm build
 
   docker:
     name: Docker build
