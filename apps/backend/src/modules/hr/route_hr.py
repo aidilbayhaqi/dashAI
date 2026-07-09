@@ -42,6 +42,7 @@ from src.modules.hr.schema_hr import (
 )
 from src.modules.hr.service_hr import PayrollRunService
 from src.security.dependencies import CurrentUser, require_permission
+from src.security.tenant import ensure_item_access, get_record_or_404
 
 
 router = APIRouter(tags=["HR & KPI"])
@@ -171,13 +172,32 @@ router.include_router(
 async def calculate_payroll(
     payroll_run_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(require_permission("hr.payroll.manage")),
+    current_user: CurrentUser = Depends(
+        require_permission("hr.payroll.manage")
+    ),
 ):
+    payroll_run = await get_record_or_404(
+        db=db,
+        model_class=PayrollRun,
+        item_id=payroll_run_id,
+        detail="Payroll run not found",
+    )
+
+    await ensure_item_access(
+        db=db,
+        item=payroll_run,
+        current_user=current_user,
+        detail="Payroll run not found",
+    )
+
     service = PayrollRunService(db)
-    result = await service.calculate_payroll(payroll_run_id)
+    result = await service.calculate_payroll(payroll_run.id)
 
     if result is None:
-        raise HTTPException(status_code=404, detail="Payroll run not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Payroll run not found",
+        )
 
     return result
 
@@ -189,12 +209,31 @@ async def calculate_payroll(
 async def create_payroll_finance_transaction(
     payroll_run_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(require_permission("hr.payroll.manage")),
+    current_user: CurrentUser = Depends(
+        require_permission("hr.payroll.manage")
+    ),
 ):
+    payroll_run = await get_record_or_404(
+        db=db,
+        model_class=PayrollRun,
+        item_id=payroll_run_id,
+        detail="Payroll run not found",
+    )
+
+    await ensure_item_access(
+        db=db,
+        item=payroll_run,
+        current_user=current_user,
+        detail="Payroll run not found",
+    )
+
     service = PayrollRunService(db)
-    result = await service.create_finance_transaction(payroll_run_id)
+    result = await service.create_finance_transaction(payroll_run.id)
 
     if result is None:
-        raise HTTPException(status_code=404, detail="Payroll run not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Payroll run not found",
+        )
 
     return result

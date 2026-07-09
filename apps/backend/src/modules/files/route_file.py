@@ -5,11 +5,24 @@ import uuid
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+)
 
 from src.core.config import settings
+from src.security.dependencies import CurrentUser, get_current_user
 
-router = APIRouter(prefix="/files", tags=["Files"])
+
+router = APIRouter(
+    prefix="/files",
+    tags=["Files"],
+)
 
 
 ALLOWED_CONTEXTS = {
@@ -49,7 +62,16 @@ async def upload_file(
     company_id_form: Annotated[str | None, Form(alias="company_id")] = None,
     context_query: Annotated[str | None, Query(alias="context")] = None,
     company_id_query: Annotated[str | None, Query(alias="company_id")] = None,
+    _current_user: CurrentUser = Depends(get_current_user),
 ):
+    """
+    Upload file hanya untuk user yang sudah terautentikasi.
+
+    Logic context, folder, nama file, dan response dipertahankan agar
+    kompatibel dengan frontend serta modul yang sudah berjalan.
+    Validasi tenant file akan ditambahkan pada tahap keamanan upload.
+    """
+
     context = context_form or context_query or "general"
     company_id = company_id_form or company_id_query or "public"
 

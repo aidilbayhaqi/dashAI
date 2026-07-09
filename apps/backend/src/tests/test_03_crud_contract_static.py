@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 import pytest
 
 from src.main import app
-from src.tests.route_utils import RouteInfo, collect_routes
 
 
 CRUD_LIST_ROUTES = {
@@ -39,23 +40,46 @@ CRUD_LIST_ROUTES = {
 }
 
 
-def _find_get_route(path: str) -> RouteInfo | None:
-    for route in collect_routes(app):
-        if route.path == path and "GET" in route.methods:
-            return route
+def _openapi_schema() -> dict:
+    return app.openapi()
 
-    return None
+
+def _get_operation(
+    path: str,
+    method: str = "get",
+) -> dict | None:
+    path_item = (
+        _openapi_schema()
+        .get("paths", {})
+        .get(path)
+    )
+
+    if not isinstance(path_item, dict):
+        return None
+
+    operation = path_item.get(
+        method.lower()
+    )
+
+    return (
+        operation
+        if isinstance(operation, dict)
+        else None
+    )
 
 
 @pytest.mark.static
 def test_crud_list_routes_exist():
-    missing = []
+    missing = [
+        path
+        for path in sorted(CRUD_LIST_ROUTES)
+        if _get_operation(path) is None
+    ]
 
-    for path in CRUD_LIST_ROUTES:
-        if _find_get_route(path) is None:
-            missing.append(path)
-
-    assert not missing, "Missing CRUD list routes:\n" + "\n".join(missing)
+    assert not missing, (
+        "Missing CRUD list routes:\n"
+        + "\n".join(missing)
+    )
 
 
 @pytest.mark.static
@@ -68,24 +92,33 @@ def test_crud_list_routes_have_frontend_query_params():
         "sort_order",
     }
 
-    invalid_routes = []
+    invalid_routes: list[str] = []
 
-    for path in CRUD_LIST_ROUTES:
-        route = _find_get_route(path)
+    for path in sorted(CRUD_LIST_ROUTES):
+        operation = _get_operation(path)
 
-        if route is None:
+        if operation is None:
             continue
 
         query_params = {
-            param.name
-            for param in route.dependant.query_params
+            parameter.get("name")
+            for parameter in operation.get(
+                "parameters",
+                [],
+            )
+            if parameter.get("in") == "query"
         }
 
-        missing_params = required_params - query_params
+        missing_params = (
+            required_params
+            - query_params
+        )
 
         if missing_params:
             invalid_routes.append(
-                f"{path} missing params={sorted(missing_params)} current={sorted(query_params)}"
+                f"{path} "
+                f"missing params={sorted(missing_params)} "
+                f"current={sorted(query_params)}"
             )
 
     assert not invalid_routes, (

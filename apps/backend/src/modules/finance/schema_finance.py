@@ -163,6 +163,7 @@ class FinanceCashAccountResponse(FinanceCashAccountCreate, ORMBase):
 
 class FinanceTransactionCreate(BaseModel):
     company_id: UUID
+    branch_id: UUID | None = None
     period_id: UUID | None = None
     cash_account_id: UUID | None = None
     transaction_no: str
@@ -186,6 +187,7 @@ class FinanceTransactionCreate(BaseModel):
 
 
 class FinanceTransactionUpdate(BaseModel):
+    branch_id: UUID | None = None
     period_id: UUID | None = None
     cash_account_id: UUID | None = None
     transaction_no: str | None = None

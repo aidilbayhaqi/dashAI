@@ -1,0 +1,15 @@
+warning: in the working copy of 'apps/backend/src/security/dependencies/__init__.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/backend/src/security/dependencies/dependencies.py', LF will be replaced by CRLF the next time Git touches it
+ apps/backend/src/modules/company/route_company.py  |  69 [32m+[m[31m---[m
+ apps/backend/src/modules/crm/route_crm.py          | 109 [32m+++++[m[31m-[m
+ .../src/modules/dashboard/route_dashboard.py       | 122 [32m+++++[m[31m-[m
+ apps/backend/src/modules/finance/schema_finance.py |   2 [32m+[m
+ apps/backend/src/modules/hr/route_hr.py            |  53 [32m++[m[31m-[m
+ apps/backend/src/modules/products/route_product.py |  48 [32m++[m[31m-[m
+ .../src/modules/products/service_product.py        |  68 [32m+++[m[31m-[m
+ apps/backend/src/modules/users/route_user.py       |  63 [32m++[m[31m--[m
+ apps/backend/src/routes/crud_factory.py            | 231 [32m++++++[m[31m------[m
+ apps/backend/src/security/dependencies/__init__.py |   2 [32m+[m[31m-[m
+ .../src/security/dependencies/dependencies.py      | 418 [32m+++++++++[m[31m------------[m
+ apps/backend/src/service/crud_service.py           | 207 [32m+++++[m[31m-----[m
+ 12 files changed, 828 insertions(+), 564 deletions(-)

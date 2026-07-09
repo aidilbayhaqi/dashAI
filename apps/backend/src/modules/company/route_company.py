@@ -16,6 +16,10 @@ from src.modules.company.schema_company import (
 )
 from src.modules.company.service_company import CompanyService
 from src.security.dependencies import CurrentUser, require_permission
+from src.security.tenant import (
+    ensure_branch_access as tenant_ensure_branch_access,
+    ensure_company_access as tenant_ensure_company_access,
+)
 
 
 router = APIRouter(
@@ -45,56 +49,21 @@ def ensure_company_access(
     current_user: CurrentUser,
     company_id: UUID,
 ) -> None:
-    """
-    Superadmin boleh mengakses seluruh company.
-
-    User biasa hanya boleh mengakses company yang sesuai
-    dengan company context miliknya.
-    """
-
-    if current_user.is_superuser:
-        return
-
-    if current_user.company_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User has no company context",
-        )
-
-    if current_user.company_id != company_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied for this company",
-        )
+    tenant_ensure_company_access(
+        current_user=current_user,
+        company_id=company_id,
+    )
 
 
 def ensure_branch_access(
     current_user: CurrentUser,
     branch_id: UUID,
 ) -> None:
-    """
-    Superadmin boleh mengakses seluruh branch.
-
-    Jika branch_ids kosong, user dianggap memiliki akses
-    ke semua branch dalam company miliknya.
-    """
-
-    if current_user.is_superuser:
-        return
-
-    if not current_user.branch_ids:
-        return
-
-    allowed_branch_ids = {
-        str(value)
-        for value in current_user.branch_ids
-    }
-
-    if str(branch_id) not in allowed_branch_ids:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied for this branch",
-        )
+    tenant_ensure_branch_access(
+        current_user=current_user,
+        branch_id=branch_id,
+        detail="Branch not found",
+    )
 
 
 # =========================================================
@@ -461,21 +430,15 @@ async def get_branches(
         company_id
     )
 
-    if current_user.is_superuser:
-        return branches
+    allowed_branch_ids = current_user.allowed_branch_ids
 
-    if not current_user.branch_ids:
+    if allowed_branch_ids is None:
         return branches
-
-    allowed_branch_ids = {
-        str(value)
-        for value in current_user.branch_ids
-    }
 
     return [
         branch
         for branch in branches
-        if str(branch.id) in allowed_branch_ids
+        if branch.id in allowed_branch_ids
     ]
 
 

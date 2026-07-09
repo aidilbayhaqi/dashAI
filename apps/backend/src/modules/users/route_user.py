@@ -28,6 +28,11 @@ from src.modules.users.schema_user import (
 )
 from src.modules.users.service_user import UserService
 from src.security.dependencies import CurrentUser, require_permission
+from src.security.tenant import (
+    ensure_branch_access as tenant_ensure_branch_access,
+    ensure_branch_belongs_to_company,
+    ensure_company_access as tenant_ensure_company_access,
+)
 
 
 router = APIRouter(
@@ -58,36 +63,20 @@ def ensure_company_access(
     current_user: CurrentUser,
     company_id: UUID,
 ) -> None:
-    if current_user.is_superuser:
-        return
-
-    current_company_id = ensure_company_context(current_user)
-
-    if current_company_id != company_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied for this company",
-        )
+    tenant_ensure_company_access(
+        current_user=current_user,
+        company_id=company_id,
+    )
 
 
 def ensure_branch_access(
     current_user: CurrentUser,
     branch_id: UUID | None,
 ) -> None:
-    if current_user.is_superuser:
-        return
-
-    if branch_id is None:
-        return
-
-    if not current_user.branch_ids:
-        return
-
-    if str(branch_id) not in current_user.branch_ids:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied for this branch",
-        )
+    tenant_ensure_branch_access(
+        current_user=current_user,
+        branch_id=branch_id,
+    )
 
 
 async def get_role_or_404(
@@ -415,7 +404,14 @@ async def create_company_access(
     current_user: CurrentUser = Depends(require_permission("users.access.create")),
 ):
     ensure_company_access(current_user, payload.company_id)
-    ensure_branch_access(current_user, payload.default_branch_id)
+
+    if payload.default_branch_id is not None:
+        await ensure_branch_belongs_to_company(
+            db=db,
+            branch_id=payload.default_branch_id,
+            company_id=payload.company_id,
+            current_user=current_user,
+        )
 
     role = await get_role_or_404(payload.role_id, db)
 
@@ -475,7 +471,14 @@ async def update_company_access(
     access = await get_company_access_or_404(access_id, db)
 
     ensure_company_access(current_user, access.company_id)
-    ensure_branch_access(current_user, payload.default_branch_id)
+
+    if payload.default_branch_id is not None:
+        await ensure_branch_belongs_to_company(
+            db=db,
+            branch_id=payload.default_branch_id,
+            company_id=access.company_id,
+            current_user=current_user,
+        )
 
     if payload.role_id is not None:
         role = await get_role_or_404(payload.role_id, db)
@@ -514,7 +517,13 @@ async def create_branch_access(
     access = await get_company_access_or_404(payload.company_access_id, db)
 
     ensure_company_access(current_user, access.company_id)
-    ensure_branch_access(current_user, payload.branch_id)
+
+    await ensure_branch_belongs_to_company(
+        db=db,
+        branch_id=payload.branch_id,
+        company_id=access.company_id,
+        current_user=current_user,
+    )
 
     if payload.can_manage_branch:
         ensure_superuser(current_user)
