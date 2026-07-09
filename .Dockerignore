@@ -1,0 +1,48 @@
+# Version control
+.git
+.github
+.gitignore
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Node / Next.js
+**/node_modules
+**/.next
+**/out
+**/dist
+**/.pnpm-store
+**/coverage
+**/*.log
+
+# Python
+**/.venv
+**/venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.coverage
+**/htmlcov
+
+# Project-generated installers and backups
+problem-*
+problem5-*
+problem6-*
+problem7-*
+.problem*-backups
+.problem*-test-backups
+*.zip
+
+# IDE and OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Runtime data
+**/uploads
+**/logs
