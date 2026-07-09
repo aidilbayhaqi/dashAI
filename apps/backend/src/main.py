@@ -1,34 +1,31 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from src.core.config import settings
 from src.core.redis import check_redis_connection, close_redis_connection
 from src.db.database import check_database_connection, engine
-
+from src.modules.admin.route_admin import router as admin_router
 from src.modules.auth.route_auth import router as auth_router
 from src.modules.company.route_company import router as company_router
-from src.modules.users.route_user import router as user_router
-from src.modules.products.route_product import router as product_router
-from src.modules.hr.route_hr import router as hr_router
 from src.modules.crm.route_crm import router as crm_router
+from src.modules.files.route_file import router as file_router
 from src.modules.finance.route_finance import router as finance_router
+from src.modules.hr.route_hr import router as hr_router
+from src.modules.products.route_product import router as product_router
+from src.modules.users.route_user import router as user_router
+from src.realtime.listener import start_realtime_listener
+from src.realtime.router_realtime import router as realtime_router
 
 try:
     from src.modules.dashboard.route_dashboard import router as dashboard_router
 except Exception:
     dashboard_router = None
-
-from src.realtime.listener import start_realtime_listener
-from src.realtime.router_realtime import router as realtime_router
-
-from pathlib import Path
-from fastapi.staticfiles import StaticFiles
-from src.modules.files.route_file import router as file_router
-from src.modules.admin.route_admin import router as admin_router
 
 
 logging.basicConfig(
@@ -73,6 +70,28 @@ async def lifespan(app: FastAPI):
         logger.info("Application shutdown completed")
 
 
+def register_public_uploads(app: FastAPI) -> None:
+    """
+    Expose only files explicitly classified as public.
+
+    Private files remain outside StaticFiles and must be downloaded through
+    /api/v1/files/private/... where authentication and tenant checks apply.
+    """
+
+    public_upload_dir = Path(settings.UPLOAD_DIR) / "public"
+    public_upload_dir.mkdir(parents=True, exist_ok=True)
+
+    public_upload_url = (
+        f"{settings.UPLOAD_URL_PREFIX.rstrip('/')}/public"
+    )
+
+    app.mount(
+        public_upload_url,
+        StaticFiles(directory=public_upload_dir),
+        name="public-uploads",
+    )
+
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.APP_NAME,
@@ -84,13 +103,7 @@ def create_app() -> FastAPI:
         openapi_url=settings.openapi_url,
     )
 
-    Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
-
-    app.mount(
-        settings.UPLOAD_URL_PREFIX,
-        StaticFiles(directory=settings.UPLOAD_DIR),
-        name="uploads",
-    )
+    register_public_uploads(app)
 
     app.add_middleware(
         CORSMiddleware,

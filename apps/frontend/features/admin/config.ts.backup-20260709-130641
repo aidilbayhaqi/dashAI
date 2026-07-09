@@ -16,7 +16,6 @@ export const adminModuleConfig: Record<AdminModuleKey, ModuleConfig> = {
       { key: "plan", label: "Plan" },
       { key: "status", label: "Status" },
     ],
-    formFields: [],
   },
 
   users: {
@@ -32,7 +31,6 @@ export const adminModuleConfig: Record<AdminModuleKey, ModuleConfig> = {
       { key: "lastLogin", label: "Last Login" },
       { key: "status", label: "Status" },
     ],
-    formFields: [],
   },
 
 };

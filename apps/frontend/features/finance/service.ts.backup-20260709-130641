@@ -116,10 +116,7 @@ function normalizeRow(row: unknown): ModuleRow {
   return result;
 }
 
-function getArrayByKeys(
-  record: RawRecord,
-  keys: string[]
-): unknown[] {
+function getArrayByKeys(record: RawRecord, keys: string[]) {
   for (const key of keys) {
     const value = record[key];
 
@@ -128,10 +125,7 @@ function getArrayByKeys(
     }
 
     if (value && typeof value === "object") {
-      const nested: unknown[] = getArrayByKeys(
-        value as RawRecord,
-        keys
-      );
+      const nested = getArrayByKeys(value as RawRecord, keys);
 
       if (nested.length > 0) return nested;
     }

@@ -715,7 +715,7 @@ export function ModulePage({
 
               <div className="flex items-start gap-4">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#0f2a5f] text-white shadow-lg shadow-blue-950/10 dark:bg-blue-700">
-                  {Icon ? <Icon size={24} /> : <FileText size={24} />}
+                  <Icon size={24} />
                 </div>
 
                 <div>

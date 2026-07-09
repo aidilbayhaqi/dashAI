@@ -16,6 +16,5 @@ export const aiReportModuleConfig: Record<AIReportModuleKey, ModuleConfig> = {
       { key: "created", label: "Created" },
       { key: "status", label: "Status" },
     ],
-    formFields: [],
   },
 };

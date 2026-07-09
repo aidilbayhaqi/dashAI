@@ -140,6 +140,7 @@ services:
     restart: unless-stopped
 
     environment:
+      NODE_ENV: development
       NEXT_TELEMETRY_DISABLED: "1"
 
       NEXT_PUBLIC_API_URL: http://localhost:8000

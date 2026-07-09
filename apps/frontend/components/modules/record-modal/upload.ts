@@ -1,116 +1,91 @@
-import { api } from "@/lib/api";
+import {
+  extractUploadedFileUrl,
+  isPreviewableImage as isFilePreviewableImage,
+  normalizeFileUrl,
+  uploadFile,
+  type UploadContext,
+} from "@/lib/file-access";
+import { getCurrentCompanyId } from "@/lib/auth-scope";
+import {
+  ALL_COMPANIES_VALUE,
+  getSelectedCompanyId,
+} from "@/lib/company-scope";
 
-type UploadResponse = Record<string, unknown>;
+export type UploadRecordFileOptions = {
+  context?: UploadContext;
+  companyId?: string | null;
+};
 
-function hasValue(value: unknown) {
+function hasValue(value: unknown): boolean {
   return value !== undefined && value !== null && String(value).trim() !== "";
 }
 
-function getApiBaseUrl() {
-  const fromEnv =
-    process.env.NEXT_PUBLIC_API_URL ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    "";
+function normalizeCompanyId(value: unknown): string | undefined {
+  if (!hasValue(value)) return undefined;
 
-  if (fromEnv) return fromEnv.replace(/\/$/, "");
+  const normalized = String(value).trim();
 
-  return "http://localhost:8000";
+  if (!normalized || normalized === ALL_COMPANIES_VALUE) {
+    return undefined;
+  }
+
+  return normalized;
 }
 
-export function normalizeUploadedUrl(value: unknown) {
-  if (!hasValue(value)) return "";
+function resolveUploadCompanyId(
+  explicitCompanyId?: string | null
+): string | undefined {
+  const explicit = normalizeCompanyId(explicitCompanyId);
 
-  const url = String(value).trim();
+  if (explicit) return explicit;
 
-  if (!url) return "";
+  const selected = normalizeCompanyId(getSelectedCompanyId());
 
-  if (url.startsWith("http://") || url.startsWith("https://")) {
-    return url;
-  }
+  if (selected) return selected;
 
-  if (url.startsWith("/uploads")) {
-    return `${getApiBaseUrl()}${url}`;
-  }
-
-  if (url.startsWith("uploads/")) {
-    return `${getApiBaseUrl()}/${url}`;
-  }
-
-  return url;
+  return normalizeCompanyId(getCurrentCompanyId());
 }
 
-function extractUploadedUrl(data: unknown) {
-  if (!data || typeof data !== "object") return "";
-
-  const record = data as UploadResponse;
-
-  const value =
-    record.url ??
-    record.file_url ??
-    record.fileUrl ??
-    record.path ??
-    record.location ??
-    record.public_url ??
-    record.publicUrl ??
-    record.attachment_url ??
-    record.data;
-
-  if (typeof value === "string") {
-    return normalizeUploadedUrl(value);
-  }
-
-  if (value && typeof value === "object") {
-    return extractUploadedUrl(value);
-  }
-
-  return "";
+/**
+ * Compatibility alias untuk komponen lama.
+ */
+export function normalizeUploadedUrl(value: unknown): string {
+  return normalizeFileUrl(value);
 }
 
-export function isPreviewableImage(value: string) {
-  const normalized = value.toLowerCase();
-
-  return (
-    normalized.startsWith("data:image/") ||
-    normalized.endsWith(".jpg") ||
-    normalized.endsWith(".jpeg") ||
-    normalized.endsWith(".png") ||
-    normalized.endsWith(".webp") ||
-    normalized.endsWith(".gif") ||
-    normalized.includes("/image/")
-  );
+/**
+ * Compatibility helper untuk response upload lama maupun baru.
+ */
+export function extractUploadedUrl(data: unknown): string {
+  return extractUploadedFileUrl(data);
 }
 
-export async function uploadRecordFile(file: File) {
-  const formData = new FormData();
+export function isPreviewableImage(value: string): boolean {
+  return isFilePreviewableImage(value);
+}
 
-  formData.append("file", file);
+/**
+ * Upload file melalui endpoint resmi DashAI.
+ *
+ * Signature lama `uploadRecordFile(file)` tetap didukung.
+ * Pemanggil baru dapat mengirim context dan companyId agar policy storage
+ * public/private sesuai dengan jenis field yang sedang di-upload.
+ */
+export async function uploadRecordFile(
+  file: File,
+  options: UploadRecordFileOptions = {}
+): Promise<string> {
+  const uploadedFile = await uploadFile({
+    file,
+    context: options.context ?? "general",
+    companyId: resolveUploadCompanyId(options.companyId),
+  });
 
-  const endpoints = [
-    "/api/v1/uploads",
-    "/api/v1/upload",
-    "/api/v1/files/upload",
-    "/api/v1/files",
-  ];
+  const uploadedUrl = extractUploadedFileUrl(uploadedFile);
 
-  let lastError: unknown = null;
-
-  for (const endpoint of endpoints) {
-    try {
-      const response = await api.post(endpoint, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-
-      const uploadedUrl = extractUploadedUrl(response.data);
-
-      if (uploadedUrl) return uploadedUrl;
-    } catch (error) {
-      lastError = error;
-    }
+  if (!uploadedUrl) {
+    throw new Error("Backend tidak mengembalikan URL file yang valid.");
   }
 
-  console.warn("[uploadRecordFile] upload failed", lastError);
-
-  throw new Error("Upload gagal. Pastikan endpoint upload backend tersedia.");
+  return uploadedUrl;
 }
