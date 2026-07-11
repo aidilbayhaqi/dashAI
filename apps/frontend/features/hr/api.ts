@@ -46,13 +46,13 @@ const endpointMap: Record<HRModuleKey, string[]> = {
 };
 
 const sortMap: Record<HRModuleKey, string> = {
-  employees: "full_name",
-  attendance: "attendance_date",
-  "leave-types": "name",
-  "leave-requests": "start_date",
-  tasks: "created_at",
-  "payroll-runs": "period_start",
-  "kpi-reviews": "period_start",
+  employees: "updated_at",
+  attendance: "updated_at",
+  "leave-types": "updated_at",
+  "leave-requests": "updated_at",
+  tasks: "updated_at",
+  "payroll-runs": "updated_at",
+  "kpi-reviews": "updated_at",
 };
 
 function hasValue(value: unknown) {
@@ -657,7 +657,7 @@ export async function getHRModuleData(input: GetHRModuleDataParams) {
     ...(companyId ? { company_id: companyId } : {}),
     limit: 100,
     sort_by: sortMap[moduleKey],
-    sort_order: "asc",
+    sort_order: "desc",
   });
 
   const [rawRows, employeeRows, leaveTypeRows] = await Promise.all([

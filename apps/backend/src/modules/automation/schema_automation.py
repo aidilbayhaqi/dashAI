@@ -106,3 +106,22 @@ class DomainEventResponse(ORMBase):
     occurred_at: datetime
     processed_at: datetime | None
     last_error: str | None
+
+
+class SalesOrderMonitoringResponse(BaseModel):
+    order_id: UUID
+    order_no: str
+    customer_name: str
+    total_amount: Decimal
+    order_status: str
+    transaction_id: UUID | None = None
+    transaction_no: str | None = None
+    transaction_status: str | None = None
+    invoice_id: UUID | None = None
+    invoice_no: str | None = None
+    invoice_status: str | None = None
+    paid_amount: Decimal = Decimal("0.00")
+    outstanding_amount: Decimal = Decimal("0.00")
+    payment_status: Literal["unpaid", "partial", "paid"]
+    created_at: datetime
+    updated_at: datetime

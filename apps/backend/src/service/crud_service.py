@@ -35,7 +35,7 @@ class CRUDService:
         filters: dict[str, Any] | None = None,
         search: str | None = None,
         search_fields: list[str] | None = None,
-        sort_by: str = "created_at",
+        sort_by: str = "updated_at",
         sort_order: str = "desc",
         allowed_branch_ids: set[UUID] | None = None,
         tenant_parent: TenantParentConfig | None = None,
@@ -97,7 +97,7 @@ class CRUDService:
         filters: dict[str, Any] | None = None,
         search: str | None = None,
         search_fields: list[str] | None = None,
-        sort_by: str = "created_at",
+        sort_by: str = "updated_at",
         sort_order: str = "desc",
         allowed_branch_ids: set[UUID] | None = None,
         tenant_parent: TenantParentConfig | None = None,
@@ -319,18 +319,36 @@ class CRUDService:
         self,
         *,
         query,
-        sort_by: str = "created_at",
+        sort_by: str = "updated_at",
         sort_order: str = "desc",
     ):
-        if not sort_by or not hasattr(self.model_class, sort_by):
-            return query
+        resolved_sort_by = sort_by
 
-        sort_column = getattr(self.model_class, sort_by)
+        if not resolved_sort_by or not hasattr(self.model_class, resolved_sort_by):
+            if hasattr(self.model_class, "updated_at"):
+                resolved_sort_by = "updated_at"
+            elif hasattr(self.model_class, "created_at"):
+                resolved_sort_by = "created_at"
+            else:
+                return query
 
-        if sort_order.lower() == "asc":
-            return query.order_by(asc(sort_column))
+        sort_column = getattr(self.model_class, resolved_sort_by)
+        primary_sort = (
+            asc(sort_column)
+            if sort_order.lower() == "asc"
+            else desc(sort_column)
+        )
 
-        return query.order_by(desc(sort_column))
+        ordering = [primary_sort]
+
+        # Keep pagination deterministic when multiple records share a timestamp.
+        if resolved_sort_by != "created_at" and hasattr(self.model_class, "created_at"):
+            ordering.append(desc(getattr(self.model_class, "created_at")))
+
+        if hasattr(self.model_class, "id"):
+            ordering.append(desc(getattr(self.model_class, "id")))
+
+        return query.order_by(*ordering)
 
     def _to_dict(self, payload: Any, *, exclude_unset: bool = False) -> dict[str, Any]:
         if isinstance(payload, dict):

@@ -108,3 +108,6 @@ apps/backend/uploads/*
 
 # Temporary frontend test backups
 .frontend-test-backups/
+
+# Temporary business monitoring backups
+.business-monitoring-backups/

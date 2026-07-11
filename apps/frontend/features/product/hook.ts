@@ -19,10 +19,10 @@ const productEndpoints: Record<ProductModuleKey, string> = {
 };
 
 const productSortBy: Record<ProductModuleKey, string> = {
-  overview: "created_at",
-  categories: "created_at",
+  overview: "updated_at",
+  categories: "updated_at",
   stock: "updated_at",
-  suppliers: "created_at",
+  suppliers: "updated_at",
 };
 
 function hasValue(value: unknown) {

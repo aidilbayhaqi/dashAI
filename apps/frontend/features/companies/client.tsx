@@ -15,6 +15,7 @@ import {
 } from "next/navigation";
 
 import {
+  ArrowUpDown,
   Building2,
   Plus,
   RefreshCw,
@@ -61,6 +62,11 @@ export function CompaniesClient() {
     setPageSize,
   ] = useState(10);
 
+  const [
+    sortMode,
+    setSortMode,
+  ] = useState("updated_desc");
+
   useEffect(() => {
     setIsSuperAdmin(
       isCurrentUserSuperAdmin()
@@ -91,34 +97,80 @@ export function CompaniesClient() {
           .trim()
           .toLowerCase();
 
-      if (!keyword) {
-        return companies;
-      }
+      const matched = keyword
+        ? companies.filter(
+            (company) =>
+              [
+                company.name,
+                company.legal_name,
+                company.tax_number,
+                company.email,
+                company.phone,
+                company.industry,
+                company.company_size,
+                company.city,
+                company.province,
+                company.country,
+              ]
+                .filter(Boolean)
+                .some((value) =>
+                  String(value)
+                    .toLowerCase()
+                    .includes(keyword)
+                )
+          )
+        : companies;
 
-      return companies.filter(
-        (company) =>
-          [
-            company.name,
-            company.legal_name,
-            company.tax_number,
-            company.email,
-            company.phone,
-            company.industry,
-            company.company_size,
-            company.city,
-            company.province,
-            company.country,
-          ]
-            .filter(Boolean)
-            .some((value) =>
-              String(value)
-                .toLowerCase()
-                .includes(keyword)
-            )
-      );
+      const timestamp = (value: unknown) => {
+        const parsed = Date.parse(
+          String(value ?? "")
+        );
+
+        return Number.isNaN(parsed)
+          ? 0
+          : parsed;
+      };
+
+      return [...matched].sort((left, right) => {
+        if (sortMode === "updated_asc") {
+          return (
+            timestamp(left.updated_at) -
+            timestamp(right.updated_at)
+          );
+        }
+
+        if (sortMode === "created_desc") {
+          return (
+            timestamp(right.created_at) -
+            timestamp(left.created_at)
+          );
+        }
+
+        if (sortMode === "name_asc") {
+          return left.name.localeCompare(
+            right.name,
+            "id",
+            { sensitivity: "base" }
+          );
+        }
+
+        if (sortMode === "name_desc") {
+          return right.name.localeCompare(
+            left.name,
+            "id",
+            { sensitivity: "base" }
+          );
+        }
+
+        return (
+          timestamp(right.updated_at) -
+          timestamp(left.updated_at)
+        );
+      });
     }, [
       companies,
       search,
+      sortMode,
     ]);
 
   const totalPages = Math.max(
@@ -159,7 +211,7 @@ export function CompaniesClient() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [pageSize, search]);
+  }, [pageSize, search, sortMode]);
 
   useEffect(() => {
     setCurrentPage((page) =>
@@ -295,22 +347,61 @@ export function CompaniesClient() {
           </div>
         </div>
 
-        <div className="mb-5 flex h-11 min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 dark:border-slate-900 dark:bg-[#02040a]">
-          <Search
-            size={17}
-            className="shrink-0 text-slate-400"
-          />
+        <div className="mb-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
+          <div className="flex h-11 min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 dark:border-slate-900 dark:bg-[#02040a]">
+            <Search
+              size={17}
+              className="shrink-0 text-slate-400"
+            />
 
-          <input
-            value={search}
-            onChange={(event) =>
-              setSearch(
-                event.target.value
-              )
-            }
-            placeholder="Cari company, industry, email, atau kota..."
-            className="w-full min-w-0 bg-transparent text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400 dark:text-slate-200"
-          />
+            <input
+              value={search}
+              onChange={(event) =>
+                setSearch(
+                  event.target.value
+                )
+              }
+              placeholder="Cari company, industry, email, atau kota..."
+              className="w-full min-w-0 bg-transparent text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400 dark:text-slate-200"
+            />
+          </div>
+
+          <label className="flex h-11 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 dark:border-slate-900 dark:bg-[#02040a]">
+            <ArrowUpDown
+              size={16}
+              className="shrink-0 text-slate-400"
+            />
+
+            <span className="sr-only">
+              Urutkan company
+            </span>
+
+            <select
+              value={sortMode}
+              onChange={(event) =>
+                setSortMode(
+                  event.target.value
+                )
+              }
+              className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+            >
+              <option value="updated_desc">
+                Terbaru diperbarui
+              </option>
+              <option value="updated_asc">
+                Terlama diperbarui
+              </option>
+              <option value="created_desc">
+                Terbaru dibuat
+              </option>
+              <option value="name_asc">
+                Nama A–Z
+              </option>
+              <option value="name_desc">
+                Nama Z–A
+              </option>
+            </select>
+          </label>
         </div>
 
         {companiesQuery.isLoading ? (

@@ -35,7 +35,7 @@ class BaseDomainService:
         company_id: UUID | None = None,
         page: int = 1,
         page_size: int = 50,
-        sort_by: str = "created_at",
+        sort_by: str = "updated_at",
         sort_order: str = "desc",
         filters: dict[str, Any] | None = None,
         search: str | None = None,
@@ -73,11 +73,30 @@ class BaseDomainService:
         if conditions:
             query = query.where(and_(*conditions))
 
-        if sort_by and hasattr(self.model_class, sort_by):
-            sort_column = getattr(self.model_class, sort_by)
-            query = query.order_by(
-                asc(sort_column) if sort_order.lower() == "asc" else desc(sort_column)
-            )
+        resolved_sort_by = sort_by
+        if not resolved_sort_by or not hasattr(self.model_class, resolved_sort_by):
+            if hasattr(self.model_class, "updated_at"):
+                resolved_sort_by = "updated_at"
+            elif hasattr(self.model_class, "created_at"):
+                resolved_sort_by = "created_at"
+            else:
+                resolved_sort_by = None
+
+        if resolved_sort_by:
+            sort_column = getattr(self.model_class, resolved_sort_by)
+            ordering = [
+                asc(sort_column)
+                if sort_order.lower() == "asc"
+                else desc(sort_column)
+            ]
+
+            if resolved_sort_by != "created_at" and hasattr(self.model_class, "created_at"):
+                ordering.append(desc(getattr(self.model_class, "created_at")))
+
+            if hasattr(self.model_class, "id"):
+                ordering.append(desc(getattr(self.model_class, "id")))
+
+            query = query.order_by(*ordering)
 
         query = query.offset((page - 1) * page_size).limit(page_size)
 

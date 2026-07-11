@@ -85,3 +85,22 @@ export type AutomationContext = {
   stocks: AutomationStock[];
   branches: AutomationBranch[];
 };
+
+export type AutomationMonitoringRow = {
+  order_id: string;
+  order_no: string;
+  customer_name: string;
+  total_amount: number | string;
+  order_status: string;
+  transaction_id?: string | null;
+  transaction_no?: string | null;
+  transaction_status?: string | null;
+  invoice_id?: string | null;
+  invoice_no?: string | null;
+  invoice_status?: string | null;
+  paid_amount: number | string;
+  outstanding_amount: number | string;
+  payment_status: "unpaid" | "partial" | "paid";
+  created_at: string;
+  updated_at: string;
+};

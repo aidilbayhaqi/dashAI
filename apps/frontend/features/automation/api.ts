@@ -2,6 +2,7 @@ import { api } from "@/lib/api";
 import type {
   AutomationBranch,
   AutomationContext,
+  AutomationMonitoringRow,
   AutomationProduct,
   AutomationStock,
   DomainEvent,
@@ -131,3 +132,36 @@ export async function processSalesOrder(input: {
 
   return response.data;
 }
+
+export async function getAutomationMonitoring(companyId: string) {
+  const response = await api.get<AutomationMonitoringRow[]>(
+    "/api/v1/automation/monitoring",
+    {
+      params: {
+        company_id: companyId,
+        limit: 200,
+      },
+    }
+  );
+
+  return rowsFrom<AutomationMonitoringRow>(response.data);
+}
+
+export async function confirmSalesOrderPayment(input: {
+  companyId: string;
+  orderId: string;
+}) {
+  const response = await api.post<AutomationMonitoringRow>(
+    `/api/v1/automation/sales-orders/${input.orderId}/confirm-payment`,
+    {},
+    {
+      params: { company_id: input.companyId },
+      headers: {
+        "Idempotency-Key": createIdempotencyKey("sales-order-payment"),
+      },
+    }
+  );
+
+  return response.data;
+}
+

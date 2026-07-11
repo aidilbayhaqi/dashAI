@@ -25,5 +25,5 @@ class ListQueryParams(BaseModel):
     page: int = Field(default=1, ge=1)
     limit: int = Field(default=20, ge=1, le=100)
     q: str | None = None
-    sort_by: str = "created_at"
+    sort_by: str = "updated_at"
     sort_order: str = "desc"

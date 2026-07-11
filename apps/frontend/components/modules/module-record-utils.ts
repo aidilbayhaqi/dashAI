@@ -12,6 +12,7 @@ const TITLE_KEYS = [
   "employee_name",
   "client_name",
   "company_name",
+  "order_no",
   "invoice_no",
   "transaction_no",
   "journal_no",
@@ -32,17 +33,33 @@ const SUBTITLE_KEYS = [
   "phone",
 ];
 
-const SYSTEM_KEYS = new Set([
+const ACTIVITY_KEYS = new Set([
+  "created_at",
+  "updated_at",
+  "deleted_at",
+  "posted_at",
+  "approved_at",
+  "fulfilled_at",
+  "paid_at",
+  "processed_at",
+]);
+
+const TECHNICAL_KEYS = new Set([
   "id",
   "company_id",
   "branch_id",
   "created_by_id",
   "updated_by_id",
   "deleted_by_id",
-  "created_at",
-  "updated_at",
-  "deleted_at",
+  "created_by",
+  "approved_by",
+  "source_id",
+  "aggregate_id",
+  "event_key",
 ]);
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function formatRecordFieldLabel(key: string) {
   return key
@@ -51,12 +68,31 @@ export function formatRecordFieldLabel(key: string) {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+export function isUuidRecordValue(value: unknown) {
+  return UUID_PATTERN.test(String(value ?? "").trim());
+}
+
+export function isTechnicalRecordKey(key: string) {
+  const normalized = key.toLowerCase();
+
+  return (
+    TECHNICAL_KEYS.has(normalized) ||
+    normalized.endsWith("_id") ||
+    normalized.endsWith("_uuid") ||
+    normalized === "uuid"
+  );
+}
+
+export function shouldHideRecordField(key: string, value: unknown) {
+  return isTechnicalRecordKey(key) || isUuidRecordValue(value);
+}
+
 export function getRecordTitle(row: ModuleRow | null | undefined) {
   if (!row) return "Record";
 
   for (const key of TITLE_KEYS) {
     const value = String(row[key] ?? "").trim();
-    if (value) return value;
+    if (value && !isUuidRecordValue(value)) return value;
   }
 
   return "Record";
@@ -67,15 +103,38 @@ export function getRecordSubtitle(row: ModuleRow | null | undefined) {
 
   for (const key of SUBTITLE_KEYS) {
     const value = String(row[key] ?? "").trim();
-    if (value && value !== getRecordTitle(row)) return value;
+    if (
+      value &&
+      value !== getRecordTitle(row) &&
+      !isUuidRecordValue(value)
+    ) {
+      return value;
+    }
   }
 
-  const id = String(row.id ?? "").trim();
-  return id ? `ID ${id}` : "Informasi record terpilih";
+  return "Informasi record terbaru";
 }
 
 export function getRecordStatus(row: ModuleRow | null | undefined) {
   if (!row) return "";
+
+  const preferredKeys = [
+    "payment_status",
+    "invoice_status",
+    "transaction_status",
+    "stock_status",
+    "approval_status",
+    "employment_status",
+    "is_paid_label",
+    "is_active_label",
+    "status_label",
+    "status",
+  ];
+
+  for (const key of preferredKeys) {
+    const value = String(row[key] ?? "").trim();
+    if (value) return value;
+  }
 
   const statusEntry = Object.entries(row).find(([key]) =>
     key.toLowerCase().includes("status")
@@ -93,11 +152,13 @@ export function getRecordStatusClass(value: string) {
       "paid",
       "approved",
       "completed",
+      "fulfilled",
       "done",
       "ready",
       "balanced",
       "positive",
       "posted",
+      "processed",
     ].some((keyword) => normalized.includes(keyword))
   ) {
     return "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/70";
@@ -112,6 +173,8 @@ export function getRecordStatusClass(value: string) {
       "probation",
       "draft",
       "sent",
+      "partial",
+      "unpaid",
     ].some((keyword) => normalized.includes(keyword))
   ) {
     return "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/70";
@@ -148,11 +211,11 @@ export function isRecordImageField(
 
   return (
     format === "image" ||
-    type === "file" &&
+    (type === "file" &&
       (key.includes("image") ||
         key.includes("photo") ||
         key.includes("avatar") ||
-        key.includes("logo")) ||
+        key.includes("logo"))) ||
     key.includes("image") ||
     key.includes("photo") ||
     key.includes("avatar") ||
@@ -186,7 +249,7 @@ export function isRecordFileField(
 }
 
 export function isSystemRecordKey(key: string) {
-  return SYSTEM_KEYS.has(key) || key.endsWith("_id");
+  return ACTIVITY_KEYS.has(key.toLowerCase());
 }
 
 export function isLongRecordField(key: string) {

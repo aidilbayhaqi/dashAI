@@ -23,12 +23,12 @@ type FinanceBundle = {
 };
 
 const moduleSortBy: Record<FinanceModuleKey, string> = {
-  overview: "transaction_date",
-  transactions: "transaction_date",
-  invoices: "invoice_date",
-  cashflow: "report_date",
-  taxes: "created_at",
-  ledger: "journal_date",
+  overview: "updated_at",
+  transactions: "updated_at",
+  invoices: "updated_at",
+  cashflow: "updated_at",
+  taxes: "updated_at",
+  ledger: "updated_at",
 };
 
 function hasValue(value: unknown) {

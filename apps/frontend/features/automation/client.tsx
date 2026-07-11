@@ -14,11 +14,15 @@ import {
   Trash2,
   Workflow,
 } from "lucide-react";
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { CompanyScopeFilter } from "@/components/modules/company-scope-filter";
+import {
+  FeedbackToast,
+  type FeedbackToastState,
+} from "@/components/ui/feedback-toast";
 import {
   getCurrentCompanyId,
   isCurrentUserSuperAdmin,
@@ -30,19 +34,22 @@ import {
 import { cn } from "@/lib/utils";
 
 import {
+  confirmSalesOrderPayment,
   createSalesOrder,
   getAutomationContext,
   getAutomationEvents,
+  getAutomationMonitoring,
   getSalesOrders,
   processSalesOrder,
 } from "./api";
 import type {
   AutomationContext,
+  AutomationMonitoringRow,
   DomainEvent,
   SalesOrder,
   SalesOrderLineInput,
 } from "./types";
-
+import { AutomationMonitoringTable } from "./monitoring-table";
 
 type FormLine = SalesOrderLineInput & { localId: string };
 
@@ -161,6 +168,14 @@ export function SalesAutomationClient() {
   const [autoProcess, setAutoProcess] = useState(true);
   const [lines, setLines] = useState<FormLine[]>([makeLine()]);
   const [formError, setFormError] = useState("");
+  const [toast, setToast] = useState<FeedbackToastState>(null);
+  const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timeout = window.setTimeout(() => setToast(null), 6500);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
 
   const contextQuery = useQuery({
     queryKey: ["automation", "context", companyId],
@@ -183,40 +198,109 @@ export function SalesAutomationClient() {
     refetchInterval: 10_000,
   });
 
+
+  const monitoringQuery = useQuery({
+    queryKey: ["automation", "monitoring", companyId],
+    queryFn: () => getAutomationMonitoring(companyId as string),
+    enabled: Boolean(companyId),
+    refetchInterval: 10_000,
+  });
+
   const context: AutomationContext = contextQuery.data ?? {
     products: [],
     stocks: [],
     branches: [],
   };
-  const orders = ordersQuery.data ?? [];
+  const rawOrders = ordersQuery.data ?? [];
+  const orders = useMemo(
+    () =>
+      [...rawOrders].sort(
+        (left, right) =>
+          new Date(right.updated_at).getTime() -
+          new Date(left.updated_at).getTime()
+      ),
+    [rawOrders]
+  );
   const events = eventsQuery.data ?? [];
+  const monitoringRows = monitoringQuery.data ?? [];
 
   const createMutation = useMutation({
     mutationFn: createSalesOrder,
-    onSuccess: async () => {
+    onSuccess: async (order, variables) => {
       setCustomerName("");
       setDueDate("");
       setNotes("");
       setLines([makeLine()]);
       setFormError("");
+      setToast({
+        type: "success",
+        title: variables.auto_process
+          ? "Sales automation berhasil"
+          : "Sales Order disimpan sebagai draft",
+        description: variables.auto_process
+          ? `${order.order_no} berhasil membuat transaksi dan invoice secara otomatis.`
+          : `${order.order_no} siap diproses ketika sudah disetujui.`,
+      });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["automation"] }),
         queryClient.invalidateQueries({ queryKey: ["product"] }),
         queryClient.invalidateQueries({ queryKey: ["finance"] }),
       ]);
     },
-    onError: (error) => setFormError(extractError(error)),
+    onError: (error) => {
+      const message = extractError(error);
+      setFormError(message);
+      setToast({
+        type: "error",
+        title: "Sales automation gagal",
+        description: message,
+      });
+    },
   });
 
   const processMutation = useMutation({
     mutationFn: processSalesOrder,
-    onSuccess: async () => {
+    onSuccess: async (order) => {
+      setToast({
+        type: "success",
+        title: "Draft berhasil diproses",
+        description: `${order.order_no} sudah menghasilkan transaksi dan invoice.`,
+      });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["automation"] }),
         queryClient.invalidateQueries({ queryKey: ["product"] }),
         queryClient.invalidateQueries({ queryKey: ["finance"] }),
       ]);
     },
+    onError: (error) =>
+      setToast({
+        type: "error",
+        title: "Draft gagal diproses",
+        description: extractError(error),
+      }),
+  });
+
+  const confirmPaymentMutation = useMutation({
+    mutationFn: confirmSalesOrderPayment,
+    onMutate: (variables) => setConfirmingOrderId(variables.orderId),
+    onSuccess: async (result) => {
+      setToast({
+        type: "success",
+        title: "Pembayaran berhasil dikonfirmasi",
+        description: `${result.invoice_no ?? result.order_no} telah ditandai lunas.`,
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["automation"] }),
+        queryClient.invalidateQueries({ queryKey: ["finance"] }),
+      ]);
+    },
+    onError: (error) =>
+      setToast({
+        type: "error",
+        title: "Konfirmasi pembayaran gagal",
+        description: extractError(error),
+      }),
+    onSettled: () => setConfirmingOrderId(null),
   });
 
   const metrics = useMemo(() => {
@@ -313,6 +397,7 @@ export function SalesAutomationClient() {
 
   return (
     <div className="space-y-7">
+      <FeedbackToast toast={toast} onClose={() => setToast(null)} />
       <section className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 text-white shadow-2xl shadow-slate-900/10 dark:border-slate-800">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -333,6 +418,7 @@ export function SalesAutomationClient() {
               void ordersQuery.refetch();
               void eventsQuery.refetch();
               void contextQuery.refetch();
+              void monitoringQuery.refetch();
             }}
             className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-bold transition hover:bg-white/15"
           >
@@ -788,6 +874,19 @@ export function SalesAutomationClient() {
           </section>
         </div>
       </section>
+
+      <AutomationMonitoringTable
+        rows={monitoringRows}
+        isLoading={monitoringQuery.isLoading}
+        confirmingOrderId={confirmingOrderId}
+        onConfirmPayment={(row: AutomationMonitoringRow) => {
+          if (!companyId) return;
+          confirmPaymentMutation.mutate({
+            companyId,
+            orderId: row.order_id,
+          });
+        }}
+      />
     </div>
   );
 }

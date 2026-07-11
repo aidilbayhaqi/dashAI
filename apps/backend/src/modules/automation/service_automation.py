@@ -126,7 +126,7 @@ class BusinessAutomationService:
             select(SalesOrder)
             .where(*filters)
             .options(selectinload(SalesOrder.items))
-            .order_by(SalesOrder.created_at.desc())
+            .order_by(SalesOrder.updated_at.desc(), SalesOrder.created_at.desc())
             .offset((page - 1) * limit)
             .limit(limit)
         )
@@ -167,6 +167,202 @@ class BusinessAutomationService:
             )
         )
         return list(result.scalars().all())
+
+    @staticmethod
+    def _enum_value(value) -> str | None:
+        if value is None:
+            return None
+        return str(getattr(value, "value", value))
+
+    def _build_monitoring_row(
+        self,
+        *,
+        order: SalesOrder,
+        transaction: FinanceTransaction | None,
+        invoice: FinanceInvoice | None,
+    ) -> dict:
+        invoice_total = money(invoice.total_amount) if invoice else money(order.total_amount)
+        paid_amount = money(invoice.paid_amount) if invoice else Decimal("0.00")
+        outstanding_amount = money(max(invoice_total - paid_amount, Decimal("0.00")))
+
+        if invoice and (
+            invoice.status == InvoiceStatus.PAID
+            or paid_amount >= invoice_total
+        ):
+            payment_status = "paid"
+        elif paid_amount > 0:
+            payment_status = "partial"
+        else:
+            payment_status = "unpaid"
+
+        updated_candidates = [order.updated_at]
+        if transaction is not None:
+            updated_candidates.append(transaction.updated_at)
+        if invoice is not None:
+            updated_candidates.append(invoice.updated_at)
+
+        return {
+            "order_id": order.id,
+            "order_no": order.order_no,
+            "customer_name": order.customer_name,
+            "total_amount": money(order.total_amount),
+            "order_status": self._enum_value(order.status),
+            "transaction_id": transaction.id if transaction else None,
+            "transaction_no": transaction.transaction_no if transaction else None,
+            "transaction_status": self._enum_value(transaction.status) if transaction else None,
+            "invoice_id": invoice.id if invoice else None,
+            "invoice_no": invoice.invoice_no if invoice else None,
+            "invoice_status": self._enum_value(invoice.status) if invoice else None,
+            "paid_amount": paid_amount,
+            "outstanding_amount": outstanding_amount,
+            "payment_status": payment_status,
+            "created_at": order.created_at,
+            "updated_at": max(updated_candidates),
+        }
+
+    async def list_monitoring(
+        self,
+        *,
+        company_id: UUID,
+        limit: int = 200,
+    ) -> list[dict]:
+        result = await self.db.execute(
+            select(SalesOrder, FinanceTransaction, FinanceInvoice)
+            .outerjoin(
+                FinanceTransaction,
+                FinanceTransaction.id == SalesOrder.transaction_id,
+            )
+            .outerjoin(
+                FinanceInvoice,
+                FinanceInvoice.id == SalesOrder.invoice_id,
+            )
+            .where(SalesOrder.company_id == company_id)
+            .order_by(SalesOrder.updated_at.desc(), SalesOrder.created_at.desc())
+            .limit(min(max(limit, 1), 200))
+        )
+
+        return [
+            self._build_monitoring_row(
+                order=order,
+                transaction=transaction,
+                invoice=invoice,
+            )
+            for order, transaction, invoice in result.all()
+        ]
+
+    async def get_monitoring_item(
+        self,
+        *,
+        order_id: UUID,
+        company_id: UUID,
+    ) -> dict | None:
+        result = await self.db.execute(
+            select(SalesOrder, FinanceTransaction, FinanceInvoice)
+            .outerjoin(
+                FinanceTransaction,
+                FinanceTransaction.id == SalesOrder.transaction_id,
+            )
+            .outerjoin(
+                FinanceInvoice,
+                FinanceInvoice.id == SalesOrder.invoice_id,
+            )
+            .where(
+                SalesOrder.id == order_id,
+                SalesOrder.company_id == company_id,
+            )
+        )
+        row = result.one_or_none()
+        if row is None:
+            return None
+
+        order, transaction, invoice = row
+        return self._build_monitoring_row(
+            order=order,
+            transaction=transaction,
+            invoice=invoice,
+        )
+
+    async def confirm_payment(
+        self,
+        *,
+        order_id: UUID,
+        company_id: UUID,
+        user_id: UUID,
+    ) -> dict:
+        order = await self._get_order(
+            order_id=order_id,
+            company_id=company_id,
+            for_update=True,
+        )
+
+        if order is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Sales order not found",
+            )
+
+        if order.invoice_id is None or order.transaction_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Sales order has not generated a transaction and invoice",
+            )
+
+        invoice_result = await self.db.execute(
+            select(FinanceInvoice)
+            .where(
+                FinanceInvoice.id == order.invoice_id,
+                FinanceInvoice.company_id == company_id,
+            )
+            .with_for_update()
+        )
+        invoice = invoice_result.scalar_one_or_none()
+
+        transaction_result = await self.db.execute(
+            select(FinanceTransaction)
+            .where(
+                FinanceTransaction.id == order.transaction_id,
+                FinanceTransaction.company_id == company_id,
+            )
+            .with_for_update()
+        )
+        transaction = transaction_result.scalar_one_or_none()
+
+        if invoice is None or transaction is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Linked finance record was not found",
+            )
+
+        now = datetime.utcnow()
+        invoice.paid_amount = money(invoice.total_amount)
+        invoice.status = InvoiceStatus.PAID
+        transaction.status = TransactionStatus.POSTED
+        transaction.posted_at = transaction.posted_at or now
+        order.updated_at = now
+
+        await self._record_event(
+            company_id=company_id,
+            order_id=order.id,
+            event_type="finance.payment.confirmed",
+            payload={
+                "order_id": str(order.id),
+                "order_no": order.order_no,
+                "invoice_id": str(invoice.id),
+                "invoice_no": invoice.invoice_no,
+                "transaction_id": str(transaction.id),
+                "transaction_no": transaction.transaction_no,
+                "paid_amount": str(invoice.paid_amount),
+                "confirmed_by": str(user_id),
+            },
+        )
+
+        await self.db.commit()
+        monitoring = await self.get_monitoring_item(
+            order_id=order.id,
+            company_id=company_id,
+        )
+        assert monitoring is not None
+        return monitoring
 
     async def _record_event(
         self,

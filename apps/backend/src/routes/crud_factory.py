@@ -182,7 +182,7 @@ def create_crud_router(
         page: int = Query(default=1, ge=1),
         limit: int = Query(default=20, ge=1, le=100),
         q: str | None = Query(default=None),
-        sort_by: str = Query(default="created_at"),
+        sort_by: str = Query(default="updated_at"),
         sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
         company_id: UUID | None = Query(default=None),
         branch_id: UUID | None = Query(default=None),

@@ -25,11 +25,11 @@ const endpointMap: Record<CRMModuleKey, string> = {
 };
 
 const sortMap: Record<CRMModuleKey, string> = {
-  leads: "created_at",
-  contacts: "created_at",
-  deals: "created_at",
-  activities: "created_at",
-  campaigns: "created_at",
+  leads: "updated_at",
+  contacts: "updated_at",
+  deals: "updated_at",
+  activities: "updated_at",
+  campaigns: "updated_at",
 };
 
 function hasValue(value: unknown): boolean {

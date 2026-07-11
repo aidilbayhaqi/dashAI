@@ -9,6 +9,7 @@ from src.db.database import get_db
 from src.modules.automation.schema_automation import (
     DomainEventResponse,
     SalesOrderCreate,
+    SalesOrderMonitoringResponse,
     SalesOrderProcessRequest,
     SalesOrderResponse,
 )
@@ -213,6 +214,69 @@ async def process_sales_order(
         context=context,
         operation=operation,
         response_model=SalesOrderResponse,
+        success_status_code=status.HTTP_200_OK,
+    )
+
+
+@router.get(
+    "/monitoring",
+    response_model=list[SalesOrderMonitoringResponse],
+)
+async def list_automation_monitoring(
+    company_id: UUID | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(
+        require_permission("finance.transactions.view")
+    ),
+):
+    effective_company_id = _effective_company_id(
+        current_user=current_user,
+        requested_company_id=company_id,
+    )
+    service = BusinessAutomationService(db)
+    return await service.list_monitoring(
+        company_id=effective_company_id,
+        limit=limit,
+    )
+
+
+@router.post(
+    "/sales-orders/{order_id}/confirm-payment",
+    response_model=SalesOrderMonitoringResponse,
+)
+async def confirm_sales_order_payment(
+    order_id: UUID,
+    request: Request,
+    company_id: UUID | None = Query(default=None),
+    idempotency_key: str = Depends(get_idempotency_key),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(
+        require_permission("finance.invoices.update")
+    ),
+):
+    context = await build_idempotency_context(
+        request=request,
+        current_user=current_user,
+        raw_key=idempotency_key,
+    )
+
+    async def operation():
+        effective_company_id = _effective_company_id(
+            current_user=current_user,
+            requested_company_id=company_id,
+        )
+        service = BusinessAutomationService(db)
+        return await service.confirm_payment(
+            order_id=order_id,
+            company_id=effective_company_id,
+            user_id=current_user.user_id,
+        )
+
+    return await execute_idempotent(
+        context=context,
+        operation=operation,
+        response_model=SalesOrderMonitoringResponse,
         success_status_code=status.HTTP_200_OK,
     )
 

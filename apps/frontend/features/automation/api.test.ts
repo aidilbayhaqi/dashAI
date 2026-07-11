@@ -10,9 +10,11 @@ vi.mock("@/lib/api", () => ({
 }));
 
 import {
+  confirmSalesOrderPayment,
   createSalesOrder,
   getAutomationContext,
   getAutomationEvents,
+  getAutomationMonitoring,
   getSalesOrders,
   processSalesOrder,
 } from "./api";
@@ -205,4 +207,63 @@ describe("automation API client", () => {
       }
     );
   });
+
+  it("loads automation monitoring with latest business status", async () => {
+    apiMock.get.mockResolvedValueOnce({
+      data: [
+        {
+          order_id: "order-1",
+          payment_status: "unpaid",
+        },
+      ],
+    });
+
+    const rows = await getAutomationMonitoring("company-1");
+
+    expect(apiMock.get).toHaveBeenCalledWith(
+      "/api/v1/automation/monitoring",
+      {
+        params: {
+          company_id: "company-1",
+          limit: 200,
+        },
+      }
+    );
+    expect(rows).toEqual([
+      {
+        order_id: "order-1",
+        payment_status: "unpaid",
+      },
+    ]);
+  });
+
+  it("confirms payment with company scope and idempotency key", async () => {
+    apiMock.post.mockResolvedValueOnce({
+      data: {
+        order_id: "order-1",
+        payment_status: "paid",
+      },
+    });
+
+    const result = await confirmSalesOrderPayment({
+      companyId: "company-1",
+      orderId: "order-1",
+    });
+
+    expect(apiMock.post).toHaveBeenCalledWith(
+      "/api/v1/automation/sales-orders/order-1/confirm-payment",
+      {},
+      {
+        params: {
+          company_id: "company-1",
+        },
+        headers: {
+          "Idempotency-Key":
+            "sales-order-payment-00000000000040008000000000000000",
+        },
+      }
+    );
+    expect(result.payment_status).toBe("paid");
+  });
+
 });

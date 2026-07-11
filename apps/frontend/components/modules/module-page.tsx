@@ -4,15 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import * as XLSX from "xlsx";
 import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock3,
+  ArrowUpDown,
   Download,
   FileSpreadsheet,
   FileText,
-  Filter,
   Eye,
-  ImageIcon,
+  ListFilter,
   Pencil,
   Plus,
   RotateCcw,
@@ -53,14 +50,6 @@ import {
   isCurrentUserSuperAdmin,
 } from "@/lib/auth-scope";
 
-type BasicFilterKey =
-  | "all"
-  | "attention"
-  | "active"
-  | "pending"
-  | "problem"
-  | "with-image";
-
 type ModulePageProps = ModuleConfig &
   Partial<ModuleData> & {
     isLoading?: boolean;
@@ -73,6 +62,7 @@ type ModulePageProps = ModuleConfig &
     onCreateRecord?: (row: ModuleRow) => Promise<void> | void;
     onUpdateRecord?: (id: string, row: ModuleRow) => Promise<void> | void;
     onDeleteRecord?: (id: string) => Promise<void> | void;
+    getRowActions?: (row: ModuleRow) => ModuleAction[];
 
     isCreating?: boolean;
     isUpdating?: boolean;
@@ -127,86 +117,99 @@ function getStatusClass(value: string) {
   return "bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700";
 }
 
-function getStatusValue(row: ModuleRow) {
+function getStatusDisplayValue(row: ModuleRow) {
+  const preferredKeys = [
+    "payment_status",
+    "invoice_status",
+    "transaction_status",
+    "stock_status",
+    "approval_status",
+    "employment_status",
+    "is_paid_label",
+    "is_active_label",
+    "status_label",
+    "status",
+  ];
+
+  for (const key of preferredKeys) {
+    const value = String(row[key] ?? "").trim();
+    if (value) return value;
+  }
+
   const statusEntry = Object.entries(row).find(([key]) =>
     key.toLowerCase().includes("status")
   );
 
-  return String(statusEntry?.[1] ?? "").toLowerCase();
+  return String(statusEntry?.[1] ?? "").trim();
 }
 
-function isAttentionStatus(row: ModuleRow) {
-  const normalized = getStatusValue(row);
+function getRowDateValue(row: ModuleRow, preferredKey: string) {
+  const candidates = [
+    row[preferredKey],
+    row.updated_at,
+    row.created_at,
+    row.transaction_date,
+    row.invoice_date,
+    row.order_date,
+    row.report_date,
+  ];
 
-  if (!normalized) return false;
+  for (const candidate of candidates) {
+    const parsed = new Date(String(candidate ?? "")).getTime();
+    if (!Number.isNaN(parsed)) return parsed;
+  }
 
-  return [
-    "pending",
-    "review",
-    "risk",
-    "overdue",
-    "low",
-    "critical",
-    "late",
-    "failed",
-    "inactive",
-    "draft",
-    "cancelled",
-    "canceled",
-    "archived",
-  ].some((keyword) => normalized.includes(keyword));
+  return 0;
 }
 
-function isActiveStatus(row: ModuleRow) {
-  const normalized = getStatusValue(row);
+function getRowTitleValue(row: ModuleRow) {
+  const candidates = [
+    row.name,
+    row.title,
+    row.full_name,
+    row.product_name,
+    row.employee_name,
+    row.client_name,
+    row.company_name,
+    row.order_no,
+    row.invoice_no,
+    row.transaction_no,
+    row.sku,
+    row.code,
+    row.email,
+  ];
 
-  if (!normalized) return false;
-
-  return [
-    "active",
-    "ready",
-    "paid",
-    "approved",
-    "completed",
-    "done",
-    "posted",
-    "balanced",
-  ].some((keyword) => normalized.includes(keyword));
+  return String(candidates.find((value) => String(value ?? "").trim()) ?? "")
+    .trim()
+    .toLowerCase();
 }
 
-function isPendingStatus(row: ModuleRow) {
-  const normalized = getStatusValue(row);
+function getRowAmountValue(row: ModuleRow) {
+  const candidates = [
+    row.total_amount,
+    row.amount,
+    row.total,
+    row.paid_amount,
+    row.selling_price,
+    row.cost_price,
+  ];
 
-  if (!normalized) return false;
+  for (const candidate of candidates) {
+    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+      return candidate;
+    }
 
-  return [
-    "pending",
-    "draft",
-    "review",
-    "progress",
-    "scheduled",
-    "sent",
-    "process",
-  ].some((keyword) => normalized.includes(keyword));
-}
+    const normalized = String(candidate ?? "")
+      .replaceAll("Rp", "")
+      .replaceAll("IDR", "")
+      .replace(/[^0-9,.-]/g, "")
+      .replaceAll(".", "")
+      .replace(",", ".");
+    const parsed = Number(normalized);
+    if (Number.isFinite(parsed)) return parsed;
+  }
 
-function isProblemStatus(row: ModuleRow) {
-  const normalized = getStatusValue(row);
-
-  if (!normalized) return false;
-
-  return [
-    "failed",
-    "inactive",
-    "cancelled",
-    "canceled",
-    "critical",
-    "overdue",
-    "low",
-    "risk",
-    "late",
-    "archived",
-  ].some((keyword) => normalized.includes(keyword));
+  return 0;
 }
 
 function isImageColumn(column: ModuleColumn | ModuleField) {
@@ -233,32 +236,6 @@ function isUrlImage(value: string) {
   );
 }
 
-function hasImageValue(row: ModuleRow) {
-  return Object.entries(row).some(([key, value]) => {
-    const normalizedKey = key.toLowerCase();
-    const stringValue = String(value ?? "");
-
-    const isPossibleImageKey =
-      normalizedKey.includes("photo") ||
-      normalizedKey.includes("image") ||
-      normalizedKey.includes("avatar") ||
-      normalizedKey.includes("logo");
-
-    return isPossibleImageKey && isUrlImage(stringValue);
-  });
-}
-
-function matchesBasicFilter(row: ModuleRow, filter: BasicFilterKey) {
-  if (filter === "all") return true;
-  if (filter === "attention") return isAttentionStatus(row);
-  if (filter === "active") return isActiveStatus(row);
-  if (filter === "pending") return isPendingStatus(row);
-  if (filter === "problem") return isProblemStatus(row);
-  if (filter === "with-image") return hasImageValue(row);
-
-  return true;
-}
-
 function makeRowKey(row: ModuleRow, index: number) {
   return (
     row.id ||
@@ -272,13 +249,6 @@ function makeRowKey(row: ModuleRow, index: number) {
     row.product_id ||
     `${Object.values(row).join("-")}-${index}`
   );
-}
-
-function formatFieldLabel(key: string) {
-  return key
-    .replaceAll("_", " ")
-    .replaceAll("-", " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function getMutationErrorMessage(error: unknown) {
@@ -389,6 +359,7 @@ export function ModulePage({
   onCreateRecord,
   onUpdateRecord,
   onDeleteRecord,
+  getRowActions,
   isCreating = false,
   isUpdating = false,
   isDeleting = false,
@@ -397,7 +368,8 @@ export function ModulePage({
 }: ModulePageProps) {
   const [localRows, setLocalRows] = useState<ModuleRow[]>([]);
   const [search, setSearch] = useState("");
-  const [basicFilter, setBasicFilter] = useState<BasicFilterKey>("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortMode, setSortMode] = useState("updated_desc");
   const [recordModalOpen, setRecordModalOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<ModuleRow | null>(null);
   const [detailRow, setDetailRow] = useState<ModuleRow | null>(null);
@@ -438,15 +410,69 @@ export function ModulePage({
     normalizedTitle.includes("cashflow") ||
     normalizedTitle.includes("report");
 
-  const filteredRows = useMemo(() => {
-    return tableRows.filter((row) => {
-      const rowText = Object.values(row).join(" ").toLowerCase();
-      const matchesSearch = rowText.includes(search.toLowerCase());
-      const matchesFilter = matchesBasicFilter(row, basicFilter);
+  const statusOptions = useMemo(() => {
+    const index = new Map<string, { label: string; count: number }>();
 
-      return matchesSearch && matchesFilter;
+    tableRows.forEach((row) => {
+      const label = getStatusDisplayValue(row);
+      if (!label) return;
+
+      const key = label.toLowerCase();
+      const current = index.get(key);
+      index.set(key, {
+        label,
+        count: (current?.count ?? 0) + 1,
+      });
     });
-  }, [tableRows, search, basicFilter]);
+
+    return Array.from(index.entries())
+      .map(([value, item]) => ({ value, ...item }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }, [tableRows]);
+
+  const filteredRows = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+    const result = tableRows.filter((row) => {
+      const rowText = Object.entries(row)
+        .filter(([key]) => key !== "id" && !key.endsWith("_id"))
+        .map(([, value]) => String(value ?? ""))
+        .join(" ")
+        .toLowerCase();
+      const matchesSearch =
+        !normalizedSearch || rowText.includes(normalizedSearch);
+      const rowStatus = getStatusDisplayValue(row).toLowerCase();
+      const matchesStatus =
+        statusFilter === "all" || rowStatus === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+
+    return [...result].sort((left, right) => {
+      if (sortMode === "updated_asc") {
+        return getRowDateValue(left, "updated_at") - getRowDateValue(right, "updated_at");
+      }
+      if (sortMode === "created_desc") {
+        return getRowDateValue(right, "created_at") - getRowDateValue(left, "created_at");
+      }
+      if (sortMode === "created_asc") {
+        return getRowDateValue(left, "created_at") - getRowDateValue(right, "created_at");
+      }
+      if (sortMode === "name_asc") {
+        return getRowTitleValue(left).localeCompare(getRowTitleValue(right));
+      }
+      if (sortMode === "name_desc") {
+        return getRowTitleValue(right).localeCompare(getRowTitleValue(left));
+      }
+      if (sortMode === "amount_desc") {
+        return getRowAmountValue(right) - getRowAmountValue(left);
+      }
+      if (sortMode === "amount_asc") {
+        return getRowAmountValue(left) - getRowAmountValue(right);
+      }
+
+      return getRowDateValue(right, "updated_at") - getRowDateValue(left, "updated_at");
+    });
+  }, [search, sortMode, statusFilter, tableRows]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
 
@@ -461,7 +487,7 @@ export function ModulePage({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [basicFilter, moduleKey, pageSize, search]);
+  }, [moduleKey, pageSize, search, sortMode, statusFilter]);
 
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, totalPages));
@@ -470,43 +496,6 @@ export function ModulePage({
   const canCreateRecord = Boolean(onCreateRecord);
   const canUpdateRecord = Boolean(onUpdateRecord);
   const canDeleteRecord = Boolean(onDeleteRecord);
-
-  const basicFilterButtons: Array<{
-    key: BasicFilterKey;
-    label: string;
-    icon: typeof RotateCcw;
-  }> = [
-    {
-      key: "all",
-      label: "All",
-      icon: RotateCcw,
-    },
-    {
-      key: "attention",
-      label: "Attention",
-      icon: Filter,
-    },
-    {
-      key: "active",
-      label: "Active",
-      icon: CheckCircle2,
-    },
-    {
-      key: "pending",
-      label: "Pending",
-      icon: Clock3,
-    },
-    {
-      key: "problem",
-      label: "Problem",
-      icon: AlertTriangle,
-    },
-    {
-      key: "with-image",
-      label: "With Image",
-      icon: ImageIcon,
-    },
-  ];
 
   function openCreateModal() {
     setEditingRow(null);
@@ -810,44 +799,89 @@ export function ModulePage({
             ) : null}
           </div>
 
-          <div className="flex flex-col gap-3">
-            <div className="flex h-11 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 dark:border-slate-900 dark:bg-[#02040a]">
-              <Search
-                size={17}
-                className="text-slate-400 dark:text-slate-600"
-              />
+          <div className="rounded-3xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-900 dark:bg-[#02040a]/70">
+            <div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_220px_220px_auto]">
+              <div className="flex h-11 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 dark:border-slate-900 dark:bg-[#050816]">
+                <Search size={17} className="text-slate-400" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Cari data, nomor, nama, atau deskripsi..."
+                  className="w-full bg-transparent text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400 dark:text-slate-200"
+                />
+              </div>
 
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search records..."
-                className="w-full bg-transparent text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400 dark:text-slate-200 dark:placeholder:text-slate-700"
-              />
+              <label className="relative flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 dark:border-slate-900 dark:bg-[#050816]">
+                <ListFilter size={16} className="shrink-0 text-slate-400" />
+                <select
+                  aria-label="Filter status"
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className="w-full appearance-none bg-transparent pr-5 text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                >
+                  <option value="all">Semua status ({tableRows.length})</option>
+                  {statusOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label} ({option.count})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="relative flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 dark:border-slate-900 dark:bg-[#050816]">
+                <ArrowUpDown size={16} className="shrink-0 text-slate-400" />
+                <select
+                  aria-label="Urutkan data"
+                  value={sortMode}
+                  onChange={(event) => setSortMode(event.target.value)}
+                  className="w-full appearance-none bg-transparent pr-5 text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
+                >
+                  <option value="updated_desc">Terbaru diperbarui</option>
+                  <option value="updated_asc">Terlama diperbarui</option>
+                  <option value="created_desc">Terbaru dibuat</option>
+                  <option value="created_asc">Terlama dibuat</option>
+                  <option value="name_asc">Nama A–Z</option>
+                  <option value="name_desc">Nama Z–A</option>
+                  <option value="amount_desc">Nominal terbesar</option>
+                  <option value="amount_asc">Nominal terkecil</option>
+                </select>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("all");
+                  setSortMode("updated_desc");
+                }}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-100 dark:border-slate-900 dark:bg-[#050816] dark:text-slate-300 dark:hover:bg-slate-900"
+              >
+                <RotateCcw size={16} /> Reset
+              </button>
             </div>
 
-            <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-900 dark:bg-[#02040a]/70">
-              {basicFilterButtons.map((item) => {
-                const ButtonIcon = item.icon;
-                const active = basicFilter === item.key;
-
-                return (
+            {statusOptions.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {statusOptions.slice(0, 8).map((option) => (
                   <button
-                    key={item.key}
+                    key={option.value}
                     type="button"
-                    onClick={() => setBasicFilter(item.key)}
+                    onClick={() => setStatusFilter(option.value)}
                     className={cn(
-                      "inline-flex h-10 items-center gap-2 rounded-2xl border px-4 text-sm font-black transition",
-                      active
-                        ? "border-blue-700 bg-blue-700 text-white"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-900 dark:bg-[#050816] dark:text-slate-300 dark:hover:bg-[#0b1120]"
+                      "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-black transition",
+                      statusFilter === option.value
+                        ? "border-indigo-600 bg-indigo-600 text-white"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:text-indigo-700 dark:border-slate-800 dark:bg-[#050816] dark:text-slate-300"
                     )}
                   >
-                    <ButtonIcon size={16} />
-                    {item.label}
+                    {option.label}
+                    <span className="rounded-full bg-black/10 px-1.5 py-0.5 text-[10px] dark:bg-white/10">
+                      {option.count}
+                    </span>
                   </button>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -859,6 +893,9 @@ export function ModulePage({
               <table className="w-full min-w-[980px] border-collapse text-left">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-900 dark:bg-[#050816]">
+                    <th className="w-16 px-5 py-4 text-xs font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-600">
+                      No.
+                    </th>
                     {columns.map((column) => (
                       <th
                         key={column.key}
@@ -880,6 +917,9 @@ export function ModulePage({
                       key={makeRowKey(row, rowIndex)}
                       className="group transition hover:bg-slate-50/80 dark:hover:bg-[#050816]"
                     >
+                      <td className="px-5 py-4 align-middle text-sm font-black text-slate-400">
+                        {(currentPage - 1) * pageSize + rowIndex + 1}
+                      </td>
                       {columns.map((column, columnIndex) => {
                         const value = row[column.key] ?? "-";
 
@@ -922,6 +962,29 @@ export function ModulePage({
                             <Eye size={13} />
                             Detail
                           </button>
+
+                          {(getRowActions?.(row) ?? []).map((action) => {
+                            const ActionIcon = action.icon;
+                            return (
+                              <button
+                                key={action.label}
+                                type="button"
+                                onClick={() => void action.onClick?.()}
+                                disabled={action.disabled}
+                                className={cn(
+                                  "inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-60",
+                                  action.variant === "danger"
+                                    ? "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300"
+                                    : action.variant === "primary"
+                                      ? "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-500"
+                                      : "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-900/70 dark:bg-indigo-950/30 dark:text-indigo-300"
+                                )}
+                              >
+                                {ActionIcon ? <ActionIcon size={13} /> : null}
+                                {action.label}
+                              </button>
+                            );
+                          })}
 
                           {canUpdateRecord ? (
                             <button

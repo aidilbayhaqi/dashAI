@@ -12,8 +12,10 @@ const automationApiMock = vi.hoisted(() => ({
   getAutomationContext: vi.fn(),
   getSalesOrders: vi.fn(),
   getAutomationEvents: vi.fn(),
+  getAutomationMonitoring: vi.fn(),
   createSalesOrder: vi.fn(),
   processSalesOrder: vi.fn(),
+  confirmSalesOrderPayment: vi.fn(),
 }));
 
 const authScopeState = vi.hoisted(() => ({
@@ -122,6 +124,25 @@ const eventFixture = {
   last_error: null,
 };
 
+const monitoringFixture = {
+  order_id: "order-1",
+  order_no: "SO-20260711-0001",
+  customer_name: "PT Existing Customer",
+  total_amount: "15000000",
+  order_status: "fulfilled",
+  transaction_id: "transaction-1",
+  transaction_no: "TRX-SO-20260711-0001",
+  transaction_status: "posted",
+  invoice_id: "invoice-1",
+  invoice_no: "INV-SO-20260711-0001",
+  invoice_status: "sent",
+  paid_amount: "0",
+  outstanding_amount: "15000000",
+  payment_status: "unpaid" as const,
+  created_at: "2026-07-11T08:00:00Z",
+  updated_at: "2026-07-11T08:01:00Z",
+};
+
 function renderWithQueryClient(ui: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -157,12 +178,22 @@ describe("SalesAutomationClient", () => {
     automationApiMock.getAutomationEvents.mockResolvedValue([
       eventFixture,
     ]);
+    automationApiMock.getAutomationMonitoring.mockResolvedValue([
+      monitoringFixture,
+    ]);
     automationApiMock.createSalesOrder.mockResolvedValue(
       fulfilledOrderFixture
     );
     automationApiMock.processSalesOrder.mockResolvedValue(
       fulfilledOrderFixture
     );
+    automationApiMock.confirmSalesOrderPayment.mockResolvedValue({
+      ...monitoringFixture,
+      invoice_status: "paid",
+      paid_amount: "15000000",
+      outstanding_amount: "0",
+      payment_status: "paid",
+    });
   });
 
   it("shows an empty company state when no company scope is available", async () => {
@@ -203,8 +234,8 @@ describe("SalesAutomationClient", () => {
     ).toBeInTheDocument();
 
     expect(
-      await screen.findByText("SO-20260711-0001")
-    ).toBeInTheDocument();
+      (await screen.findAllByText("SO-20260711-0001")).length
+    ).toBeGreaterThan(0);
     expect(
       screen.getByText("sales_order.fulfilled")
     ).toBeInTheDocument();
@@ -213,6 +244,12 @@ describe("SalesAutomationClient", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText("Invoice created")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Product-to-cash history")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("TRX-SO-20260711-0001")
     ).toBeInTheDocument();
   });
 
@@ -291,6 +328,11 @@ describe("SalesAutomationClient", () => {
         },
       ],
     });
+
+
+    expect(
+      await screen.findByText("Sales automation berhasil")
+    ).toBeInTheDocument();
   });
 
   it("supports saving a draft and processing it later", async () => {
@@ -345,4 +387,33 @@ describe("SalesAutomationClient", () => {
       })
     ).toBeInTheDocument();
   });
+
+  it("confirms payment from the monitoring table", async () => {
+    const user = userEvent.setup();
+
+    renderWithQueryClient(<SalesAutomationClient />);
+
+    await screen.findByText("Product-to-cash history");
+    await user.click(
+      screen.getByRole("button", { name: "Konfirmasi Lunas" })
+    );
+
+    await waitFor(() => {
+      expect(
+        automationApiMock.confirmSalesOrderPayment
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    expect(
+      automationApiMock.confirmSalesOrderPayment.mock.calls[0]?.[0]
+    ).toEqual({
+      companyId: "company-1",
+      orderId: "order-1",
+    });
+
+    expect(
+      await screen.findByText("Pembayaran berhasil dikonfirmasi")
+    ).toBeInTheDocument();
+  });
+
 });
