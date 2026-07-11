@@ -197,7 +197,7 @@ services:
     command: >
       sh -ec "rm -rf /app/.next/* &&
       pnpm install --frozen-lockfile &&
-      exec pnpm dev --webpack --hostname 0.0.0.0 --port 3000"
+      exec pnpm dev --hostname 0.0.0.0 --port 3000"
 
 
 volumes:

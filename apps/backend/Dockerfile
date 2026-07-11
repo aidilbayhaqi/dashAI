@@ -50,9 +50,10 @@ RUN groupadd --gid 10001 app \
 COPY --from=builder /opt/venv /opt/venv
 
 COPY --chown=app:app . /app
-
-RUN chmod +x /app/docker-entrypoint.sh
-
+# Simpan entrypoint di luar /app agar tidak tertimpa bind mount Docker Compose.
+COPY docker-entrypoint.sh /usr/local/bin/dashai-entrypoint
+RUN sed -i 's/\r$//' /usr/local/bin/dashai-entrypoint \
+    && chmod 0755 /usr/local/bin/dashai-entrypoint
 USER app
 
 EXPOSE 8000
@@ -61,6 +62,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)" \
     || exit 1
 
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/dashai-entrypoint"]
 
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
