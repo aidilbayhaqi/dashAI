@@ -82,14 +82,20 @@ Thumbs.db
 !.vscode/settings.json
 
 .idea/
-# Temporary priority fix backups
-.priority-fix-backups/
+# Temporary files
+*.backup-*
+*.bak
+.compose-effective.yml
 
-# Temporary priority fix backups
 .priority-fix-backups/
-
-# Temporary priority fix backups
-.priority-fix-backups/
-
-# Temporary Docker context backups
 .docker-context-backups/
+
+apps/backend/uploads/*
+!apps/backend/uploads/.gitkeep
+
+.compose-effective.yml
+# Temporary P1 operational backups
+.p1-operational-backups/
+
+# Temporary route/runner backups
+.route-runner-backups/
