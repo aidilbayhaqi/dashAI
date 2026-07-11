@@ -393,6 +393,7 @@ export const financeModuleConfig: Record<FinanceModuleKey, ModuleConfig> = {
       { key: "transaction_no", label: "Transaction No" },
       { key: "account_name", label: "Cash Account" },
       { key: "type_label", label: "Type" },
+      { key: "creation_mode_label", label: "Source" },
       { key: "cashflow_activity_label", label: "Activity" },
       { key: "amount", label: "Amount", format: "currency" },
       { key: "status_label", label: "Status" },
@@ -434,6 +435,7 @@ export const financeModuleConfig: Record<FinanceModuleKey, ModuleConfig> = {
       "Data invoice langsung dari endpoint /finance/invoices, bukan disaring dari transactions.",
     columns: [
       { key: "invoice_no", label: "Invoice No" },
+      { key: "creation_mode_label", label: "Source" },
       { key: "client_name", label: "Client" },
       { key: "invoice_date_display", label: "Invoice Date" },
       { key: "due_date_display", label: "Due Date" },

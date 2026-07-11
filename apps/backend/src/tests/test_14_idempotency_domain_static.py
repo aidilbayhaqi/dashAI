@@ -24,6 +24,8 @@ CRITICAL_POST_ROUTES = {
     "/api/v1/hr/kpi-reviews",
     "/api/v1/hr/payroll-runs/{payroll_run_id}/calculate",
     "/api/v1/hr/payroll-runs/{payroll_run_id}/create-finance-transaction",
+    "/api/v1/automation/sales-orders",
+    "/api/v1/automation/sales-orders/{order_id}/process",
 }
 
 

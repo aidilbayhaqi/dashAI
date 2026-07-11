@@ -99,3 +99,12 @@ apps/backend/uploads/*
 
 # Temporary route/runner backups
 .route-runner-backups/
+
+# Temporary frontend CRUD UI backups
+.frontend-crud-ui-backups/
+
+# Temporary business automation backups
+.business-automation-backups/
+
+# Temporary frontend test backups
+.frontend-test-backups/

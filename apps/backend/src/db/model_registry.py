@@ -62,3 +62,8 @@ from src.modules.crm.model_crm import (  # noqa: E402,F401
 )
 
 from src.modules.admin.model_admin import SystemSetting
+from src.modules.automation.model_automation import (  # noqa: E402,F401
+    SalesOrder,
+    SalesOrderItem,
+    DomainEventOutbox,
+)

@@ -360,6 +360,14 @@ export async function updateCompany(
   return response.data;
 }
 
+export async function deleteCompany(
+  companyId: string
+): Promise<void> {
+  await api.delete(
+    `/api/v1/companies/${companyId}`
+  );
+}
+
 export async function provisionCompany(
   payload: ProvisionCompanyInput
 ): Promise<CompanyDetail> {

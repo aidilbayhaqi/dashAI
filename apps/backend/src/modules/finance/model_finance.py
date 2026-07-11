@@ -410,6 +410,7 @@ class FinanceTransaction(Base):
     attachment_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     source_module: Mapped[str | None] = mapped_column(String(100), nullable=True)
     source_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    creation_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
 
     subtotal_amount: Mapped[Decimal] = mapped_column(
         Numeric(18, 2),
@@ -474,6 +475,17 @@ class FinanceTransaction(Base):
             "transaction_date",
             "transaction_type",
         ),
+        Index(
+            "uq_finance_transaction_sales_order_source",
+            "company_id",
+            "source_module",
+            "source_id",
+            unique=True,
+            postgresql_where=(
+                source_id.is_not(None)
+                & (source_module == "sales_order")
+            ),
+        ),
     )
 
 class FinanceInvoice(Base):
@@ -518,6 +530,7 @@ class FinanceInvoice(Base):
 
     source_module: Mapped[str | None] = mapped_column(String(100), nullable=True)
     source_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    creation_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
 
     attachment_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -532,6 +545,17 @@ class FinanceInvoice(Base):
         UniqueConstraint("company_id", "invoice_no", name="uq_finance_invoice_company_no"),
         Index("ix_finance_invoices_company_status", "company_id", "status"),
         Index("ix_finance_invoices_company_due", "company_id", "due_date"),
+        Index(
+            "uq_finance_invoice_sales_order_source",
+            "company_id",
+            "source_module",
+            "source_id",
+            unique=True,
+            postgresql_where=(
+                source_id.is_not(None)
+                & (source_module == "sales_order")
+            ),
+        ),
     )
     
 class FinanceTransactionLine(Base):

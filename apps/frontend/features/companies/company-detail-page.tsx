@@ -32,16 +32,19 @@ import {
   Save,
   ShieldAlert,
   ShieldCheck,
+  Trash2,
   UserRound,
   UsersRound,
   X,
 } from "lucide-react";
 
+import { ModuleDeleteDialog } from "@/components/modules/module-delete-dialog";
 import {
   isCurrentUserSuperAdmin,
 } from "@/lib/auth-scope";
 
 import {
+  deleteCompany,
   getCompanyApiError,
   getCompanyDetail,
   updateCompany,
@@ -406,6 +409,18 @@ export function CompanyDetailPage() {
     null
   );
 
+  const [
+    deleteDialogOpen,
+    setDeleteDialogOpen,
+  ] = useState(false);
+
+  const [
+    deleteError,
+    setDeleteError,
+  ] = useState<string | null>(
+    null
+  );
+
 
   useEffect(() => {
     setIsSuperAdmin(
@@ -482,6 +497,41 @@ export function CompanyDetailPage() {
 
       onError: (error) => {
         setFormError(
+          getCompanyApiError(error)
+        );
+      },
+    });
+
+
+  const deleteMutation =
+    useMutation({
+      mutationFn: () =>
+        deleteCompany(companyId),
+
+      onSuccess: async () => {
+        setDeleteError(null);
+        setDeleteDialogOpen(false);
+
+        queryClient.removeQueries({
+          queryKey: [
+            "companies",
+            "detail",
+            companyId,
+          ],
+        });
+
+        await queryClient.invalidateQueries({
+          queryKey: [
+            "companies",
+            "list",
+          ],
+        });
+
+        router.replace("/companies");
+      },
+
+      onError: (error) => {
+        setDeleteError(
           getCompanyApiError(error)
         );
       },
@@ -799,17 +849,31 @@ export function CompanyDetailPage() {
               </div>
 
               {!editing && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab("company");
-                    setEditing(true);
-                  }}
-                  className="col-span-2 inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white transition hover:bg-[#0f2a5f] dark:bg-white dark:text-slate-950"
-                >
-                  <Edit3 size={17} />
-                  Edit Company
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteError(null);
+                      setDeleteDialogOpen(true);
+                    }}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-sm font-black text-rose-700 transition hover:bg-rose-100 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50"
+                  >
+                    <Trash2 size={17} />
+                    Delete
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("company");
+                      setEditing(true);
+                    }}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 text-sm font-black text-white transition hover:bg-[#0f2a5f] dark:bg-white dark:text-slate-950"
+                  >
+                    <Edit3 size={17} />
+                    Edit Company
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -1479,6 +1543,23 @@ export function CompanyDetailPage() {
           )}
         </section>
       )}
+
+      <ModuleDeleteDialog
+        open={deleteDialogOpen}
+        moduleTitle="Company"
+        row={{ ...company }}
+        isDeleting={deleteMutation.isPending}
+        error={deleteError}
+        onClose={() => {
+          if (!deleteMutation.isPending) {
+            setDeleteDialogOpen(false);
+            setDeleteError(null);
+          }
+        }}
+        onConfirm={() =>
+          deleteMutation.mutateAsync()
+        }
+      />
     </div>
   );
 }

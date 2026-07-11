@@ -185,6 +185,7 @@ class FinanceTransactionCreate(BaseModel):
     attachment_url: str | None = None
     source_module: str | None = None
     source_id: UUID | None = None
+    creation_mode: str = "manual"
     subtotal_amount: Decimal = Decimal("0.00")
     discount_amount: Decimal = Decimal("0.00")
     tax_amount: Decimal = Decimal("0.00")
@@ -223,6 +224,7 @@ class FinanceTransactionUpdate(BaseModel):
     attachment_url: str | None = None
     source_module: str | None = None
     source_id: UUID | None = None
+    creation_mode: str | None = None
     subtotal_amount: Decimal | None = None
     discount_amount: Decimal | None = None
     tax_amount: Decimal | None = None
@@ -589,6 +591,7 @@ class FinanceInvoiceCreate(BaseModel):
     status: InvoiceStatus = InvoiceStatus.DRAFT
     source_module: str | None = None
     source_id: UUID | None = None
+    creation_mode: str = "manual"
     attachment_url: str | None = None
     notes: str | None = None
 
@@ -624,6 +627,7 @@ class FinanceInvoiceUpdate(BaseModel):
     status: InvoiceStatus | None = None
     source_module: str | None = None
     source_id: UUID | None = None
+    creation_mode: str | None = None
     attachment_url: str | None = None
     notes: str | None = None
 

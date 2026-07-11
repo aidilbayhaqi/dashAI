@@ -25,6 +25,7 @@ import {
   Users,
   Wallet,
   Warehouse,
+  Workflow,
 } from "lucide-react";
 
 export const dashboardNavigation = [
@@ -50,6 +51,11 @@ export const dashboardNavigation = [
         title: "Products",
         href: "/products",
         icon: Package,
+      },
+      {
+        title: "Sales Automation",
+        href: "/sales-orders",
+        icon: Workflow,
       },
       {
         title: "Categories",

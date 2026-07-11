@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import * as XLSX from "xlsx";
 import {
@@ -11,15 +11,14 @@ import {
   FileSpreadsheet,
   FileText,
   Filter,
+  Eye,
   ImageIcon,
-  MoreHorizontal,
   Pencil,
   Plus,
   RotateCcw,
   Search,
   Trash2,
   Upload,
-  X,
 } from "lucide-react";
 
 import type {
@@ -40,9 +39,12 @@ import {
   exportRowsToPDF,
 } from "@/lib/export";
 
-import { ModuleLoading } from "./module-loading";
-import { ModuleError } from "./module-error";
+import { ModuleDeleteDialog } from "./module-delete-dialog";
+import { ModuleDetailDialog } from "./module-detail-dialog";
 import { ModuleEmpty } from "./module-empty";
+import { ModuleError } from "./module-error";
+import { ModuleLoading } from "./module-loading";
+import { ModulePagination } from "./module-pagination";
 import { RecordModal } from "./record-modal";
 
 import { formatModuleValue } from "@/lib/value-format";
@@ -279,6 +281,27 @@ function formatFieldLabel(key: string) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function getMutationErrorMessage(error: unknown) {
+  const candidate = error as {
+    message?: string;
+    response?: {
+      data?: {
+        detail?: unknown;
+        message?: unknown;
+      };
+    };
+  };
+
+  const detail = candidate.response?.data?.detail;
+
+  if (typeof detail === "string") return detail;
+  if (typeof candidate.response?.data?.message === "string") {
+    return candidate.response.data.message;
+  }
+
+  return candidate.message || "Data gagal dihapus. Periksa relasi data dan coba lagi.";
+}
+
 function ModuleMetricCard({ metric }: { metric: ModuleMetric }) {
   return (
     <div className="rounded-[1.45rem] border border-slate-200/80 bg-white/85 p-5 shadow-sm backdrop-blur-2xl transition duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-slate-900/5 dark:border-slate-900 dark:bg-[#050816]/90 dark:hover:shadow-none">
@@ -348,101 +371,6 @@ function TableCellValue({
   );
 }
 
-function DetailModal({
-  open,
-  title,
-  row,
-  fields,
-  onClose,
-}: {
-  open: boolean;
-  title: string;
-  row: ModuleRow | null;
-  fields?: ModuleField[];
-  onClose: () => void;
-}) {
-  if (!open || !row) return null;
-
-  const visibleFields =
-    fields && fields.length > 0
-      ? fields
-      : Object.keys(row).map((key) => ({
-          key,
-          label: formatFieldLabel(key),
-        }));
-
-  return (
-    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
-      <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-900 dark:bg-[#050816]">
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700 dark:text-blue-400">
-              Detail Record
-            </p>
-
-            <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950 dark:text-white">
-              Detail {title}
-            </h2>
-
-            <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-500">
-              Informasi lengkap data yang dipilih dari table.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 dark:border-slate-900 dark:hover:bg-[#02040a]"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          {visibleFields.map((field) => {
-            const rawValue = row[field.key];
-            const rawText = String(rawValue ?? "").trim();
-            const value = rawText || "-";
-
-            return (
-              <div
-                key={field.key}
-                className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-900 dark:bg-[#02040a]"
-              >
-                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
-                  {field.label}
-                </p>
-
-                {isImageColumn(field) && isUrlImage(rawText) ? (
-                  <img
-                    src={rawText}
-                    alt={field.label}
-                    className="mt-3 h-32 w-32 rounded-2xl object-cover"
-                  />
-                ) : (
-                  <p className="mt-2 break-words text-sm font-bold leading-6 text-slate-900 dark:text-white">
-                    {value}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="mt-7 flex justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-2xl bg-[#0f2a5f] px-5 py-2.5 text-sm font-black text-white transition hover:bg-blue-950 dark:bg-blue-700 dark:hover:bg-blue-600"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function ModulePage({
   badge,
   title,
@@ -473,6 +401,13 @@ export function ModulePage({
   const [recordModalOpen, setRecordModalOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<ModuleRow | null>(null);
   const [detailRow, setDetailRow] = useState<ModuleRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    row: ModuleRow;
+    rowIndex: number;
+  } | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const currentCompanyId = getCurrentCompanyId();
   const canShowCompanyFilter = isCurrentUserSuperAdmin() || !currentCompanyId;
@@ -512,6 +447,29 @@ export function ModulePage({
       return matchesSearch && matchesFilter;
     });
   }, [tableRows, search, basicFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+
+  const paginatedRows = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredRows.slice(startIndex, startIndex + pageSize);
+  }, [currentPage, filteredRows, pageSize]);
+
+  const paginationStart =
+    filteredRows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const paginationEnd = Math.min(currentPage * pageSize, filteredRows.length);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [basicFilter, moduleKey, pageSize, search]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
+
+  const canCreateRecord = Boolean(onCreateRecord);
+  const canUpdateRecord = Boolean(onUpdateRecord);
+  const canDeleteRecord = Boolean(onDeleteRecord);
 
   const basicFilterButtons: Array<{
     key: BasicFilterKey;
@@ -602,26 +560,44 @@ export function ModulePage({
     closeRecordModal();
   }
 
-  async function handleDeleteRecord(row: ModuleRow, rowIndex: number) {
-    const confirmed = window.confirm("Yakin ingin menghapus data ini?");
+  function requestDeleteRecord(row: ModuleRow, rowIndex: number) {
+    setDeleteError(null);
+    setDeleteTarget({
+      row,
+      rowIndex,
+    });
+  }
 
-    if (!confirmed) return;
+  async function confirmDeleteRecord() {
+    if (!deleteTarget) return;
 
-    if (onDeleteRecord) {
-      if (!row.id) {
-        window.alert("Data ini tidak punya ID, jadi tidak bisa delete ke backend.");
+    const { row, rowIndex } = deleteTarget;
+
+    try {
+      setDeleteError(null);
+
+      if (onDeleteRecord) {
+        if (!row.id) {
+          setDeleteError(
+            "Data ini tidak memiliki ID sehingga tidak dapat dihapus dari backend."
+          );
+          return;
+        }
+
+        await onDeleteRecord(row.id);
+        setDeleteTarget(null);
         return;
       }
 
-      await onDeleteRecord(row.id);
-      return;
+      const rowKey = makeRowKey(row, rowIndex);
+
+      setLocalRows((current) =>
+        current.filter((item, index) => makeRowKey(item, index) !== rowKey)
+      );
+      setDeleteTarget(null);
+    } catch (error: unknown) {
+      setDeleteError(getMutationErrorMessage(error));
     }
-
-    const rowKey = makeRowKey(row, rowIndex);
-
-    setLocalRows((current) =>
-      current.filter((item, index) => makeRowKey(item, index) !== rowKey)
-    );
   }
 
   function handleImportExcel(file: File | null) {
@@ -735,7 +711,7 @@ export function ModulePage({
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-600 dark:border-slate-900 dark:bg-[#050816] dark:text-slate-400">
-              {filteredRows.length} records
+              {filteredRows.length} of {tableRows.length} records
             </div>
           </div>
         </div>
@@ -821,15 +797,17 @@ export function ModulePage({
               ) : null}
             </div>
 
-            <button
-              type="button"
-              onClick={openCreateModal}
-              disabled={isCreating || isUpdating}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-bold text-white shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:bg-[#0f2a5f] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-950 dark:hover:bg-blue-100"
-            >
-              <Plus size={16} />
-              {isCreating ? "Saving..." : "New Record"}
-            </button>
+            {canCreateRecord ? (
+              <button
+                type="button"
+                onClick={openCreateModal}
+                disabled={isCreating || isUpdating}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-bold text-white shadow-lg shadow-slate-900/10 transition hover:-translate-y-0.5 hover:bg-[#0f2a5f] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-950 dark:hover:bg-blue-100"
+              >
+                <Plus size={16} />
+                {isCreating ? "Saving..." : "New Record"}
+              </button>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-3">
@@ -897,7 +875,7 @@ export function ModulePage({
                 </thead>
 
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-900">
-                  {filteredRows.map((row, rowIndex) => (
+                  {paginatedRows.map((row, rowIndex) => (
                     <tr
                       key={makeRowKey(row, rowIndex)}
                       className="group transition hover:bg-slate-50/80 dark:hover:bg-[#050816]"
@@ -939,30 +917,35 @@ export function ModulePage({
                           <button
                             type="button"
                             onClick={() => setDetailRow(row)}
-                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-50 dark:border-slate-900 dark:bg-[#050816] dark:text-slate-400 dark:hover:bg-[#0b1120]"
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-900 dark:bg-[#050816] dark:text-slate-400 dark:hover:border-blue-900 dark:hover:bg-blue-950/30 dark:hover:text-blue-300"
                           >
+                            <Eye size={13} />
                             Detail
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(row)}
-                            disabled={isUpdating}
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-900/70 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/50"
-                          >
-                            <Pencil size={13} />
-                            Edit
-                          </button>
+                          {canUpdateRecord ? (
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(row)}
+                              disabled={isUpdating}
+                              className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-900/70 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/50"
+                            >
+                              <Pencil size={13} />
+                              Edit
+                            </button>
+                          ) : null}
 
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteRecord(row, rowIndex)}
-                            disabled={isDeleting}
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50"
-                          >
-                            <Trash2 size={13} />
-                            Delete
-                          </button>
+                          {canDeleteRecord ? (
+                            <button
+                              type="button"
+                              onClick={() => requestDeleteRecord(row, rowIndex)}
+                              disabled={isDeleting}
+                              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50"
+                            >
+                              <Trash2 size={13} />
+                              Delete
+                            </button>
+                          ) : null}
 
                           {isInvoice ? (
                             <button
@@ -989,13 +972,6 @@ export function ModulePage({
                             </button>
                           )}
 
-                          <button
-                            type="button"
-                            onClick={() => setDetailRow(row)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 dark:border-slate-900 dark:bg-[#050816] dark:text-slate-500 dark:hover:bg-[#0b1120]"
-                          >
-                            <MoreHorizontal size={15} />
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1003,6 +979,17 @@ export function ModulePage({
                 </tbody>
               </table>
             </div>
+
+            <ModulePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalItems={filteredRows.length}
+              startItem={paginationStart}
+              endItem={paginationEnd}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={setPageSize}
+            />
           </div>
         )}
       </section>
@@ -1020,12 +1007,36 @@ export function ModulePage({
         onSubmit={handleSubmitRecord}
       />
 
-      <DetailModal
+      <ModuleDetailDialog
         open={Boolean(detailRow)}
         title={title}
         row={detailRow}
         fields={detailFields}
+        columns={columns}
         onClose={() => setDetailRow(null)}
+        onEdit={
+          canUpdateRecord
+            ? (row) => {
+                setDetailRow(null);
+                openEditModal(row);
+              }
+            : undefined
+        }
+      />
+
+      <ModuleDeleteDialog
+        open={Boolean(deleteTarget)}
+        moduleTitle={title}
+        row={deleteTarget?.row ?? null}
+        isDeleting={isDeleting}
+        error={deleteError}
+        onClose={() => {
+          if (!isDeleting) {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }
+        }}
+        onConfirm={confirmDeleteRecord}
       />
     </div>
   );

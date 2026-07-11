@@ -22,6 +22,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 
+import { ModulePagination } from "@/components/modules/module-pagination";
 import {
   isCurrentUserSuperAdmin,
 } from "@/lib/auth-scope";
@@ -49,6 +50,16 @@ export function CompaniesClient() {
     search,
     setSearch,
   ] = useState("");
+
+  const [
+    currentPage,
+    setCurrentPage,
+  ] = useState(1);
+
+  const [
+    pageSize,
+    setPageSize,
+  ] = useState(10);
 
   useEffect(() => {
     setIsSuperAdmin(
@@ -109,6 +120,52 @@ export function CompaniesClient() {
       companies,
       search,
     ]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(
+      filteredCompanies.length /
+        pageSize
+    )
+  );
+
+  const paginatedCompanies =
+    useMemo(() => {
+      const startIndex =
+        (currentPage - 1) *
+        pageSize;
+
+      return filteredCompanies.slice(
+        startIndex,
+        startIndex + pageSize
+      );
+    }, [
+      currentPage,
+      filteredCompanies,
+      pageSize,
+    ]);
+
+  const paginationStart =
+    filteredCompanies.length === 0
+      ? 0
+      : (currentPage - 1) *
+          pageSize +
+        1;
+
+  const paginationEnd = Math.min(
+    currentPage * pageSize,
+    filteredCompanies.length
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [pageSize, search]);
+
+  useEffect(() => {
+    setCurrentPage((page) =>
+      Math.min(page, totalPages)
+    );
+  }, [totalPages]);
 
   if (isSuperAdmin === null) {
     return (
@@ -183,7 +240,7 @@ export function CompaniesClient() {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-600 dark:border-slate-900 dark:bg-[#050816] dark:text-slate-400">
-              {companies.length} companies
+              {filteredCompanies.length} of {companies.length} companies
             </div>
           </div>
         </div>
@@ -291,23 +348,38 @@ export function CompaniesClient() {
             </p>
           </div>
         ) : (
-          <div className="grid min-w-0 items-stretch gap-4 xl:grid-cols-2 2xl:grid-cols-3">
-            {filteredCompanies.map(
-              (company) => (
-                <CompanyCard
-                  key={company.id}
-                  company={company}
-                  onOpen={() =>
-                  router.push(
-                    `/companies/detail?companyId=${encodeURIComponent(
-                      company.id
-                    )}`
-                  )
-                }
-                />
-              )
-            )}
-          </div>
+          <>
+            <div className="grid min-w-0 items-stretch gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+              {paginatedCompanies.map(
+                (company) => (
+                  <CompanyCard
+                    key={company.id}
+                    company={company}
+                    onOpen={() =>
+                      router.push(
+                        `/companies/detail?companyId=${encodeURIComponent(
+                          company.id
+                        )}`
+                      )
+                    }
+                  />
+                )
+              )}
+            </div>
+
+            <div className="mt-5 overflow-hidden rounded-[1.5rem] border border-slate-200 dark:border-slate-900">
+              <ModulePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                pageSize={pageSize}
+                totalItems={filteredCompanies.length}
+                startItem={paginationStart}
+                endItem={paginationEnd}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={setPageSize}
+              />
+            </div>
+          </>
         )}
       </section>
     </div>

@@ -296,6 +296,11 @@ export function buildTransactionRows(
       transaction_type: row.transaction_type ?? rawType,
       transaction_type_label: typeLabel,
 
+      creation_mode_label:
+        String(row.creation_mode ?? "manual") === "automatic"
+          ? "Automatic"
+          : "Manual",
+
       activity: activityLabel,
       activity_label: activityLabel,
       cashflow_activity: row.cashflow_activity ?? rawActivity,
@@ -375,6 +380,10 @@ export function buildInvoiceRows(rows: ModuleRow[]) {
 
       status: statusText(row.status),
       status_label: statusText(row.status),
+      creation_mode_label:
+        String(row.creation_mode ?? "manual") === "automatic"
+          ? "Automatic"
+          : "Manual",
     };
   });
 }
