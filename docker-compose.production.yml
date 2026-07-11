@@ -81,6 +81,34 @@ services:
       - no-new-privileges:true
     logging: *default-logging
 
+  uploads-init:
+    image: busybox:1.36.1
+    restart: "no"
+    user: "0:0"
+    network_mode: none
+    command:
+      - sh
+      - -c
+      - >-
+        set -eu;
+        mkdir -p /app/uploads/public /app/uploads/private;
+        chown -R 10001:10001 /app/uploads;
+        find /app/uploads -type d -exec chmod 0770 {} \;;
+        find /app/uploads -type f -exec chmod 0660 {} \;
+    volumes:
+      - uploads_data:/app/uploads
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER
+      - DAC_OVERRIDE
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
+
   api:
     build:
       context: ./apps/backend
@@ -93,8 +121,10 @@ services:
       RUN_MIGRATIONS: "true"
       DATABASE_URL: >-
         postgresql+asyncpg://${POSTGRES_USER:-dashai}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dashai}
-      REDIS_URL: >-
-        redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: "0"
       QDRANT_URL: http://qdrant:6333
     depends_on:
       postgres:
@@ -103,6 +133,8 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_healthy
+      uploads-init:
+        condition: service_completed_successfully
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
@@ -153,8 +185,8 @@ services:
       - tools
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:?PGADMIN_DEFAULT_EMAIL is required}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?PGADMIN_DEFAULT_PASSWORD is required}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:?PGADMIN_EMAIL is required}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?PGADMIN_PASSWORD is required}
     ports:
       - "${PGADMIN_PORT:-5050}:80"
     depends_on:

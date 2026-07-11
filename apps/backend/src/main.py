@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.core.config import settings
@@ -14,6 +15,7 @@ from src.modules.admin.route_admin import router as admin_router
 from src.modules.auth.route_auth import router as auth_router
 from src.modules.company.route_company import router as company_router
 from src.modules.crm.route_crm import router as crm_router
+from src.modules.dashboard.route_dashboard import router as dashboard_router
 from src.modules.files.route_file import router as file_router
 from src.modules.finance.route_finance import router as finance_router
 from src.modules.hr.route_hr import router as hr_router
@@ -21,11 +23,6 @@ from src.modules.products.route_product import router as product_router
 from src.modules.users.route_user import router as user_router
 from src.realtime.listener import start_realtime_listener
 from src.realtime.router_realtime import router as realtime_router
-
-try:
-    from src.modules.dashboard.route_dashboard import router as dashboard_router
-except Exception:
-    dashboard_router = None
 
 
 logging.basicConfig(
@@ -116,6 +113,7 @@ def create_app() -> FastAPI:
             "Accept",
             "Origin",
             "X-Requested-With",
+            "Idempotency-Key",
         ],
     )
 
@@ -136,8 +134,7 @@ def register_routes(app: FastAPI) -> None:
     app.include_router(file_router, prefix=settings.API_PREFIX)
     app.include_router(admin_router, prefix=settings.API_PREFIX)
 
-    if dashboard_router is not None:
-        app.include_router(dashboard_router, prefix=settings.API_PREFIX)
+    app.include_router(dashboard_router, prefix=settings.API_PREFIX)
 
     app.include_router(realtime_router)
 
@@ -166,29 +163,37 @@ def register_health_routes(app: FastAPI) -> None:
     async def health_database():
         try:
             result = await check_database_connection()
-
-        except Exception as exc:
+        except Exception:
             logger.exception("Database health check failed")
+            result = False
 
-            return {
-                "database": "disconnected",
-                "result": False,
-                "error": str(exc),
-            }
-
-        return {
+        payload = {
             "database": "connected" if result else "disconnected",
             "result": result,
         }
 
+        if not result:
+            return JSONResponse(status_code=503, content=payload)
+
+        return payload
+
     @app.get("/health/redis")
     async def health_redis():
-        result = await check_redis_connection()
+        try:
+            result = await check_redis_connection()
+        except Exception:
+            logger.exception("Redis health check failed")
+            result = False
 
-        return {
+        payload = {
             "redis": "connected" if result else "disconnected",
             "result": result,
         }
+
+        if not result:
+            return JSONResponse(status_code=503, content=payload)
+
+        return payload
 
     @app.get("/ready")
     async def readiness_check():
@@ -206,12 +211,16 @@ def register_health_routes(app: FastAPI) -> None:
             logger.exception("Readiness redis check failed")
 
         is_ready = db_ok and redis_ok
-
-        return {
+        payload = {
             "status": "ready" if is_ready else "not_ready",
             "database": db_ok,
             "redis": redis_ok,
         }
+
+        return JSONResponse(
+            status_code=200 if is_ready else 503,
+            content=payload,
+        )
 
 
 app = create_app()
