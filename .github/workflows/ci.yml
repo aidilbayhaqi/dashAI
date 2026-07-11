@@ -172,26 +172,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+          run_install: false
+
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "24"
-
-      - name: Enable pinned pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.5.3 --activate
-          pnpm --version
+          cache: pnpm
+          cache-dependency-path: apps/frontend/pnpm-lock.yaml
 
       - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --prod=false
+
+      - name: Verify TypeScript installation
+        run: |
+          pnpm --version
+          pnpm exec tsc --version
+          pnpm list typescript --depth 0
 
       - name: TypeScript check
         run: pnpm exec tsc --noEmit
 
       - name: Production build
         run: pnpm build
-
   docker:
     name: Docker build
     runs-on: ubuntu-24.04
