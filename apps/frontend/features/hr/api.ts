@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { isEndpointFallbackError } from "@/lib/api-error";
 import { getScopedQueryParams } from "@/lib/module-crud";
 import type { ModuleMetric, ModuleRow } from "@/types/modules";
 import type { HRModuleKey } from "./types";
@@ -608,7 +609,10 @@ async function tryGetRows(
     });
 
     return normalizeRows(response.data);
-  } catch {
+  } catch (error) {
+    if (!isEndpointFallbackError(error)) {
+      throw error;
+    }
     return [];
   }
 }

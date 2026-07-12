@@ -4,7 +4,6 @@ import {
   useEffect,
   useState,
   type FormEvent,
-  type ReactNode,
 } from "react";
 
 import {
@@ -18,16 +17,10 @@ import {
 
 import {
   ArrowLeft,
-  Building2,
   Check,
   ChevronLeft,
   ChevronRight,
-  GitBranch,
-  Plus,
   ShieldAlert,
-  Trash2,
-  UserRound,
-  UsersRound,
 } from "lucide-react";
 
 import {
@@ -45,243 +38,18 @@ import type {
   ProvisionCompanyUserInput,
 } from "./types";
 
-type SectionKey =
-  | "company"
-  | "owner"
-  | "users"
-  | "branches";
-
-type SectionItem = {
-  key: SectionKey;
-  label: string;
-  description: string;
-};
-
-const sections: SectionItem[] = [
-  {
-    key: "company",
-    label: "Company",
-    description:
-      "Informasi utama perusahaan",
-  },
-  {
-    key: "owner",
-    label: "Owner",
-    description:
-      "Akun pemilik perusahaan",
-  },
-  {
-    key: "users",
-    label: "Users",
-    description:
-      "Admin dan staff tambahan",
-  },
-  {
-    key: "branches",
-    label: "Branches",
-    description:
-      "Cabang tambahan perusahaan",
-  },
-];
-
-function createEmptyUser(): ProvisionCompanyUserInput {
-  return {
-    full_name: "",
-    email: "",
-    phone: "",
-    password: "",
-    avatar_url: "",
-    job_title: "",
-    department_name: "",
-    role_code: "staff",
-  };
-}
-
-function createEmptyBranch(): ProvisionCompanyBranchInput {
-  return {
-    code: "",
-    name: "",
-    branch_type: "branch",
-    email: "",
-    phone: "",
-    address_line: "",
-    city: "",
-    province: "",
-    country: "Indonesia",
-    postal_code: "",
-    is_active: true,
-  };
-}
-
-function createInitialForm(): ProvisionCompanyInput {
-  return {
-    company: {
-      name: "",
-      legal_name: "",
-      tax_number: "",
-      email: "",
-      phone: "",
-      website: "",
-      industry: "",
-      company_size: "",
-      address_line: "",
-      city: "",
-      province: "",
-      country: "Indonesia",
-      postal_code: "",
-      default_currency: "IDR",
-      timezone: "Asia/Jakarta",
-      fiscal_year_start_month: 1,
-      logo_url: "",
-      status: "active",
-      is_active: true,
-    },
-
-    owner: {
-      full_name: "",
-      email: "",
-      phone: "",
-      password: "",
-      avatar_url: "",
-      job_title: "Owner",
-      department_name:
-        "Management",
-    },
-
-    users: [],
-    branches: [],
-  };
-}
-
-function isValidEmail(
-  value: string
-): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-    value.trim()
-  );
-}
-
-function SectionHeader({
-  title,
-  description,
-  icon,
-}: {
-  title: string;
-  description: string;
-  icon: ReactNode;
-}) {
-  return (
-    <div className="mb-6 flex min-w-0 items-start gap-3">
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
-        {icon}
-      </div>
-
-      <div className="min-w-0">
-        <h2 className="text-lg font-black text-slate-950 dark:text-white">
-          {title}
-        </h2>
-
-        <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
-          {description}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function InputField({
-  label,
-  value,
-  onChange,
-  type = "text",
-  required = false,
-  placeholder,
-  min,
-  max,
-}: {
-  label: string;
-  value: string | number;
-  onChange: (
-    value: string
-  ) => void;
-  type?: string;
-  required?: boolean;
-  placeholder?: string;
-  min?: number;
-  max?: number;
-}) {
-  return (
-    <label className="block min-w-0 space-y-2">
-      <span className="block text-[11px] font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        {label}
-
-        {required && (
-          <span className="ml-1 text-rose-500">
-            *
-          </span>
-        )}
-      </span>
-
-      <input
-        type={type}
-        value={value}
-        required={required}
-        placeholder={placeholder}
-        min={min}
-        max={max}
-        onChange={(event) =>
-          onChange(
-            event.target.value
-          )
-        }
-        className="h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-800 dark:bg-[#02040a] dark:text-white"
-      />
-    </label>
-  );
-}
-
-function SelectField({
-  label,
-  value,
-  onChange,
-  children,
-  required = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (
-    value: string
-  ) => void;
-  children: ReactNode;
-  required?: boolean;
-}) {
-  return (
-    <label className="block min-w-0 space-y-2">
-      <span className="block text-[11px] font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">
-        {label}
-
-        {required && (
-          <span className="ml-1 text-rose-500">
-            *
-          </span>
-        )}
-      </span>
-
-      <select
-        value={value}
-        required={required}
-        onChange={(event) =>
-          onChange(
-            event.target.value
-          )
-        }
-        className="h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-950 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-800 dark:bg-[#02040a] dark:text-white"
-      >
-        {children}
-      </select>
-    </label>
-  );
-}
+import {
+  companyCreateSections,
+  createEmptyCompanyBranch,
+  createEmptyCompanyUser,
+  createInitialCompanyForm,
+} from "./company-create/defaults";
+import { CompanyBranchesSection } from "./company-create/sections/branches-section";
+import { CompanyInformationSection } from "./company-create/sections/company-section";
+import { CompanyOwnerSection } from "./company-create/sections/owner-section";
+import { CompanyUsersSection } from "./company-create/sections/users-section";
+import type { CompanyCreateSectionKey } from "./company-create/types";
+import { isValidCompanyEmail } from "./company-create/validation";
 
 export function CompanyCreatePage() {
   const router = useRouter();
@@ -302,13 +70,13 @@ export function CompanyCreatePage() {
     form,
     setForm,
   ] = useState<ProvisionCompanyInput>(
-    createInitialForm()
+    createInitialCompanyForm()
   );
 
   const [
     activeSection,
     setActiveSection,
-  ] = useState<SectionKey>(
+  ] = useState<CompanyCreateSectionKey>(
     "company"
   );
 
@@ -352,7 +120,7 @@ export function CompanyCreatePage() {
         router.refresh();
       },
 
-      onError: (error) => {
+      onError: (error: unknown) => {
         setRequestError(
           getCompanyApiError(error)
         );
@@ -360,7 +128,7 @@ export function CompanyCreatePage() {
     });
 
   const currentIndex =
-    sections.findIndex(
+    companyCreateSections.findIndex(
       (section) =>
         section.key === activeSection
     );
@@ -463,7 +231,7 @@ export function CompanyCreatePage() {
 
       users: [
         ...current.users,
-        createEmptyUser(),
+        createEmptyCompanyUser(),
       ],
     }));
 
@@ -490,7 +258,7 @@ export function CompanyCreatePage() {
 
       branches: [
         ...current.branches,
-        createEmptyBranch(),
+        createEmptyCompanyBranch(),
       ],
     }));
 
@@ -527,7 +295,7 @@ export function CompanyCreatePage() {
 
     if (
       form.company.email?.trim() &&
-      !isValidEmail(
+      !isValidCompanyEmail(
         form.company.email
       )
     ) {
@@ -578,7 +346,7 @@ export function CompanyCreatePage() {
     }
 
     if (
-      !isValidEmail(
+      !isValidCompanyEmail(
         form.owner.email
       )
     ) {
@@ -629,7 +397,7 @@ export function CompanyCreatePage() {
       }
 
       if (
-        !isValidEmail(user.email)
+        !isValidCompanyEmail(user.email)
       ) {
         setValidationError(
           `Email User ${
@@ -749,7 +517,7 @@ export function CompanyCreatePage() {
 
       if (
         branch.email?.trim() &&
-        !isValidEmail(
+        !isValidCompanyEmail(
           branch.email
         )
       ) {
@@ -824,7 +592,7 @@ export function CompanyCreatePage() {
     }
 
     const nextSection =
-      sections[
+      companyCreateSections[
         currentIndex + 1
       ];
 
@@ -842,7 +610,7 @@ export function CompanyCreatePage() {
 
   function goBack() {
     const previousSection =
-      sections[
+      companyCreateSections[
         currentIndex - 1
       ];
 
@@ -965,7 +733,7 @@ export function CompanyCreatePage() {
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-600 dark:border-slate-800 dark:bg-[#02040a] dark:text-slate-300">
             Step {currentIndex + 1} of{" "}
-            {sections.length}
+            {companyCreateSections.length}
           </div>
         </div>
       </section>
@@ -976,7 +744,7 @@ export function CompanyCreatePage() {
       >
         <section className="rounded-[2rem] border border-slate-200/80 bg-white/80 p-3 shadow-sm backdrop-blur-2xl dark:border-slate-900 dark:bg-[#050816]/90 sm:p-4">
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            {sections.map(
+            {companyCreateSections.map(
               (section, index) => {
                 const active =
                   activeSection ===
@@ -1046,928 +814,37 @@ export function CompanyCreatePage() {
         </section>
 
         <section className="min-w-0 rounded-[2rem] border border-slate-200/80 bg-white/80 p-4 shadow-sm backdrop-blur-2xl dark:border-slate-900 dark:bg-[#050816]/90 sm:p-6">
-          {activeSection ===
-            "company" && (
-            <div>
-              <SectionHeader
-                title="Company Information"
-                description="Isi informasi utama perusahaan atau tenant."
-                icon={
-                  <Building2 size={20} />
-                }
-              />
-
-              <div className="grid min-w-0 gap-4 md:grid-cols-2">
-                <InputField
-                  label="Company Name"
-                  value={
-                    form.company.name
-                  }
-                  required
-                  placeholder="PT DashAI Indonesia"
-                  onChange={(value) =>
-                    updateCompany(
-                      "name",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Legal Name"
-                  value={
-                    form.company
-                      .legal_name ?? ""
-                  }
-                  placeholder="PT DashAI Indonesia"
-                  onChange={(value) =>
-                    updateCompany(
-                      "legal_name",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="NPWP / Tax Number"
-                  value={
-                    form.company
-                      .tax_number ?? ""
-                  }
-                  onChange={(value) =>
-                    updateCompany(
-                      "tax_number",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Company Email"
-                  type="email"
-                  value={
-                    form.company.email ??
-                    ""
-                  }
-                  placeholder="office@company.com"
-                  onChange={(value) =>
-                    updateCompany(
-                      "email",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Company Phone"
-                  value={
-                    form.company.phone ??
-                    ""
-                  }
-                  placeholder="081234567890"
-                  onChange={(value) =>
-                    updateCompany(
-                      "phone",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Website"
-                  type="url"
-                  value={
-                    form.company
-                      .website ?? ""
-                  }
-                  placeholder="https://company.com"
-                  onChange={(value) =>
-                    updateCompany(
-                      "website",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Industry"
-                  value={
-                    form.company
-                      .industry ?? ""
-                  }
-                  placeholder="Technology"
-                  onChange={(value) =>
-                    updateCompany(
-                      "industry",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Company Size"
-                  value={
-                    form.company
-                      .company_size ?? ""
-                  }
-                  placeholder="11-50"
-                  onChange={(value) =>
-                    updateCompany(
-                      "company_size",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Default Currency"
-                  value={
-                    form.company
-                      .default_currency
-                  }
-                  placeholder="IDR"
-                  onChange={(value) =>
-                    updateCompany(
-                      "default_currency",
-                      value.toUpperCase()
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Timezone"
-                  value={
-                    form.company.timezone
-                  }
-                  placeholder="Asia/Jakarta"
-                  onChange={(value) =>
-                    updateCompany(
-                      "timezone",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Fiscal Start Month"
-                  type="number"
-                  min={1}
-                  max={12}
-                  value={
-                    form.company
-                      .fiscal_year_start_month
-                  }
-                  onChange={(value) =>
-                    updateCompany(
-                      "fiscal_year_start_month",
-                      Number(value || 1)
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Logo URL"
-                  type="url"
-                  value={
-                    form.company
-                      .logo_url ?? ""
-                  }
-                  onChange={(value) =>
-                    updateCompany(
-                      "logo_url",
-                      value
-                    )
-                  }
-                />
-
-                <div className="md:col-span-2">
-                  <InputField
-                    label="Address"
-                    value={
-                      form.company
-                        .address_line ?? ""
-                    }
-                    placeholder="Alamat lengkap perusahaan"
-                    onChange={(value) =>
-                      updateCompany(
-                        "address_line",
-                        value
-                      )
-                    }
-                  />
-                </div>
-
-                <InputField
-                  label="City"
-                  value={
-                    form.company.city ??
-                    ""
-                  }
-                  onChange={(value) =>
-                    updateCompany(
-                      "city",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Province"
-                  value={
-                    form.company
-                      .province ?? ""
-                  }
-                  onChange={(value) =>
-                    updateCompany(
-                      "province",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Country"
-                  value={
-                    form.company.country
-                  }
-                  onChange={(value) =>
-                    updateCompany(
-                      "country",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Postal Code"
-                  value={
-                    form.company
-                      .postal_code ?? ""
-                  }
-                  onChange={(value) =>
-                    updateCompany(
-                      "postal_code",
-                      value
-                    )
-                  }
-                />
-
-                <SelectField
-                  label="Status"
-                  value={
-                    form.company.status
-                  }
-                  onChange={(value) =>
-                    updateCompany(
-                      "status",
-                      value as ProvisionCompanyInput["company"]["status"]
-                    )
-                  }
-                >
-                  <option value="active">
-                    Active
-                  </option>
-
-                  <option value="inactive">
-                    Inactive
-                  </option>
-
-                  <option value="suspended">
-                    Suspended
-                  </option>
-                </SelectField>
-
-                <SelectField
-                  label="Is Active"
-                  value={String(
-                    form.company.is_active
-                  )}
-                  onChange={(value) =>
-                    updateCompany(
-                      "is_active",
-                      value === "true"
-                    )
-                  }
-                >
-                  <option value="true">
-                    Yes
-                  </option>
-
-                  <option value="false">
-                    No
-                  </option>
-                </SelectField>
-              </div>
-            </div>
-          )}
-
-          {activeSection ===
-            "owner" && (
-            <div>
-              <SectionHeader
-                title="Owner Account"
-                description="Akun utama pemilik company dengan akses penuh."
-                icon={
-                  <UserRound size={20} />
-                }
-              />
-
-              <div className="grid min-w-0 gap-4 md:grid-cols-2">
-                <InputField
-                  label="Full Name"
-                  value={
-                    form.owner.full_name
-                  }
-                  required
-                  placeholder="Nama lengkap owner"
-                  onChange={(value) =>
-                    updateOwner(
-                      "full_name",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Email"
-                  type="email"
-                  value={
-                    form.owner.email
-                  }
-                  required
-                  placeholder="owner@company.com"
-                  onChange={(value) =>
-                    updateOwner(
-                      "email",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Phone"
-                  value={
-                    form.owner.phone ?? ""
-                  }
-                  placeholder="081234567890"
-                  onChange={(value) =>
-                    updateOwner(
-                      "phone",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Password"
-                  type="password"
-                  value={
-                    form.owner.password
-                  }
-                  required
-                  placeholder="Minimal 8 karakter"
-                  onChange={(value) =>
-                    updateOwner(
-                      "password",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Job Title"
-                  value={
-                    form.owner
-                      .job_title ?? ""
-                  }
-                  placeholder="Chief Executive Officer"
-                  onChange={(value) =>
-                    updateOwner(
-                      "job_title",
-                      value
-                    )
-                  }
-                />
-
-                <InputField
-                  label="Department"
-                  value={
-                    form.owner
-                      .department_name ??
-                    ""
-                  }
-                  placeholder="Management"
-                  onChange={(value) =>
-                    updateOwner(
-                      "department_name",
-                      value
-                    )
-                  }
-                />
-
-                <div className="md:col-span-2">
-                  <InputField
-                    label="Avatar URL"
-                    type="url"
-                    value={
-                      form.owner
-                        .avatar_url ?? ""
-                    }
-                    onChange={(value) =>
-                      updateOwner(
-                        "avatar_url",
-                        value
-                      )
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeSection ===
-            "users" && (
-            <div>
-              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <SectionHeader
-                  title="Additional Users"
-                  description="Tambahkan akun Administrator atau Staff."
-                  icon={
-                    <UsersRound size={20} />
-                  }
-                />
-
-                <button
-                  type="button"
-                  onClick={addUser}
-                  className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:bg-[#02040a] dark:text-slate-300"
-                >
-                  <Plus size={16} />
-
-                  Add User
-                </button>
-              </div>
-
-              {form.users.length ===
-              0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-300 px-5 py-12 text-center dark:border-slate-800">
-                  <UsersRound
-                    size={32}
-                    className="mx-auto text-slate-400"
-                  />
-
-                  <p className="mt-3 text-sm font-black text-slate-700 dark:text-slate-300">
-                    Belum ada user tambahan
-                  </p>
-
-                  <p className="mt-1 text-xs text-slate-500">
-                    Owner tetap dibuat
-                    meskipun tanpa user
-                    tambahan.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {form.users.map(
-                    (user, index) => (
-                      <div
-                        key={index}
-                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-[#02040a] sm:p-5"
-                      >
-                        <div className="mb-5 flex items-center justify-between">
-                          <div>
-                            <h3 className="font-black text-slate-950 dark:text-white">
-                              User {index + 1}
-                            </h3>
-
-                            <p className="mt-1 text-xs text-slate-500">
-                              Akun tambahan
-                              company
-                            </p>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              removeUser(index)
-                            }
-                            className="flex h-9 w-9 items-center justify-center rounded-xl text-rose-600 transition hover:bg-rose-100 dark:hover:bg-rose-500/10"
-                          >
-                            <Trash2 size={17} />
-                          </button>
-                        </div>
-
-                        <div className="grid min-w-0 gap-4 md:grid-cols-2">
-                          <InputField
-                            label="Full Name"
-                            value={
-                              user.full_name
-                            }
-                            required
-                            onChange={(value) =>
-                              updateUser(
-                                index,
-                                "full_name",
-                                value
-                              )
-                            }
-                          />
-
-                          <InputField
-                            label="Email"
-                            type="email"
-                            value={user.email}
-                            required
-                            onChange={(value) =>
-                              updateUser(
-                                index,
-                                "email",
-                                value
-                              )
-                            }
-                          />
-
-                          <InputField
-                            label="Phone"
-                            value={
-                              user.phone ?? ""
-                            }
-                            onChange={(value) =>
-                              updateUser(
-                                index,
-                                "phone",
-                                value
-                              )
-                            }
-                          />
-
-                          <InputField
-                            label="Password"
-                            type="password"
-                            value={
-                              user.password
-                            }
-                            required
-                            placeholder="Minimal 8 karakter"
-                            onChange={(value) =>
-                              updateUser(
-                                index,
-                                "password",
-                                value
-                              )
-                            }
-                          />
-
-                          <InputField
-                            label="Job Title"
-                            value={
-                              user.job_title ??
-                              ""
-                            }
-                            onChange={(value) =>
-                              updateUser(
-                                index,
-                                "job_title",
-                                value
-                              )
-                            }
-                          />
-
-                          <InputField
-                            label="Department"
-                            value={
-                              user
-                                .department_name ??
-                              ""
-                            }
-                            onChange={(value) =>
-                              updateUser(
-                                index,
-                                "department_name",
-                                value
-                              )
-                            }
-                          />
-
-                          <SelectField
-                            label="Role"
-                            value={
-                              user.role_code
-                            }
-                            required
-                            onChange={(value) =>
-                              updateUser(
-                                index,
-                                "role_code",
-                                value as ProvisionCompanyUserInput["role_code"]
-                              )
-                            }
-                          >
-                            <option value="admin">
-                              Administrator
-                            </option>
-
-                            <option value="staff">
-                              Staff
-                            </option>
-                          </SelectField>
-
-                          <InputField
-                            label="Avatar URL"
-                            type="url"
-                            value={
-                              user.avatar_url ??
-                              ""
-                            }
-                            onChange={(value) =>
-                              updateUser(
-                                index,
-                                "avatar_url",
-                                value
-                              )
-                            }
-                          />
-                        </div>
-                      </div>
-                    )
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeSection ===
-            "branches" && (
-            <div>
-              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <SectionHeader
-                  title="Additional Branches"
-                  description="Head Office dengan kode HQ akan dibuat otomatis."
-                  icon={
-                    <GitBranch size={20} />
-                  }
-                />
-
-                <button
-                  type="button"
-                  onClick={addBranch}
-                  className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:bg-[#02040a] dark:text-slate-300"
-                >
-                  <Plus size={16} />
-
-                  Add Branch
-                </button>
-              </div>
-
-              {form.branches.length ===
-              0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-300 px-5 py-12 text-center dark:border-slate-800">
-                  <GitBranch
-                    size={32}
-                    className="mx-auto text-slate-400"
-                  />
-
-                  <p className="mt-3 text-sm font-black text-slate-700 dark:text-slate-300">
-                    Belum ada branch tambahan
-                  </p>
-
-                  <p className="mt-1 text-xs text-slate-500">
-                    Head Office akan dibuat
-                    otomatis oleh backend.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {form.branches.map(
-                    (
-                      branch,
-                      index
-                    ) => (
-                      <div
-                        key={index}
-                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-[#02040a] sm:p-5"
-                      >
-                        <div className="mb-5 flex items-center justify-between">
-                          <div>
-                            <h3 className="font-black text-slate-950 dark:text-white">
-                              Branch{" "}
-                              {index + 1}
-                            </h3>
-
-                            <p className="mt-1 text-xs text-slate-500">
-                              Cabang tambahan
-                              company
-                            </p>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              removeBranch(
-                                index
-                              )
-                            }
-                            className="flex h-9 w-9 items-center justify-center rounded-xl text-rose-600 transition hover:bg-rose-100 dark:hover:bg-rose-500/10"
-                          >
-                            <Trash2 size={17} />
-                          </button>
-                        </div>
-
-                        <div className="grid min-w-0 gap-4 md:grid-cols-2">
-                          <InputField
-                            label="Branch Code"
-                            value={
-                              branch.code
-                            }
-                            required
-                            placeholder="JKT-01"
-                            onChange={(value) =>
-                              updateBranch(
-                                index,
-                                "code",
-                                value.toUpperCase()
-                              )
-                            }
-                          />
-
-                          <InputField
-                            label="Branch Name"
-                            value={
-                              branch.name
-                            }
-                            required
-                            placeholder="Cabang Jakarta"
-                            onChange={(value) =>
-                              updateBranch(
-                                index,
-                                "name",
-                                value
-                              )
-                            }
-                          />
-
-                          <SelectField
-                            label="Branch Type"
-                            value={
-                              branch.branch_type
-                            }
-                            required
-                            onChange={(value) =>
-                              updateBranch(
-                                index,
-                                "branch_type",
-                                value as ProvisionCompanyBranchInput["branch_type"]
-                              )
-                            }
-                          >
-                            <option value="branch">
-                              Branch
-                            </option>
-
-                            <option value="outlet">
-                              Outlet
-                            </option>
-
-                            <option value="warehouse">
-                              Warehouse
-                            </option>
-                          </SelectField>
-
-                          <SelectField
-                            label="Active"
-                            value={String(
-                              branch.is_active
-                            )}
-                            onChange={(value) =>
-                              updateBranch(
-                                index,
-                                "is_active",
-                                value === "true"
-                              )
-                            }
-                          >
-                            <option value="true">
-                              Active
-                            </option>
-
-                            <option value="false">
-                              Inactive
-                            </option>
-                          </SelectField>
-
-                          <InputField
-                            label="Email"
-                            type="email"
-                            value={
-                              branch.email ?? ""
-                            }
-                            onChange={(value) =>
-                              updateBranch(
-                                index,
-                                "email",
-                                value
-                              )
-                            }
-                          />
-
-                          <InputField
-                            label="Phone"
-                            value={
-                              branch.phone ?? ""
-                            }
-                            onChange={(value) =>
-                              updateBranch(
-                                index,
-                                "phone",
-                                value
-                              )
-                            }
-                          />
-
-                          <div className="md:col-span-2">
-                            <InputField
-                              label="Address"
-                              value={
-                                branch
-                                  .address_line ??
-                                ""
-                              }
-                              onChange={(value) =>
-                                updateBranch(
-                                  index,
-                                  "address_line",
-                                  value
-                                )
-                              }
-                            />
-                          </div>
-
-                          <InputField
-                            label="City"
-                            value={
-                              branch.city ?? ""
-                            }
-                            onChange={(value) =>
-                              updateBranch(
-                                index,
-                                "city",
-                                value
-                              )
-                            }
-                          />
-
-                          <InputField
-                            label="Province"
-                            value={
-                              branch.province ??
-                              ""
-                            }
-                            onChange={(value) =>
-                              updateBranch(
-                                index,
-                                "province",
-                                value
-                              )
-                            }
-                          />
-
-                          <InputField
-                            label="Country"
-                            value={
-                              branch.country
-                            }
-                            onChange={(value) =>
-                              updateBranch(
-                                index,
-                                "country",
-                                value
-                              )
-                            }
-                          />
-
-                          <InputField
-                            label="Postal Code"
-                            value={
-                              branch
-                                .postal_code ??
-                              ""
-                            }
-                            onChange={(value) =>
-                              updateBranch(
-                                index,
-                                "postal_code",
-                                value
-                              )
-                            }
-                          />
-                        </div>
-                      </div>
-                    )
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+          {activeSection === "company" ? (
+            <CompanyInformationSection
+              company={form.company}
+              updateCompany={updateCompany}
+            />
+          ) : null}
+
+          {activeSection === "owner" ? (
+            <CompanyOwnerSection
+              owner={form.owner}
+              updateOwner={updateOwner}
+            />
+          ) : null}
+
+          {activeSection === "users" ? (
+            <CompanyUsersSection
+              users={form.users}
+              addUser={addUser}
+              removeUser={removeUser}
+              updateUser={updateUser}
+            />
+          ) : null}
+
+          {activeSection === "branches" ? (
+            <CompanyBranchesSection
+              branches={form.branches}
+              addBranch={addBranch}
+              removeBranch={removeBranch}
+              updateBranch={updateBranch}
+            />
+          ) : null}
         </section>
 
         {displayedError && (
@@ -1980,9 +857,9 @@ export function CompanyCreatePage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-xs font-bold text-slate-500">
               Step {currentIndex + 1} of{" "}
-              {sections.length} ·{" "}
+              {companyCreateSections.length} ·{" "}
               {
-                sections[
+                companyCreateSections[
                   currentIndex
                 ]?.description
               }
@@ -2020,7 +897,7 @@ export function CompanyCreatePage() {
               )}
 
               {currentIndex <
-              sections.length - 1 ? (
+              companyCreateSections.length - 1 ? (
                 <button
                   type="button"
                   disabled={

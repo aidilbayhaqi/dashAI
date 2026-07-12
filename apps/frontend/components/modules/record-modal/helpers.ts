@@ -1,40 +1,88 @@
+import type {
+  ModuleField,
+  ModuleFieldOption,
+  ModuleFieldType,
+  ModuleRow,
+} from "@/types/modules";
+
+import { getDefaultCompanyId } from "./lookups";
 import type { InputField } from "./types";
 
-export function getFieldType(field: InputField) {
-  return field.type ?? "text";
+export function isModuleField(field: InputField): field is ModuleField {
+  return (
+    "type" in field
+    || "placeholder" in field
+    || "required" in field
+    || "options" in field
+  );
 }
 
-export function getFieldRequired(field: InputField) {
-  return Boolean(field.required);
+export function getFieldType(field: InputField): ModuleFieldType {
+  if (isModuleField(field)) return field.type ?? "text";
+  return field.format === "date" ? "date" : "text";
 }
 
-export function getFieldPlaceholder(field: InputField) {
-  return field.placeholder ?? field.label;
+export function getFieldRequired(field: InputField): boolean {
+  return isModuleField(field) ? Boolean(field.required) : false;
 }
 
-export function isSelectField(field: InputField) {
-  return getFieldType(field) === "select";
+export function getFieldPlaceholder(field: InputField): string {
+  if (isModuleField(field) && field.placeholder) return field.placeholder;
+  return `Input ${field.label}`;
 }
 
-export function isTextareaField(field: InputField) {
+export function getStaticOptions(field: InputField): ModuleFieldOption[] {
+  return isModuleField(field) ? field.options ?? [] : [];
+}
+
+export function isSelectField(field: InputField): boolean {
+  return getFieldType(field) === "select" || field.key.endsWith("_id");
+}
+
+export function isTextareaField(field: InputField): boolean {
   return getFieldType(field) === "textarea";
 }
 
-export function isFileField(field: InputField) {
+export function isFileField(field: InputField): boolean {
   return getFieldType(field) === "file";
 }
 
-export function isHiddenField(field: InputField) {
-  return getFieldType(field) === "hidden" || Boolean(field.hidden);
+export function isHiddenField(field: InputField): boolean {
+  return getFieldType(field) === "hidden"
+    || (isModuleField(field) && Boolean(field.hidden));
 }
 
-export function getInputType(fieldType: string) {
-  if (fieldType === "email") return "email";
-  if (fieldType === "password") return "password";
-  if (fieldType === "number") return "number";
-  if (fieldType === "date") return "date";
-  if (fieldType === "datetime-local") return "datetime-local";
-  if (fieldType === "time") return "time";
-
+export function getInputType(fieldType: ModuleFieldType): string {
+  if ([
+    "email",
+    "password",
+    "number",
+    "date",
+    "datetime-local",
+    "time",
+  ].includes(fieldType)) {
+    return fieldType;
+  }
   return "text";
+}
+
+export function buildInitialValues(
+  fields: InputField[],
+  initialRow?: ModuleRow | null,
+): ModuleRow {
+  const result: ModuleRow = {};
+
+  for (const field of fields) {
+    const initialValue = initialRow?.[field.key];
+    result[field.key] = initialValue === undefined || initialValue === null
+      ? ""
+      : String(initialValue);
+  }
+
+  const defaultCompanyId = getDefaultCompanyId();
+  if (!result.company_id && defaultCompanyId) {
+    result.company_id = defaultCompanyId;
+  }
+
+  return result;
 }

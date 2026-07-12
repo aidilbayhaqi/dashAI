@@ -4,7 +4,6 @@ import {
   useMemo,
   useState,
   type FormEvent,
-  type ReactNode,
 } from "react";
 
 import Link from "next/link";
@@ -21,10 +20,7 @@ import {
   Building2,
   Check,
   CheckCircle2,
-  Eye,
-  EyeOff,
   LoaderCircle,
-  LockKeyhole,
   Mail,
   MapPin,
   Phone,
@@ -46,246 +42,25 @@ import {
 import { cn } from "@/lib/utils";
 
 import type {
-  RegisterAccountType,
   RegisterCompanyOption,
   RegisterPayload,
 } from "@/types/backend";
 
 
-type RegisterMode =
-  | "company"
-  | "user";
-
-
-const companySizes = [
-  "1-10",
-  "11-50",
-  "51-200",
-  "201-500",
-  "500+",
-];
-
-
-const industries = [
-  "Technology",
-  "Retail",
-  "Manufacturing",
-  "Education",
-  "Healthcare",
-  "Finance",
-  "Services",
-  "Logistics",
-  "Hospitality",
-  "Construction",
-  "Other",
-];
-
-
-function getAccountType(
-  mode: RegisterMode
-): RegisterAccountType {
-  return mode === "company"
-    ? "company_owner"
-    : "company_user";
-}
-
-
-function isValidEmail(
-  value: string
-): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-    value.trim()
-  );
-}
-
-
-function FieldLabel({
-  children,
-  required = false,
-}: {
-  children: ReactNode;
-  required?: boolean;
-}) {
-  return (
-    <label className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-slate-500">
-      {children}
-
-      {required && (
-        <span className="ml-1 text-rose-400">
-          *
-        </span>
-      )}
-    </label>
-  );
-}
-
-
-function TextInput({
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-  required = false,
-  icon,
-  autoComplete,
-}: {
-  value: string;
-  onChange: (
-    value: string
-  ) => void;
-  placeholder?: string;
-  type?: string;
-  required?: boolean;
-  icon?: ReactNode;
-  autoComplete?: string;
-}) {
-  return (
-    <div className="flex h-12 items-center gap-3 rounded-2xl border border-white/10 bg-[#02040a] px-4 transition focus-within:border-blue-500/70 focus-within:ring-4 focus-within:ring-blue-500/10">
-      {icon && (
-        <span className="shrink-0 text-slate-600">
-          {icon}
-        </span>
-      )}
-
-      <input
-        type={type}
-        value={value}
-        required={required}
-        autoComplete={autoComplete}
-        placeholder={placeholder}
-        onChange={(event) =>
-          onChange(
-            event.target.value
-          )
-        }
-        className="w-full min-w-0 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-slate-700"
-      />
-    </div>
-  );
-}
-
-
-function PasswordInput({
-  value,
-  visible,
-  placeholder,
-  autoComplete,
-  onChange,
-  onToggle,
-}: {
-  value: string;
-  visible: boolean;
-  placeholder: string;
-  autoComplete: string;
-  onChange: (
-    value: string
-  ) => void;
-  onToggle: () => void;
-}) {
-  return (
-    <div className="flex h-12 items-center gap-3 rounded-2xl border border-white/10 bg-[#02040a] px-4 transition focus-within:border-blue-500/70 focus-within:ring-4 focus-within:ring-blue-500/10">
-      <LockKeyhole
-        size={18}
-        className="shrink-0 text-slate-600"
-      />
-
-      <input
-        type={
-          visible
-            ? "text"
-            : "password"
-        }
-        value={value}
-        required
-        minLength={8}
-        autoComplete={autoComplete}
-        placeholder={placeholder}
-        onChange={(event) =>
-          onChange(
-            event.target.value
-          )
-        }
-        className="w-full min-w-0 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-slate-700"
-      />
-
-      <button
-        type="button"
-        aria-label={
-          visible
-            ? "Sembunyikan password"
-            : "Tampilkan password"
-        }
-        onClick={onToggle}
-        className="shrink-0 text-slate-600 transition hover:text-white"
-      >
-        {visible ? (
-          <EyeOff size={18} />
-        ) : (
-          <Eye size={18} />
-        )}
-      </button>
-    </div>
-  );
-}
-
-
-function SectionHeading({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div>
-      <h3 className="text-sm font-black text-white">
-        {title}
-      </h3>
-
-      <p className="mt-1 text-xs leading-5 text-slate-500">
-        {description}
-      </p>
-    </div>
-  );
-}
-
-
-function createInitialForm(): RegisterPayload {
-  return {
-    account_type:
-      "company_owner",
-
-    full_name: "",
-    email: "",
-    phone: "",
-
-    password: "",
-    confirm_password: "",
-
-    company_id: "",
-
-    job_title: "",
-    department_name: "",
-
-    company_name: "",
-    legal_name: "",
-
-    company_email: "",
-    company_phone: "",
-
-    company_industry:
-      "Technology",
-
-    company_size: "1-10",
-
-    address_line: "",
-    city: "",
-    province: "",
-    country: "Indonesia",
-    postal_code: "",
-  };
-}
-
+import {
+  companySizes,
+  createInitialRegisterForm,
+  getRegisterAccountType,
+  industries,
+  isValidRegisterEmail,
+  type RegisterMode,
+} from "@/features/auth/register/config";
+import {
+  RegisterFieldLabel,
+  RegisterPasswordInput,
+  RegisterSectionHeading,
+  RegisterTextInput,
+} from "@/features/auth/register/controls";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -301,7 +76,7 @@ export default function RegisterPage() {
     form,
     setForm,
   ] = useState<RegisterPayload>(
-    createInitialForm()
+    createInitialRegisterForm()
   );
 
   const [
@@ -443,7 +218,7 @@ export default function RegisterPage() {
       ...current,
 
       account_type:
-        getAccountType(
+        getRegisterAccountType(
           nextMode
         ),
 
@@ -468,7 +243,7 @@ export default function RegisterPage() {
       return false;
     }
 
-    if (!isValidEmail(form.email)) {
+    if (!isValidRegisterEmail(form.email)) {
       setValidationError(
         "Format email akun tidak valid."
       );
@@ -513,7 +288,7 @@ export default function RegisterPage() {
 
       if (
         form.company_email &&
-        !isValidEmail(
+        !isValidRegisterEmail(
           form.company_email
         )
       ) {
@@ -551,7 +326,7 @@ export default function RegisterPage() {
     RegisterPayload {
     const commonPayload = {
       account_type:
-        getAccountType(mode),
+        getRegisterAccountType(mode),
 
       full_name:
         form.full_name.trim(),
@@ -912,18 +687,18 @@ export default function RegisterPage() {
 
               {mode === "company" ? (
                 <section className="space-y-5">
-                  <SectionHeading
+                  <RegisterSectionHeading
                     title="Company Information"
                     description="Informasi company dan Head Office yang akan dibuat."
                   />
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="md:col-span-2">
-                      <FieldLabel required>
+                      <RegisterFieldLabel required>
                         Company Name
-                      </FieldLabel>
+                      </RegisterFieldLabel>
 
-                      <TextInput
+                      <RegisterTextInput
                         value={
                           form.company_name ??
                           ""
@@ -945,11 +720,11 @@ export default function RegisterPage() {
                     </div>
 
                     <div>
-                      <FieldLabel>
+                      <RegisterFieldLabel>
                         Legal Name
-                      </FieldLabel>
+                      </RegisterFieldLabel>
 
-                      <TextInput
+                      <RegisterTextInput
                         value={
                           form.legal_name ??
                           ""
@@ -965,9 +740,9 @@ export default function RegisterPage() {
                     </div>
 
                     <div>
-                      <FieldLabel>
+                      <RegisterFieldLabel>
                         Industry
-                      </FieldLabel>
+                      </RegisterFieldLabel>
 
                       <select
                         value={
@@ -996,9 +771,9 @@ export default function RegisterPage() {
                     </div>
 
                     <div>
-                      <FieldLabel>
+                      <RegisterFieldLabel>
                         Company Size
-                      </FieldLabel>
+                      </RegisterFieldLabel>
 
                       <select
                         value={
@@ -1027,11 +802,11 @@ export default function RegisterPage() {
                     </div>
 
                     <div>
-                      <FieldLabel>
+                      <RegisterFieldLabel>
                         Company Email
-                      </FieldLabel>
+                      </RegisterFieldLabel>
 
-                      <TextInput
+                      <RegisterTextInput
                         type="email"
                         value={
                           form.company_email ??
@@ -1049,11 +824,11 @@ export default function RegisterPage() {
                     </div>
 
                     <div>
-                      <FieldLabel>
+                      <RegisterFieldLabel>
                         Company Phone
-                      </FieldLabel>
+                      </RegisterFieldLabel>
 
-                      <TextInput
+                      <RegisterTextInput
                         value={
                           form.company_phone ??
                           ""
@@ -1072,11 +847,11 @@ export default function RegisterPage() {
                     </div>
 
                     <div>
-                      <FieldLabel>
+                      <RegisterFieldLabel>
                         Country
-                      </FieldLabel>
+                      </RegisterFieldLabel>
 
-                      <TextInput
+                      <RegisterTextInput
                         value={
                           form.country ??
                           "Indonesia"
@@ -1092,11 +867,11 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="md:col-span-2">
-                      <FieldLabel>
+                      <RegisterFieldLabel>
                         Address
-                      </FieldLabel>
+                      </RegisterFieldLabel>
 
-                      <TextInput
+                      <RegisterTextInput
                         value={
                           form.address_line ??
                           ""
@@ -1115,11 +890,11 @@ export default function RegisterPage() {
                     </div>
 
                     <div>
-                      <FieldLabel>
+                      <RegisterFieldLabel>
                         City
-                      </FieldLabel>
+                      </RegisterFieldLabel>
 
-                      <TextInput
+                      <RegisterTextInput
                         value={
                           form.city ?? ""
                         }
@@ -1134,11 +909,11 @@ export default function RegisterPage() {
                     </div>
 
                     <div>
-                      <FieldLabel>
+                      <RegisterFieldLabel>
                         Province
-                      </FieldLabel>
+                      </RegisterFieldLabel>
 
-                      <TextInput
+                      <RegisterTextInput
                         value={
                           form.province ??
                           ""
@@ -1154,11 +929,11 @@ export default function RegisterPage() {
                     </div>
 
                     <div>
-                      <FieldLabel>
+                      <RegisterFieldLabel>
                         Postal Code
-                      </FieldLabel>
+                      </RegisterFieldLabel>
 
-                      <TextInput
+                      <RegisterTextInput
                         value={
                           form.postal_code ??
                           ""
@@ -1176,17 +951,17 @@ export default function RegisterPage() {
                 </section>
               ) : (
                 <section className="space-y-5">
-                  <SectionHeading
+                  <RegisterSectionHeading
                     title="Company Access"
                     description="Pilih company yang sudah terdaftar. Akun akan dibuat sebagai Staff."
                   />
 
                   <div>
-                    <FieldLabel>
+                    <RegisterFieldLabel>
                       Search Company
-                    </FieldLabel>
+                    </RegisterFieldLabel>
 
-                    <TextInput
+                    <RegisterTextInput
                       value={companySearch}
                       placeholder="Cari nama atau lokasi company"
                       icon={
@@ -1228,9 +1003,9 @@ export default function RegisterPage() {
                     </div>
                   ) : (
                     <div>
-                      <FieldLabel required>
+                      <RegisterFieldLabel required>
                         Registered Company
-                      </FieldLabel>
+                      </RegisterFieldLabel>
 
                       <select
                         value={
@@ -1299,11 +1074,11 @@ export default function RegisterPage() {
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <FieldLabel>
+                      <RegisterFieldLabel>
                         Job Title
-                      </FieldLabel>
+                      </RegisterFieldLabel>
 
-                      <TextInput
+                      <RegisterTextInput
                         value={
                           form.job_title ??
                           ""
@@ -1319,11 +1094,11 @@ export default function RegisterPage() {
                     </div>
 
                     <div>
-                      <FieldLabel>
+                      <RegisterFieldLabel>
                         Department
-                      </FieldLabel>
+                      </RegisterFieldLabel>
 
-                      <TextInput
+                      <RegisterTextInput
                         value={
                           form.department_name ??
                           ""
@@ -1342,7 +1117,7 @@ export default function RegisterPage() {
               )}
 
               <section className="mt-7 space-y-5 border-t border-white/10 pt-7">
-                <SectionHeading
+                <RegisterSectionHeading
                   title={
                     mode === "company"
                       ? "Owner Account"
@@ -1357,11 +1132,11 @@ export default function RegisterPage() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="md:col-span-2">
-                    <FieldLabel required>
+                    <RegisterFieldLabel required>
                       Full Name
-                    </FieldLabel>
+                    </RegisterFieldLabel>
 
-                    <TextInput
+                    <RegisterTextInput
                       value={form.full_name}
                       required
                       autoComplete="name"
@@ -1381,11 +1156,11 @@ export default function RegisterPage() {
                   </div>
 
                   <div>
-                    <FieldLabel required>
+                    <RegisterFieldLabel required>
                       Account Email
-                    </FieldLabel>
+                    </RegisterFieldLabel>
 
-                    <TextInput
+                    <RegisterTextInput
                       type="email"
                       value={form.email}
                       required
@@ -1402,11 +1177,11 @@ export default function RegisterPage() {
                   </div>
 
                   <div>
-                    <FieldLabel>
+                    <RegisterFieldLabel>
                       Phone
-                    </FieldLabel>
+                    </RegisterFieldLabel>
 
-                    <TextInput
+                    <RegisterTextInput
                       value={
                         form.phone ?? ""
                       }
@@ -1425,11 +1200,11 @@ export default function RegisterPage() {
                   </div>
 
                   <div>
-                    <FieldLabel required>
+                    <RegisterFieldLabel required>
                       Password
-                    </FieldLabel>
+                    </RegisterFieldLabel>
 
-                    <PasswordInput
+                    <RegisterPasswordInput
                       value={form.password}
                       visible={showPassword}
                       autoComplete="new-password"
@@ -1450,11 +1225,11 @@ export default function RegisterPage() {
                   </div>
 
                   <div>
-                    <FieldLabel required>
+                    <RegisterFieldLabel required>
                       Confirm Password
-                    </FieldLabel>
+                    </RegisterFieldLabel>
 
-                    <PasswordInput
+                    <RegisterPasswordInput
                       value={
                         form.confirm_password
                       }

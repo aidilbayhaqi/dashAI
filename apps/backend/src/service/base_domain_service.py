@@ -4,6 +4,8 @@ from uuid import UUID
 from sqlalchemy import and_, asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.realtime.events import publish_realtime_event_safe
+
 
 class BaseDomainService:
     model_class = None
@@ -14,6 +16,38 @@ class BaseDomainService:
 
         self.db = db
 
+
+    def _realtime_module(self) -> str:
+        module_path = str(getattr(self.model_class, "__module__", ""))
+        parts = module_path.split(".")
+        if "modules" in parts:
+            index = parts.index("modules")
+            if len(parts) > index + 1:
+                return parts[index + 1]
+        return "system"
+
+    async def _publish_change(
+        self,
+        action: str,
+        item: Any,
+        *,
+        item_id: Any | None = None,
+        company_id: Any | None = None,
+    ) -> None:
+        resolved_id = item_id or getattr(item, "id", None)
+        resolved_company_id = company_id or getattr(item, "company_id", None)
+        model_name = self.model_class.__name__.lower()
+        module = self._realtime_module()
+        await publish_realtime_event_safe(
+            f"{module}.{model_name}.{action}",
+            {
+                "id": str(resolved_id) if resolved_id else None,
+                "action": action,
+            },
+            company_id=resolved_company_id,
+            module=module,
+        )
+
     async def create(self, payload: Any):
         data = payload.model_dump()
         item = self.model_class(**data)
@@ -22,6 +56,7 @@ class BaseDomainService:
         await self.db.commit()
         await self.db.refresh(item)
 
+        await self._publish_change("created", item)
         return item
 
     async def get_by_id(self, item_id: UUID):
@@ -117,6 +152,7 @@ class BaseDomainService:
         await self.db.commit()
         await self.db.refresh(item)
 
+        await self._publish_change("updated", item)
         return item
 
     async def delete(self, item_id: UUID) -> bool:
@@ -125,7 +161,16 @@ class BaseDomainService:
         if item is None:
             return False
 
+        item_id_value = getattr(item, "id", item_id)
+        company_id = getattr(item, "company_id", None)
+
         await self.db.delete(item)
         await self.db.commit()
+        await self._publish_change(
+            "deleted",
+            item,
+            item_id=item_id_value,
+            company_id=company_id,
+        )
 
         return True

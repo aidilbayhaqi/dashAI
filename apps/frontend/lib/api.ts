@@ -34,6 +34,8 @@ export const api =
 
     withCredentials:
       true,
+
+    timeout: 30_000,
   });
 
 
@@ -44,6 +46,8 @@ const refreshClient =
 
     withCredentials:
       true,
+
+    timeout: 20_000,
   });
 
 

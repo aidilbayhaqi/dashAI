@@ -8,27 +8,23 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
-  Eye,
   ListFilter,
-  Pencil,
   Plus,
   RotateCcw,
   Search,
-  Trash2,
   Upload,
 } from "lucide-react";
 
 import type {
   ModuleAction,
-  ModuleColumn,
   ModuleConfig,
   ModuleData,
-  ModuleField,
-  ModuleMetric,
   ModuleRow,
 } from "@/types/modules";
 
 import { cn } from "@/lib/utils";
+import { getApiErrorMessage } from "@/lib/api-error";
+import { parseLocalizedNumber } from "@/lib/number";
 import {
   exportFinancialReportToPDF,
   exportInvoiceToPDF,
@@ -41,10 +37,10 @@ import { ModuleDetailDialog } from "./module-detail-dialog";
 import { ModuleEmpty } from "./module-empty";
 import { ModuleError } from "./module-error";
 import { ModuleLoading } from "./module-loading";
-import { ModulePagination } from "./module-pagination";
+import { ModuleMetricCard } from "./module-metric-card";
 import { RecordModal } from "./record-modal";
+import { ModuleTable, makeModuleRowKey } from "./module-table";
 
-import { formatModuleValue } from "@/lib/value-format";
 import {
   getCurrentCompanyId,
   isCurrentUserSuperAdmin,
@@ -68,54 +64,6 @@ type ModulePageProps = ModuleConfig &
     isUpdating?: boolean;
     isDeleting?: boolean;
   };
-
-function getStatusClass(value: string) {
-  const normalized = value.toLowerCase();
-
-  if (
-    normalized.includes("active") ||
-    normalized.includes("paid") ||
-    normalized.includes("approved") ||
-    normalized.includes("completed") ||
-    normalized.includes("done") ||
-    normalized.includes("ready") ||
-    normalized.includes("balanced") ||
-    normalized.includes("positive") ||
-    normalized.includes("posted")
-  ) {
-    return "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/70";
-  }
-
-  if (
-    normalized.includes("pending") ||
-    normalized.includes("review") ||
-    normalized.includes("progress") ||
-    normalized.includes("scheduled") ||
-    normalized.includes("probation") ||
-    normalized.includes("hot") ||
-    normalized.includes("draft") ||
-    normalized.includes("sent")
-  ) {
-    return "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/70";
-  }
-
-  if (
-    normalized.includes("critical") ||
-    normalized.includes("overdue") ||
-    normalized.includes("low") ||
-    normalized.includes("failed") ||
-    normalized.includes("risk") ||
-    normalized.includes("late") ||
-    normalized.includes("inactive") ||
-    normalized.includes("cancelled") ||
-    normalized.includes("canceled") ||
-    normalized.includes("archived")
-  ) {
-    return "bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900/70";
-  }
-
-  return "bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700";
-}
 
 function getStatusDisplayValue(row: ModuleRow) {
   const preferredKeys = [
@@ -195,151 +143,13 @@ function getRowAmountValue(row: ModuleRow) {
   ];
 
   for (const candidate of candidates) {
-    if (typeof candidate === "number" && Number.isFinite(candidate)) {
-      return candidate;
-    }
-
-    const normalized = String(candidate ?? "")
-      .replaceAll("Rp", "")
-      .replaceAll("IDR", "")
-      .replace(/[^0-9,.-]/g, "")
-      .replaceAll(".", "")
-      .replace(",", ".");
-    const parsed = Number(normalized);
-    if (Number.isFinite(parsed)) return parsed;
+    const parsed = parseLocalizedNumber(candidate);
+    if (parsed !== undefined) return parsed;
   }
 
   return 0;
 }
 
-function isImageColumn(column: ModuleColumn | ModuleField) {
-  const key = column.key.toLowerCase();
-  const label = column.label.toLowerCase();
-
-  return (
-    key.includes("photo") ||
-    key.includes("image") ||
-    key.includes("avatar") ||
-    key.includes("logo") ||
-    label.includes("photo") ||
-    label.includes("image") ||
-    label.includes("avatar") ||
-    label.includes("logo")
-  );
-}
-
-function isUrlImage(value: string) {
-  return (
-    value.startsWith("http://") ||
-    value.startsWith("https://") ||
-    value.startsWith("/")
-  );
-}
-
-function makeRowKey(row: ModuleRow, index: number) {
-  return (
-    row.id ||
-    row.sku ||
-    row.email ||
-    row.name ||
-    row.code ||
-    row.transaction_no ||
-    row.invoice_no ||
-    row.journal_no ||
-    row.product_id ||
-    `${Object.values(row).join("-")}-${index}`
-  );
-}
-
-function getMutationErrorMessage(error: unknown) {
-  const candidate = error as {
-    message?: string;
-    response?: {
-      data?: {
-        detail?: unknown;
-        message?: unknown;
-      };
-    };
-  };
-
-  const detail = candidate.response?.data?.detail;
-
-  if (typeof detail === "string") return detail;
-  if (typeof candidate.response?.data?.message === "string") {
-    return candidate.response.data.message;
-  }
-
-  return candidate.message || "Data gagal dihapus. Periksa relasi data dan coba lagi.";
-}
-
-function ModuleMetricCard({ metric }: { metric: ModuleMetric }) {
-  return (
-    <div className="rounded-[1.45rem] border border-slate-200/80 bg-white/85 p-5 shadow-sm backdrop-blur-2xl transition duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-slate-900/5 dark:border-slate-900 dark:bg-[#050816]/90 dark:hover:shadow-none">
-      <p className="text-sm font-bold text-slate-500 dark:text-slate-500">
-        {metric.label}
-      </p>
-
-      <div className="mt-3 flex items-end justify-between gap-3">
-        <h2 className="text-2xl font-black tracking-tight text-slate-950 dark:text-white">
-          {metric.value}
-        </h2>
-
-        {metric.trend ? (
-          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
-            {metric.trend}
-          </span>
-        ) : null}
-      </div>
-
-      <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-500">
-        {metric.helper}
-      </p>
-    </div>
-  );
-}
-
-function TableCellValue({
-  column,
-  value,
-  isPrimary,
-}: {
-  column: ModuleColumn;
-  value: unknown;
-  isPrimary: boolean;
-}) {
-  const rawText = value === null || value === undefined ? "-" : String(value);
-
-  if (isImageColumn(column)) {
-    return (
-      <div className="flex items-center gap-3">
-        {isUrlImage(rawText) ? (
-          <img
-            src={rawText}
-            alt={column.label}
-            className="h-10 w-10 rounded-2xl object-cover"
-          />
-        ) : (
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#0f2a5f] text-xs font-black text-white dark:bg-blue-700">
-            {rawText && rawText !== "-" ? rawText.slice(0, 2).toUpperCase() : "DA"}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <span
-      className={cn(
-        "block max-w-[260px] truncate text-sm",
-        isPrimary
-          ? "font-black text-slate-950 dark:text-white"
-          : "font-semibold text-slate-500 dark:text-slate-500"
-      )}
-    >
-      {formatModuleValue(value, column)}
-    </span>
-  );
-}
 
 export function ModulePage({
   badge,
@@ -392,7 +202,7 @@ export function ModulePage({
     const rowMap = new Map<string, ModuleRow>();
 
     [...baseRows, ...localRows].forEach((row, index) => {
-      const key = makeRowKey(row, index);
+      const key = makeModuleRowKey(row, index);
       rowMap.set(String(key), row);
     });
 
@@ -527,11 +337,11 @@ export function ModulePage({
         return;
       }
 
-      const editingKey = makeRowKey(editingRow, 0);
+      const editingKey = makeModuleRowKey(editingRow, 0);
 
       setLocalRows((current) =>
         current.map((item) =>
-          makeRowKey(item, 0) === editingKey ? { ...item, ...row } : item
+          makeModuleRowKey(item, 0) === editingKey ? { ...item, ...row } : item
         )
       );
 
@@ -578,14 +388,19 @@ export function ModulePage({
         return;
       }
 
-      const rowKey = makeRowKey(row, rowIndex);
+      const rowKey = makeModuleRowKey(row, rowIndex);
 
       setLocalRows((current) =>
-        current.filter((item, index) => makeRowKey(item, index) !== rowKey)
+        current.filter((item, index) => makeModuleRowKey(item, index) !== rowKey)
       );
       setDeleteTarget(null);
     } catch (error: unknown) {
-      setDeleteError(getMutationErrorMessage(error));
+      setDeleteError(
+        getApiErrorMessage(
+          error,
+          "Data gagal dihapus. Periksa relasi data dan coba lagi.",
+        ),
+      );
     }
   }
 
@@ -888,172 +703,28 @@ export function ModulePage({
         {filteredRows.length === 0 ? (
           <ModuleEmpty message={emptyMessage} />
         ) : (
-          <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-sm dark:border-slate-900 dark:bg-[#02040a]">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[980px] border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-900 dark:bg-[#050816]">
-                    <th className="w-16 px-5 py-4 text-xs font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-600">
-                      No.
-                    </th>
-                    {columns.map((column) => (
-                      <th
-                        key={column.key}
-                        className="px-5 py-4 text-xs font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-600"
-                      >
-                        {column.label}
-                      </th>
-                    ))}
-
-                    <th className="px-5 py-4 text-right text-xs font-black uppercase tracking-[0.14em] text-slate-400 dark:text-slate-600">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-900">
-                  {paginatedRows.map((row, rowIndex) => (
-                    <tr
-                      key={makeRowKey(row, rowIndex)}
-                      className="group transition hover:bg-slate-50/80 dark:hover:bg-[#050816]"
-                    >
-                      <td className="px-5 py-4 align-middle text-sm font-black text-slate-400">
-                        {(currentPage - 1) * pageSize + rowIndex + 1}
-                      </td>
-                      {columns.map((column, columnIndex) => {
-                        const value = row[column.key] ?? "-";
-
-                        const isStatus =
-                          column.key.toLowerCase().includes("status") ||
-                          column.label.toLowerCase().includes("status");
-
-                        return (
-                          <td
-                            key={column.key}
-                            className="px-5 py-4 align-middle"
-                          >
-                            {isStatus ? (
-                              <span
-                                className={cn(
-                                  "inline-flex rounded-full px-3 py-1 text-xs font-black ring-1",
-                                  getStatusClass(String(value))
-                                )}
-                              >
-                                {value}
-                              </span>
-                            ) : (
-                              <TableCellValue
-                                column={column}
-                                value={value}
-                                isPrimary={columnIndex === 0}
-                              />
-                            )}
-                          </td>
-                        );
-                      })}
-
-                      <td className="px-5 py-4 text-right">
-                        <div className="inline-flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setDetailRow(row)}
-                            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-900 dark:bg-[#050816] dark:text-slate-400 dark:hover:border-blue-900 dark:hover:bg-blue-950/30 dark:hover:text-blue-300"
-                          >
-                            <Eye size={13} />
-                            Detail
-                          </button>
-
-                          {(getRowActions?.(row) ?? []).map((action) => {
-                            const ActionIcon = action.icon;
-                            return (
-                              <button
-                                key={action.label}
-                                type="button"
-                                onClick={() => void action.onClick?.()}
-                                disabled={action.disabled}
-                                className={cn(
-                                  "inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-60",
-                                  action.variant === "danger"
-                                    ? "border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300"
-                                    : action.variant === "primary"
-                                      ? "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-500"
-                                      : "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-900/70 dark:bg-indigo-950/30 dark:text-indigo-300"
-                                )}
-                              >
-                                {ActionIcon ? <ActionIcon size={13} /> : null}
-                                {action.label}
-                              </button>
-                            );
-                          })}
-
-                          {canUpdateRecord ? (
-                            <button
-                              type="button"
-                              onClick={() => openEditModal(row)}
-                              disabled={isUpdating}
-                              className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-900/70 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/50"
-                            >
-                              <Pencil size={13} />
-                              Edit
-                            </button>
-                          ) : null}
-
-                          {canDeleteRecord ? (
-                            <button
-                              type="button"
-                              onClick={() => requestDeleteRecord(row, rowIndex)}
-                              disabled={isDeleting}
-                              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50"
-                            >
-                              <Trash2 size={13} />
-                              Delete
-                            </button>
-                          ) : null}
-
-                          {isInvoice ? (
-                            <button
-                              type="button"
-                              onClick={() => exportInvoiceToPDF(row)}
-                              className="rounded-xl bg-[#0f2a5f] px-3 py-2 text-xs font-black text-white transition hover:bg-blue-950 dark:bg-blue-700 dark:hover:bg-blue-600"
-                            >
-                              Invoice PDF
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                exportRowsToPDF({
-                                  filename: `${title} Row`,
-                                  title: `${title} Detail`,
-                                  columns,
-                                  rows: [row],
-                                })
-                              }
-                              className="rounded-xl bg-[#0f2a5f] px-3 py-2 text-xs font-black text-white transition hover:bg-blue-950 dark:bg-blue-700 dark:hover:bg-blue-600"
-                            >
-                              Export
-                            </button>
-                          )}
-
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <ModulePagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              totalItems={filteredRows.length}
-              startItem={paginationStart}
-              endItem={paginationEnd}
-              onPageChange={setCurrentPage}
-              onPageSizeChange={setPageSize}
-            />
-          </div>
+          <ModuleTable
+            title={title}
+            columns={columns}
+            rows={paginatedRows}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={filteredRows.length}
+            startItem={paginationStart}
+            endItem={paginationEnd}
+            isInvoice={isInvoice}
+            canUpdate={canUpdateRecord}
+            canDelete={canDeleteRecord}
+            isUpdating={isUpdating}
+            isDeleting={isDeleting}
+            getRowActions={getRowActions}
+            onDetail={setDetailRow}
+            onEdit={openEditModal}
+            onDelete={requestDeleteRecord}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         )}
       </section>
 

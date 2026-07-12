@@ -1,20 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ChangeEvent, FormEvent } from "react";
-import { ImagePlus, Loader2, Search, UploadCloud, X } from "lucide-react";
+import type { FormEvent } from "react";
+import { AlertCircle, Loader2, X } from "lucide-react";
 
-import { api } from "@/lib/api";
-import {
-  getCurrentCompanyId,
-  isCurrentUserSuperAdmin,
-} from "@/lib/auth-scope";
-import { getSelectedCompanyId } from "@/lib/company-scope";
-import type { UploadContext } from "@/lib/file-access";
-import {
-  isPreviewableImage,
-  uploadRecordFile,
-} from "./record-modal/upload";
+import { getApiErrorMessage } from "@/lib/api-error";
+import { getCurrentCompanyId, isCurrentUserSuperAdmin } from "@/lib/auth-scope";
 import type {
   ModuleColumn,
   ModuleField,
@@ -22,7 +13,20 @@ import type {
   ModuleRow,
 } from "@/types/modules";
 
-import { AuthenticatedFilePreview } from "@/components/files/authenticated-file-preview";
+import { RecordModalField } from "./record-modal/field-input";
+import {
+  buildInitialValues,
+  getStaticOptions,
+  isHiddenField,
+  isSelectField,
+} from "./record-modal/helpers";
+import { fetchOptionsForField } from "./record-modal/lookups";
+import type { InputField } from "./record-modal/types";
+import {
+  getUploadContext,
+  uploadRecordFile,
+} from "./record-modal/upload";
+
 type RecordModalProps = {
   open: boolean;
   title: string;
@@ -36,17 +40,9 @@ type RecordModalProps = {
   onSubmit: (row: ModuleRow) => Promise<void> | void;
 };
 
-type InputField = ModuleColumn | ModuleField;
-type RawRow = Record<string, unknown>;
-
-const searchableSelectKeys = new Set([
+const dependentCompanyFields = [
+  "branch_id",
   "employee_id",
-  "reviewer_id",
-  "reviewer_user_id",
-  "approved_by",
-  "approved_by_id",
-  "assigned_to",
-  "assigned_by_id",
   "leave_type_id",
   "product_id",
   "category_id",
@@ -59,448 +55,7 @@ const searchableSelectKeys = new Set([
   "lead_id",
   "contact_id",
   "deal_id",
-]);
-
-const lookupEndpointMap: Record<string, string[]> = {
-  company_id: ["/api/v1/companies"],
-  employee_id: ["/api/v1/hr/employees"],
-  reviewer_id: ["/api/v1/hr/employees"],
-  reviewer_user_id: ["/api/v1/hr/employees"],
-  approved_by: ["/api/v1/hr/employees"],
-  approved_by_id: ["/api/v1/hr/employees"],
-  assigned_to: ["/api/v1/hr/employees"],
-  assigned_by_id: ["/api/v1/hr/employees"],
-
-  leave_type_id: ["/api/v1/hr/leave-types", "/api/v1/hr/leave_types"],
-
-  product_id: ["/api/v1/products/items", "/api/v1/products"],
-  category_id: ["/api/v1/products/categories"],
-  parent_category_id: ["/api/v1/products/categories"],
-  supplier_id: ["/api/v1/products/suppliers"],
-
-  cash_account_id: ["/api/v1/finance/cash-accounts"],
-  transaction_id: ["/api/v1/finance/transactions"],
-  period_id: [
-    "/api/v1/finance/accounting-periods",
-    "/api/v1/finance/periods",
-  ],
-  tax_rate_id: ["/api/v1/finance/tax-rates"],
-
-  lead_id: ["/api/v1/crm/leads"],
-  contact_id: ["/api/v1/crm/contacts"],
-  deal_id: ["/api/v1/crm/deals"],
-};
-
-function isModuleField(field: InputField): field is ModuleField {
-  return (
-    "type" in field ||
-    "placeholder" in field ||
-    "required" in field ||
-    "options" in field
-  );
-}
-
-function getFieldType(field: InputField): ModuleField["type"] {
-  return isModuleField(field) ? field.type ?? "text" : "text";
-}
-
-function getFieldRequired(field: InputField) {
-  return isModuleField(field) ? Boolean(field.required) : false;
-}
-
-function getFieldPlaceholder(field: InputField) {
-  return isModuleField(field) && field.placeholder
-    ? field.placeholder
-    : `Input ${field.label}`;
-}
-
-function getStaticOptions(field: InputField): ModuleFieldOption[] {
-  return isModuleField(field) ? field.options ?? [] : [];
-}
-
-function getInputType(type: ModuleField["type"]) {
-  if (
-    type === "number" ||
-    type === "date" ||
-    type === "datetime-local" ||
-    type === "email" ||
-    type === "password"
-  ) {
-    return type;
-  }
-
-  return "text";
-}
-
-function isSelectField(field: InputField) {
-  const type = getFieldType(field);
-
-  return type === "select" || field.key.endsWith("_id");
-}
-
-function isTextareaField(field: InputField) {
-  return getFieldType(field) === "textarea";
-}
-
-function isFileField(field: InputField) {
-  return getFieldType(field) === "file";
-}
-
-function isHiddenField(field: InputField) {
-  return getFieldType(field) === "hidden";
-}
-
-function hasValue(value: unknown) {
-  return value !== undefined && value !== null && String(value).trim() !== "";
-}
-
-function isValidUuid(value: string | undefined | null) {
-  if (!value) return false;
-
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    value
-  );
-}
-
-function normalizeRows(data: unknown): RawRow[] {
-  if (Array.isArray(data)) return data as RawRow[];
-
-  if (!data || typeof data !== "object") return [];
-
-  const record = data as Record<string, unknown>;
-
-  const keys = [
-    "items",
-    "data",
-    "results",
-    "rows",
-    "records",
-    "companies",
-    "branches",
-    "employees",
-    "leave_types",
-    "leaveTypes",
-    "products",
-    "categories",
-    "suppliers",
-    "cash_accounts",
-    "transactions",
-    "periods",
-    "tax_rates",
-    "leads",
-    "contacts",
-    "deals",
-  ];
-
-  for (const key of keys) {
-    const value = record[key];
-
-    if (Array.isArray(value)) return value as RawRow[];
-
-    if (value && typeof value === "object") {
-      const nested = normalizeRows(value);
-
-      if (nested.length > 0) return nested;
-    }
-  }
-
-  const firstArray = Object.values(record).find((value) => Array.isArray(value));
-
-  if (Array.isArray(firstArray)) return firstArray as RawRow[];
-
-  return [];
-}
-
-function pick(row: RawRow, keys: string[]) {
-  for (const key of keys) {
-    const value = row[key];
-
-    if (hasValue(value)) return String(value);
-  }
-
-  return "";
-}
-
-function getOptionId(row: RawRow) {
-  return pick(row, [
-    "id",
-    "uuid",
-    "value",
-    "company_id",
-    "branch_id",
-    "employee_id",
-    "leave_type_id",
-    "product_id",
-    "category_id",
-    "supplier_id",
-    "cash_account_id",
-    "transaction_id",
-    "period_id",
-    "tax_rate_id",
-    "lead_id",
-    "contact_id",
-    "deal_id",
-  ]);
-}
-
-function getOptionLabel(row: RawRow, key: string) {
-  const label =
-    pick(row, [
-      "full_name",
-      "employee_name",
-      "name",
-      "leave_type_name",
-      "company_name",
-      "branch_name",
-      "product_name",
-      "category_name",
-      "supplier_name",
-      "cash_account_name",
-      "account_name",
-      "title",
-      "email",
-      "phone",
-      "code",
-      "id",
-    ]) || "-";
-
-  const employeeNo = pick(row, ["employee_no", "employee_code"]);
-  const code = pick(row, ["code"]);
-  const sku = pick(row, ["sku"]);
-
-  if (
-    [
-      "employee_id",
-      "reviewer_id",
-      "reviewer_user_id",
-      "approved_by",
-      "approved_by_id",
-      "assigned_to",
-      "assigned_by_id",
-    ].includes(key)
-  ) {
-    return employeeNo ? `${label} (${employeeNo})` : label;
-  }
-
-  if (key === "leave_type_id") {
-    return code && code !== label ? `${label} (${code})` : label;
-  }
-
-  if (key === "product_id") {
-    return sku ? `${label} (${sku})` : label;
-  }
-
-  return code && code !== label ? `${label} (${code})` : label;
-}
-
-function rowsToOptions(rows: RawRow[], key: string): ModuleFieldOption[] {
-  return rows
-    .map((row) => {
-      const id = getOptionId(row);
-
-      if (!id) return null;
-
-      return {
-        value: id,
-        label: getOptionLabel(row, key),
-      };
-    })
-    .filter((item): item is ModuleFieldOption => Boolean(item));
-}
-
-async function fetchRows(
-  endpoints: string[],
-  params?: Record<string, unknown>
-): Promise<RawRow[]> {
-  for (const endpoint of endpoints) {
-    try {
-      const response = await api.get(endpoint, {
-        params,
-      });
-
-      const rows = normalizeRows(response.data);
-
-      if (rows.length > 0) return rows;
-    } catch {
-      // coba endpoint berikutnya
-    }
-  }
-
-  return [];
-}
-
-async function fetchBranches(companyId: string) {
-  if (!isValidUuid(companyId)) return [];
-
-  return fetchRows(
-    [`/api/v1/companies/${companyId}/branches`, "/api/v1/branches"],
-    {
-      company_id: companyId,
-      limit: 100,
-      sort_by: "name",
-      sort_order: "asc",
-    }
-  );
-}
-
-function getDefaultCompanyId() {
-  const currentCompanyId = getCurrentCompanyId();
-  const selectedCompanyId = getSelectedCompanyId();
-
-  if (
-    currentCompanyId &&
-    isValidUuid(currentCompanyId) &&
-    !isCurrentUserSuperAdmin()
-  ) {
-    return currentCompanyId;
-  }
-
-  if (
-    selectedCompanyId &&
-    selectedCompanyId !== "all" &&
-    isValidUuid(selectedCompanyId)
-  ) {
-    return selectedCompanyId;
-  }
-
-  return "";
-}
-
-function getSortBy(key: string) {
-  if (
-    key === "employee_id" ||
-    key === "reviewer_id" ||
-    key === "reviewer_user_id" ||
-    key === "approved_by" ||
-    key === "approved_by_id" ||
-    key === "assigned_to" ||
-    key === "assigned_by_id"
-  ) {
-    return "full_name";
-  }
-
-  if (
-    key === "leave_type_id" ||
-    key === "product_id" ||
-    key === "category_id" ||
-    key === "supplier_id" ||
-    key === "company_id" ||
-    key === "branch_id"
-  ) {
-    return "name";
-  }
-
-  return "created_at";
-}
-
-function buildInitialValues(fields: InputField[], initialRow?: ModuleRow | null) {
-  const result: ModuleRow = {};
-
-  fields.forEach((field) => {
-    result[field.key] =
-      initialRow?.[field.key] !== undefined && initialRow?.[field.key] !== null
-        ? String(initialRow[field.key])
-        : "";
-  });
-
-  const defaultCompanyId = getDefaultCompanyId();
-
-  if (!result.company_id && defaultCompanyId) {
-    result.company_id = defaultCompanyId;
-  }
-
-  return result;
-}
-
-function getUploadContext(
-  fieldKey: string,
-  moduleKey?: string
-): UploadContext {
-  const normalizedField = fieldKey
-    .trim()
-    .toLowerCase();
-
-  const normalizedModule = String(
-    moduleKey ?? ""
-  )
-    .trim()
-    .toLowerCase();
-
-  if (
-    normalizedField === "logo_url" ||
-    normalizedField === "company_logo_url"
-  ) {
-    return "company-logo";
-  }
-
-  if (
-    normalizedModule.includes("employee") ||
-    normalizedModule.includes("attendance") ||
-    normalizedModule.includes("payroll") ||
-    normalizedModule.includes("leave") ||
-    normalizedModule.includes("kpi")
-  ) {
-    if (
-      normalizedField.includes("photo") ||
-      normalizedField.includes("avatar") ||
-      normalizedField.includes("image")
-    ) {
-      return "employee-photo";
-    }
-  }
-
-  if (
-    [
-      "avatar_url",
-      "employee_photo_url",
-      "employee_image_url",
-    ].includes(normalizedField)
-  ) {
-    return "employee-photo";
-  }
-
-  if (
-    normalizedModule.includes("transaction") ||
-    normalizedModule.includes("invoice") ||
-    normalizedModule.includes("tax")
-  ) {
-    if (
-      normalizedField.includes("attachment") ||
-      normalizedField.includes("proof") ||
-      normalizedField.includes("receipt") ||
-      normalizedField.includes("evidence") ||
-      normalizedField.includes("document")
-    ) {
-      return "transaction-proof";
-    }
-  }
-
-  if (
-    [
-      "attachment_url",
-      "proof_url",
-      "receipt_url",
-      "evidence_url",
-      "payment_proof_url",
-      "transaction_proof_url",
-    ].includes(normalizedField)
-  ) {
-    return "transaction-proof";
-  }
-
-  if (
-    [
-      "image_url",
-      "photo_url",
-      "product_image_url",
-      "thumbnail_url",
-    ].includes(normalizedField)
-  ) {
-    return "product-photo";
-  }
-
-  return "general";
-}
+];
 
 export function RecordModal({
   open,
@@ -514,449 +69,210 @@ export function RecordModal({
   onClose,
   onSubmit,
 }: RecordModalProps) {
-  const inputFields = useMemo<InputField[]>(() => {
-    return fields && fields.length > 0 ? fields : columns;
-  }, [fields, columns]);
-
-  const [values, setValues] = useState<ModuleRow>(() =>
-    buildInitialValues(inputFields, initialRow)
+  const inputFields = useMemo<InputField[]>(
+    () => fields?.length ? fields : columns,
+    [columns, fields],
   );
-
-  const [optionsByKey, setOptionsByKey] = useState<
-    Record<string, ModuleFieldOption[]>
-  >({});
-
-  const [loadingKey, setLoadingKey] = useState<Record<string, boolean>>({});
-  const [searchByKey, setSearchByKey] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<ModuleRow>(() => (
+    buildInitialValues(inputFields, initialRow)
+  ));
+  const [optionsByKey, setOptionsByKey] = useState<Record<string, ModuleFieldOption[]>>({});
+  const [loadingByKey, setLoadingByKey] = useState<Record<string, boolean>>({});
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const companyId = String(values.company_id ?? "");
-  const canChooseCompany =
-    isCurrentUserSuperAdmin() || !getCurrentCompanyId();
+  const canChooseCompany = isCurrentUserSuperAdmin() || !getCurrentCompanyId();
+  const busy = isSubmitting || Boolean(uploadingKey);
 
   useEffect(() => {
     if (!open) return;
-
     setValues(buildInitialValues(inputFields, initialRow));
     setOptionsByKey({});
-    setLoadingKey({});
-    setSearchByKey({});
+    setLoadingByKey({});
     setUploadingKey(null);
-  }, [open, inputFields, initialRow]);
+    setFormError(null);
+  }, [initialRow, inputFields, open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !busy) onClose();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [busy, onClose, open]);
 
   useEffect(() => {
     if (!open) return;
-
     let cancelled = false;
 
+    const lookupFields = inputFields.filter((field) => (
+      isSelectField(field) && getStaticOptions(field).length === 0
+    ));
+
     async function loadLookups() {
-      const selectFields = inputFields.filter((field) => {
-        if (!isSelectField(field)) return false;
-        if (getStaticOptions(field).length > 0) return false;
-
-        return true;
-      });
-
-      await Promise.all(
-        selectFields.map(async (field) => {
-          setLoadingKey((current) => ({
-            ...current,
-            [field.key]: true,
-          }));
-
-          try {
-            let rows: RawRow[] = [];
-
-            if (field.key === "branch_id") {
-              rows = await fetchBranches(companyId);
-            } else {
-              const endpoints = lookupEndpointMap[field.key];
-
-              if (endpoints) {
-                const params: Record<string, unknown> = {
-                  limit: 100,
-                  sort_by: getSortBy(field.key),
-                  sort_order: "asc",
-                };
-
-                if (companyId && field.key !== "company_id") {
-                  params.company_id = companyId;
-                }
-
-                rows = await fetchRows(endpoints, params);
-
-                /**
-                 * Fallback:
-                 * employee dan leave type kadang endpoint-nya tidak pakai company_id.
-                 */
-                if (
-                  rows.length === 0 &&
-                  [
-                    "employee_id",
-                    "reviewer_id",
-                    "reviewer_user_id",
-                    "approved_by",
-                    "approved_by_id",
-                    "assigned_to",
-                    "assigned_by_id",
-                    "leave_type_id",
-                  ].includes(field.key)
-                ) {
-                  rows = await fetchRows(endpoints, {
-                    limit: 100,
-                    sort_by: getSortBy(field.key),
-                    sort_order: "asc",
-                  });
-                }
-              }
-            }
-
-            if (cancelled) return;
-
-            setOptionsByKey((current) => ({
-              ...current,
-              [field.key]: rowsToOptions(rows, field.key),
-            }));
-          } finally {
-            if (!cancelled) {
-              setLoadingKey((current) => ({
-                ...current,
-                [field.key]: false,
-              }));
-            }
+      await Promise.all(lookupFields.map(async (field) => {
+        setLoadingByKey((current) => ({ ...current, [field.key]: true }));
+        try {
+          const options = await fetchOptionsForField(field.key, companyId);
+          if (!cancelled) {
+            setOptionsByKey((current) => ({ ...current, [field.key]: options }));
           }
-        })
-      );
+        } catch (error: unknown) {
+          if (!cancelled) {
+            setFormError(getApiErrorMessage(error, `Lookup ${field.label} gagal dimuat.`));
+          }
+        } finally {
+          if (!cancelled) {
+            setLoadingByKey((current) => ({ ...current, [field.key]: false }));
+          }
+        }
+      }));
     }
 
     void loadLookups();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, inputFields, companyId]);
+    return () => { cancelled = true; };
+  }, [companyId, inputFields, open]);
 
   function updateValue(key: string, value: string) {
+    setFormError(null);
     setValues((current) => {
-      const next: ModuleRow = {
-        ...current,
-        [key]: value,
-      };
-
+      const next = { ...current, [key]: value };
       if (key === "company_id") {
-        next.branch_id = "";
-        next.employee_id = "";
-        next.leave_type_id = "";
-        next.product_id = "";
-        next.category_id = "";
-        next.supplier_id = "";
+        for (const dependentKey of dependentCompanyFields) next[dependentKey] = "";
       }
-
       return next;
     });
   }
 
-  function getOptions(field: InputField) {
+  function getOptions(field: InputField): ModuleFieldOption[] {
     const staticOptions = getStaticOptions(field);
-
-    if (staticOptions.length > 0) return staticOptions;
-
-    return optionsByKey[field.key] ?? [];
+    return staticOptions.length ? staticOptions : optionsByKey[field.key] ?? [];
   }
 
-  function getFilteredOptions(field: InputField) {
-    const options = getOptions(field);
-    const keyword = String(searchByKey[field.key] ?? "").toLowerCase().trim();
-
-    if (!keyword) return options;
-
-    return options.filter((option) => {
-      return (
-        option.label.toLowerCase().includes(keyword) ||
-        option.value.toLowerCase().includes(keyword)
-      );
-    });
-  }
-
-  function getSelectPlaceholder(field: InputField) {
-    if (loadingKey[field.key]) return `Loading ${field.label}...`;
-
-    if (field.key === "branch_id" && !companyId) {
-      return "Pilih company dulu";
-    }
-
+  function getSelectPlaceholder(field: InputField): string {
+    if (loadingByKey[field.key]) return `Loading ${field.label}...`;
+    if (field.key === "branch_id" && !companyId) return "Pilih company dulu";
     if (isSelectField(field) && getOptions(field).length === 0) {
       return `${field.label} belum tersedia`;
     }
-
     return `Pilih ${field.label}`;
   }
 
-  function isSelectDisabled(field: InputField) {
-    if (isSubmitting || uploadingKey) return true;
-
+  function isSelectDisabled(field: InputField): boolean {
+    if (busy || loadingByKey[field.key]) return true;
     if (field.key === "company_id" && !canChooseCompany) return true;
-
-    if (field.key === "branch_id" && !companyId) return true;
-
-    return Boolean(loadingKey[field.key]);
+    return field.key === "branch_id" && !companyId;
   }
 
-  async function handleFileChange(
-    event: ChangeEvent<HTMLInputElement>,
-    field: InputField
-  ) {
-    const file = event.target.files?.[0];
-
+  async function handleUpload(field: InputField, file: File | null) {
     if (!file) return;
-
     try {
+      setFormError(null);
       setUploadingKey(field.key);
-
       const url = await uploadRecordFile(file, {
-        context: getUploadContext(
-          field.key,
-          moduleKey
-        ),
-        companyId: String(
-          values.company_id ?? ""
-        ).trim() || undefined,
+        context: getUploadContext(field.key, moduleKey),
+        companyId: String(values.company_id ?? "").trim() || undefined,
       });
-
       updateValue(field.key, url);
-    } catch (error) {
-      console.error(error);
-      alert(error instanceof Error ? error.message : "Upload gagal.");
+    } catch (error: unknown) {
+      setFormError(getApiErrorMessage(error, "Upload file gagal."));
     } finally {
       setUploadingKey(null);
-      event.target.value = "";
     }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    await onSubmit(values);
+    try {
+      setFormError(null);
+      await onSubmit(values);
+    } catch (error: unknown) {
+      setFormError(getApiErrorMessage(error, "Data gagal disimpan."));
+    }
   }
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm">
-      <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl dark:border-slate-900 dark:bg-[#050816]">
-        <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5 dark:border-slate-900">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">
-              {mode === "edit" ? "Edit Record" : "New Record"}
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="record-modal-title"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 p-0 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6"
+      onMouseDown={(event) => {
+        if (event.currentTarget === event.target && !busy) onClose();
+      }}
+    >
+      <div className="flex max-h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-[2rem] border border-slate-200 bg-white shadow-2xl sm:max-h-[92vh] sm:rounded-[2rem] dark:border-slate-900 dark:bg-[#050816]">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6 sm:py-5 dark:border-slate-900">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-blue-700 dark:text-blue-300">
+              {mode === "edit" ? "Edit record" : "Create record"}
             </p>
-
-            <h2 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">
+            <h2 id="record-modal-title" className="mt-1 truncate text-xl font-black text-slate-950 dark:text-white">
               {title}
             </h2>
-
-            {moduleKey ? (
-              <p className="mt-1 text-sm font-semibold text-slate-500">
-                Module: {moduleKey}
-              </p>
-            ) : null}
           </div>
-
           <button
             type="button"
             onClick={onClose}
-            disabled={isSubmitting || Boolean(uploadingKey)}
-            className="rounded-2xl border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:hover:bg-slate-900"
+            disabled={busy}
+            aria-label="Tutup modal"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 text-slate-500 transition hover:bg-slate-100 disabled:opacity-50 dark:border-slate-800 dark:hover:bg-slate-900"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="max-h-[62vh] overflow-y-auto px-6 py-5">
-            <div className="grid gap-4 md:grid-cols-2">
-              {inputFields
-                .filter((field) => !isHiddenField(field))
-                .map((field) => {
-                  const fieldType = getFieldType(field);
-                  const required = getFieldRequired(field);
-                  const value = String(values[field.key] ?? "");
-                  const options = getFilteredOptions(field);
-                  const allOptions = getOptions(field);
-                  const isSearchable = searchableSelectKeys.has(field.key);
-
-                  return (
-                    <div
-                      key={field.key}
-                      className={
-                        isTextareaField(field) || isFileField(field)
-                          ? "space-y-2 md:col-span-2"
-                          : "space-y-2"
-                      }
-                    >
-                      <label className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
-                        {field.label}
-                        {required ? (
-                          <span className="text-rose-500"> *</span>
-                        ) : null}
-                      </label>
-
-                      {isTextareaField(field) ? (
-                        <textarea
-                          value={value}
-                          required={required}
-                          disabled={isSubmitting || Boolean(uploadingKey)}
-                          placeholder={getFieldPlaceholder(field)}
-                          onChange={(event) =>
-                            updateValue(field.key, event.target.value)
-                          }
-                          className="min-h-28 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800 outline-none transition focus:border-blue-600 disabled:bg-slate-100 dark:border-slate-900 dark:bg-[#02040a] dark:text-white"
-                        />
-                      ) : isSelectField(field) ? (
-                        <div className="space-y-2">
-                          {isSearchable ? (
-                            <div className="relative">
-                              <Search
-                                size={16}
-                                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                              />
-
-                              <input
-                                type="text"
-                                value={searchByKey[field.key] ?? ""}
-                                disabled={isSelectDisabled(field)}
-                                onChange={(event) =>
-                                  setSearchByKey((current) => ({
-                                    ...current,
-                                    [field.key]: event.target.value,
-                                  }))
-                                }
-                                placeholder={`Search ${field.label.toLowerCase()}...`}
-                                className="h-10 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 text-sm font-bold text-slate-800 outline-none transition focus:border-blue-600 disabled:bg-slate-100 dark:border-slate-900 dark:bg-[#02040a] dark:text-white"
-                              />
-                            </div>
-                          ) : null}
-
-                          <select
-                            value={value}
-                            required={required}
-                            disabled={isSelectDisabled(field)}
-                            onChange={(event) =>
-                              updateValue(field.key, event.target.value)
-                            }
-                            className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-800 outline-none transition focus:border-blue-600 disabled:bg-slate-100 dark:border-slate-900 dark:bg-[#02040a] dark:text-white"
-                          >
-                            <option value="">{getSelectPlaceholder(field)}</option>
-
-                            {options.map((option) => (
-                              <option
-                                key={option.value}
-                                value={option.value}
-                              >
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-
-                          {isSearchable && allOptions.length > 0 ? (
-                            <p className="text-xs font-semibold text-slate-400">
-                              {options.length} dari {allOptions.length} pilihan
-                              tersedia.
-                            </p>
-                          ) : null}
-                        </div>
-                      ) : isFileField(field) ? (
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-900 dark:bg-[#02040a]">
-                          <div className="flex flex-col gap-4 md:flex-row md:items-center">
-                            <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-900 dark:bg-[#050816]">
-                              {value && isPreviewableImage(value) ? (
-                                <AuthenticatedFilePreview
-                                  src={value}
-                                  alt={field.label}
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : (
-                                <ImagePlus
-                                  size={30}
-                                  className="text-slate-400"
-                                />
-                              )}
-                            </div>
-
-                            <div className="flex-1">
-                              <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-2xl bg-[#0f2a5f] px-4 text-sm font-black text-white transition hover:bg-blue-950">
-                                {uploadingKey === field.key ? (
-                                  <Loader2
-                                    size={17}
-                                    className="animate-spin"
-                                  />
-                                ) : (
-                                  <UploadCloud size={17} />
-                                )}
-
-                                {uploadingKey === field.key
-                                  ? "Uploading..."
-                                  : "Upload File"}
-
-                                <input
-                                  type="file"
-                                  className="hidden"
-                                  disabled={Boolean(uploadingKey)}
-                                  onChange={(event) =>
-                                    handleFileChange(event, field)
-                                  }
-                                />
-                              </label>
-
-                              <input
-                                type="text"
-                                value={value}
-                                onChange={(event) =>
-                                  updateValue(field.key, event.target.value)
-                                }
-                                placeholder="URL file"
-                                className="mt-3 h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-800 outline-none transition focus:border-blue-600 dark:border-slate-900 dark:bg-[#050816] dark:text-white"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <input
-                          type={getInputType(fieldType)}
-                          value={value}
-                          required={required}
-                          disabled={isSubmitting || Boolean(uploadingKey)}
-                          placeholder={getFieldPlaceholder(field)}
-                          onChange={(event) =>
-                            updateValue(field.key, event.target.value)
-                          }
-                          className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-800 outline-none transition focus:border-blue-600 disabled:bg-slate-100 dark:border-slate-900 dark:bg-[#02040a] dark:text-white"
-                        />
-                      )}
-                    </div>
-                  );
-                })}
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6">
+            {formError ? (
+              <div className="mb-5 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700 dark:border-rose-950 dark:bg-rose-950/20 dark:text-rose-300">
+                <AlertCircle size={18} className="mt-0.5 shrink-0" />
+                <p>{formError}</p>
+              </div>
+            ) : null}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {inputFields.filter((field) => !isHiddenField(field)).map((field) => (
+                <RecordModalField
+                  key={field.key}
+                  field={field}
+                  values={values}
+                  isSubmitting={isSubmitting}
+                  uploadingKey={uploadingKey}
+                  options={getOptions(field)}
+                  selectPlaceholder={getSelectPlaceholder(field)}
+                  selectDisabled={isSelectDisabled(field)}
+                  onChange={updateValue}
+                  onUpload={(selectedField, file) => void handleUpload(selectedField, file)}
+                />
+              ))}
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-5 dark:border-slate-900">
+          <div className="flex flex-col-reverse gap-3 border-t border-slate-200 px-4 py-4 sm:flex-row sm:justify-end sm:px-6 dark:border-slate-900">
             <button
               type="button"
               onClick={onClose}
-              disabled={isSubmitting || Boolean(uploadingKey)}
-              className="h-11 rounded-2xl border border-slate-200 px-5 text-sm font-black text-slate-600 transition hover:bg-slate-100 disabled:opacity-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
+              disabled={busy}
+              className="h-11 w-full rounded-2xl border border-slate-200 px-5 text-sm font-black text-slate-600 transition hover:bg-slate-100 disabled:opacity-50 sm:w-auto dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
             >
               Cancel
             </button>
-
             <button
               type="submit"
-              disabled={isSubmitting || Boolean(uploadingKey)}
-              className="inline-flex h-11 items-center gap-2 rounded-2xl bg-[#0f2a5f] px-5 text-sm font-black text-white transition hover:bg-blue-950 disabled:opacity-60"
+              disabled={busy}
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[#0f2a5f] px-5 text-sm font-black text-white transition hover:bg-blue-950 disabled:opacity-60 sm:w-auto"
             >
-              {isSubmitting ? (
-                <Loader2 size={17} className="animate-spin" />
-              ) : null}
-
+              {isSubmitting ? <Loader2 size={17} className="animate-spin" /> : null}
               {mode === "edit" ? "Save Changes" : "Create Record"}
             </button>
           </div>

@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { parseLocalizedNumber } from "@/lib/number";
 import { getCurrentCompanyId, isCurrentUserSuperAdmin } from "@/lib/auth-scope";
 import { getSelectedCompanyId } from "@/lib/company-scope";
 import {
@@ -183,41 +184,9 @@ function isValidUuid(value: string) {
 }
 
 function parseNumberValue(value: unknown) {
-  const text = String(value ?? "").trim();
-
-  if (!text) return undefined;
-
-  const cleaned = text
-    .replaceAll("Rp", "")
-    .replaceAll("IDR", "")
-    .replaceAll(" ", "")
-    .replace(/[^\d.,-]/g, "");
-
-  if (!cleaned) return undefined;
-
-  const hasComma = cleaned.includes(",");
-  const hasDot = cleaned.includes(".");
-
-  let normalized = cleaned;
-
-  if (hasComma && hasDot) {
-    const lastCommaIndex = cleaned.lastIndexOf(",");
-    const lastDotIndex = cleaned.lastIndexOf(".");
-
-    normalized =
-      lastCommaIndex > lastDotIndex
-        ? cleaned.replaceAll(".", "").replace(",", ".")
-        : cleaned.replaceAll(",", "");
-  } else if (hasComma) {
-    normalized = cleaned.replace(",", ".");
-  }
-
-  const numberValue = Number(normalized);
-
-  if (Number.isNaN(numberValue)) return undefined;
-
-  return numberValue;
+  return parseLocalizedNumber(value);
 }
+
 
 function cleanValue(key: string, value: unknown) {
   const trimmedValue = String(value ?? "").trim();

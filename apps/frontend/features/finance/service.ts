@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { isEndpointFallbackError } from "@/lib/api-error";
 import { getScopedQueryParams } from "@/lib/module-crud";
 import type { ModuleData, ModuleMetric, ModuleRow } from "@/types/modules";
 import type { FinanceModuleKey } from "./types";
@@ -285,12 +286,15 @@ async function safeGet(
 
       return rows;
     } catch (error) {
+      if (!isEndpointFallbackError(error)) {
+        throw error;
+      }
+
       if (process.env.NODE_ENV === "development") {
-        console.warn("[finance safeGet failed]", {
+        console.warn("[finance safeGet fallback]", {
           kind,
           endpoint,
           params: candidateParams,
-          error,
         });
       }
     }

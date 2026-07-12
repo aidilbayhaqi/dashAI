@@ -89,3 +89,42 @@ export async function uploadRecordFile(
 
   return uploadedUrl;
 }
+
+export function getUploadContext(
+  fieldKey: string,
+  moduleKey?: string,
+): UploadContext {
+  const field = fieldKey.trim().toLowerCase();
+  const moduleName = String(moduleKey ?? "").trim().toLowerCase();
+
+  if (["logo_url", "company_logo_url"].includes(field)) return "company-logo";
+
+  if (
+    ["employee", "attendance", "payroll", "leave", "kpi"].some((value) => moduleName.includes(value))
+    && ["photo", "avatar", "image"].some((value) => field.includes(value))
+  ) {
+    return "employee-photo";
+  }
+  if (["avatar_url", "employee_photo_url", "employee_image_url"].includes(field)) {
+    return "employee-photo";
+  }
+
+  if (
+    ["transaction", "invoice", "tax"].some((value) => moduleName.includes(value))
+    && ["attachment", "proof", "receipt", "evidence", "document"].some((value) => field.includes(value))
+  ) {
+    return "transaction-proof";
+  }
+  if ([
+    "attachment_url", "proof_url", "receipt_url", "evidence_url",
+    "payment_proof_url", "transaction_proof_url",
+  ].includes(field)) {
+    return "transaction-proof";
+  }
+
+  if (["image_url", "photo_url", "product_image_url", "thumbnail_url"].includes(field)) {
+    return "product-photo";
+  }
+
+  return "general";
+}

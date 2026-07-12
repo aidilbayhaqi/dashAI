@@ -3,13 +3,19 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Sparkles } from "lucide-react";
+import { ChevronDown, Sparkles, X } from "lucide-react";
 
 import { CurrentCompanyCard } from "@/components/layout/current-company-card";
 import { dashboardNavigation } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
-export function Sidebar() {
+export function Sidebar({
+  mobileOpen,
+  onClose,
+}: {
+  mobileOpen: boolean;
+  onClose: () => void;
+}) {
   const pathname = usePathname();
 
   const [openGroups, setOpenGroups] = useState<string[]>([
@@ -36,6 +42,10 @@ export function Sidebar() {
     });
   }, [pathname]);
 
+  useEffect(() => {
+    onClose();
+  }, [pathname, onClose]);
+
   function toggleGroup(group: string) {
     setOpenGroups((current) =>
       current.includes(group)
@@ -45,9 +55,36 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-[19rem] border-r border-slate-200/70 bg-white/85 shadow-[24px_0_80px_rgba(15,23,42,0.04)] backdrop-blur-2xl dark:border-slate-800/80 dark:bg-slate-950/80 dark:shadow-none">
+    <>
+      <button
+        type="button"
+        aria-label="Tutup sidebar"
+        onClick={onClose}
+        className={[
+          "fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm transition-opacity lg:hidden",
+          mobileOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
+        ].join(" ")}
+      />
+
+      <aside
+        className={[
+          "fixed left-0 top-0 z-50 h-dvh w-[min(19rem,88vw)] border-r border-slate-200/70 bg-white/95 shadow-[24px_0_80px_rgba(15,23,42,0.12)] backdrop-blur-2xl transition-transform duration-300 dark:border-slate-800/80 dark:bg-slate-950/95 dark:shadow-none lg:z-40 lg:w-[19rem] lg:translate-x-0",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
+        ].join(" ")}
+      >
       <div className="flex h-full flex-col">
         <div className="space-y-4 px-5 py-5">
+          <div className="flex justify-end lg:hidden">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Tutup menu"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-300"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
           <Link
             href="/dashboard"
             className="block rounded-[1.6rem] border border-slate-200/80 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/70 dark:hover:border-slate-700"
@@ -138,5 +175,6 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }

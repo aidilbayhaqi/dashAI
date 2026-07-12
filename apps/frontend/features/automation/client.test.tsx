@@ -394,9 +394,10 @@ describe("SalesAutomationClient", () => {
     renderWithQueryClient(<SalesAutomationClient />);
 
     await screen.findByText("Product-to-cash history");
-    await user.click(
-      screen.getByRole("button", { name: "Konfirmasi Lunas" })
-    );
+    const confirmPaymentButton = await screen.findByRole("button", {
+      name: "Konfirmasi Lunas",
+    });
+    await user.click(confirmPaymentButton);
 
     await waitFor(() => {
       expect(

@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.service.base_domain_service import BaseDomainService
+from src.realtime.events import publish_realtime_event_safe
 from src.modules.products.model_product import (
     Product,
     ProductCategory,
@@ -177,4 +178,16 @@ class ProductStockService(BaseDomainService):
 
         await commit_or_raise(self.db)
         await self.db.refresh(movement)
+        await publish_realtime_event_safe(
+            "products.stock.adjusted",
+            {
+                "movement_id": str(movement.id),
+                "product_id": str(payload.product_id),
+                "branch_id": str(payload.branch_id),
+                "quantity": quantity,
+                "movement_type": payload.movement_type,
+            },
+            company_id=company_id,
+            module="products",
+        )
         return movement

@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { isEndpointFallbackError } from "@/lib/api-error";
 
 import type {
   ModuleData,
@@ -960,10 +961,9 @@ async function fetchCRMRows(
 
     return normalizeRows(response.data);
   } catch (error) {
-    console.error(
-      `Failed fetching CRM endpoint ${endpoint}`,
-      error
-    );
+    if (!isEndpointFallbackError(error)) {
+      throw error;
+    }
 
     return [];
   }

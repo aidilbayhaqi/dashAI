@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { isEndpointFallbackError } from "@/lib/api-error";
 import { getCurrentCompanyId, isCurrentUserSuperAdmin } from "@/lib/auth-scope";
 import { getSelectedCompanyId } from "@/lib/company-scope";
 import type { ModuleData, ModuleRow } from "@/types/modules";
@@ -367,7 +368,9 @@ async function fetchRows<T>(
 
     return rowsFrom<T>(response.data);
   } catch (error) {
-    console.warn(`Failed to fetch ${endpoint}:`, error);
+    if (!isEndpointFallbackError(error)) {
+      throw error;
+    }
     return [];
   }
 }

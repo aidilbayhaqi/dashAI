@@ -1,61 +1,69 @@
 import { api } from "@/lib/api";
+import { isEndpointFallbackError } from "@/lib/api-error";
 import { getCurrentCompanyId, isCurrentUserSuperAdmin } from "@/lib/auth-scope";
 import { getSelectedCompanyId } from "@/lib/company-scope";
 import type { ModuleFieldOption } from "@/types/modules";
 
-type RawRow = Record<string, unknown>;
+export type RawLookupRow = Record<string, unknown>;
 
-export const relatedLookupEndpoints: Record<string, string> = {
-  employee_id: "/api/v1/hr/employees",
-  reviewer_id: "/api/v1/hr/employees",
-  approved_by: "/api/v1/hr/employees",
-  assigned_to: "/api/v1/hr/employees",
-
-  leave_type_id: "/api/v1/hr/leave-types",
-
-  cash_account_id: "/api/v1/finance/cash-accounts",
-  period_id: "/api/v1/finance/accounting-periods",
-  tax_rate_id: "/api/v1/finance/tax-rates",
-  transaction_id: "/api/v1/finance/transactions",
-
-  lead_id: "/api/v1/crm/leads",
-  contact_id: "/api/v1/crm/contacts",
-  deal_id: "/api/v1/crm/deals",
-
-  category_id: "/api/v1/products/categories",
-  parent_category_id: "/api/v1/products/categories",
-  supplier_id: "/api/v1/products/suppliers",
-  product_id: "/api/v1/products/items",
+const lookupEndpointMap: Record<string, string[]> = {
+  company_id: ["/api/v1/companies"],
+  employee_id: ["/api/v1/hr/employees"],
+  reviewer_id: ["/api/v1/hr/employees"],
+  reviewer_user_id: ["/api/v1/hr/employees"],
+  approved_by: ["/api/v1/hr/employees"],
+  approved_by_id: ["/api/v1/hr/employees"],
+  assigned_to: ["/api/v1/hr/employees"],
+  assigned_by_id: ["/api/v1/hr/employees"],
+  leave_type_id: ["/api/v1/hr/leave-types", "/api/v1/hr/leave_types"],
+  product_id: ["/api/v1/products/items", "/api/v1/products"],
+  category_id: ["/api/v1/products/categories"],
+  parent_category_id: ["/api/v1/products/categories"],
+  supplier_id: ["/api/v1/products/suppliers"],
+  cash_account_id: ["/api/v1/finance/cash-accounts"],
+  transaction_id: ["/api/v1/finance/transactions"],
+  period_id: ["/api/v1/finance/accounting-periods", "/api/v1/finance/periods"],
+  tax_rate_id: ["/api/v1/finance/tax-rates"],
+  lead_id: ["/api/v1/crm/leads"],
+  contact_id: ["/api/v1/crm/contacts"],
+  deal_id: ["/api/v1/crm/deals"],
 };
 
-function hasValue(value: unknown) {
+const employeeLookupKeys = new Set([
+  "employee_id",
+  "reviewer_id",
+  "reviewer_user_id",
+  "approved_by",
+  "approved_by_id",
+  "assigned_to",
+  "assigned_by_id",
+]);
+
+function hasValue(value: unknown): boolean {
   return value !== undefined && value !== null && String(value).trim() !== "";
 }
 
-export function isValidUuid(value: string | undefined | null) {
+export function isValidUuid(value: string | undefined | null): boolean {
   if (!value) return false;
-
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(
-    value
-  );
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-export function getDefaultCompanyId() {
+export function getDefaultCompanyId(): string {
   const currentCompanyId = getCurrentCompanyId();
   const selectedCompanyId = getSelectedCompanyId();
 
   if (
-    currentCompanyId &&
-    isValidUuid(currentCompanyId) &&
-    !isCurrentUserSuperAdmin()
+    currentCompanyId
+    && isValidUuid(currentCompanyId)
+    && !isCurrentUserSuperAdmin()
   ) {
     return currentCompanyId;
   }
 
   if (
-    selectedCompanyId &&
-    selectedCompanyId !== "all" &&
-    isValidUuid(selectedCompanyId)
+    selectedCompanyId
+    && selectedCompanyId !== "all"
+    && isValidUuid(selectedCompanyId)
   ) {
     return selectedCompanyId;
   }
@@ -63,160 +71,145 @@ export function getDefaultCompanyId() {
   return "";
 }
 
-function normalizeRows(data: unknown): RawRow[] {
-  if (Array.isArray(data)) return data as RawRow[];
-
+function normalizeRows(data: unknown): RawLookupRow[] {
+  if (Array.isArray(data)) return data as RawLookupRow[];
   if (!data || typeof data !== "object") return [];
 
   const record = data as Record<string, unknown>;
+  const preferredKeys = [
+    "items", "data", "results", "rows", "records", "companies", "branches",
+    "employees", "leave_types", "leaveTypes", "products", "categories",
+    "suppliers", "cash_accounts", "transactions", "periods", "tax_rates",
+    "leads", "contacts", "deals",
+  ];
 
-  if (Array.isArray(record.data)) return record.data as RawRow[];
-  if (Array.isArray(record.items)) return record.items as RawRow[];
-  if (Array.isArray(record.results)) return record.results as RawRow[];
-  if (Array.isArray(record.rows)) return record.rows as RawRow[];
-  if (Array.isArray(record.records)) return record.records as RawRow[];
+  for (const key of preferredKeys) {
+    const value = record[key];
+    if (Array.isArray(value)) return value as RawLookupRow[];
+    if (value && typeof value === "object") {
+      const nested = normalizeRows(value);
+      if (nested.length) return nested;
+    }
+  }
 
-  return [];
+  const firstArray = Object.values(record).find(Array.isArray);
+  return Array.isArray(firstArray) ? firstArray as RawLookupRow[] : [];
 }
 
-function getOptionLabel(row: RawRow) {
-  const employeeNo = row.employee_no;
-  const sku = row.sku;
-  const code = row.code;
-  const accountNumber = row.account_number ?? row.number;
-
-  const label =
-    row.full_name ??
-    row.name ??
-    row.employee_name ??
-    row.company_name ??
-    row.branch_name ??
-    row.category_name ??
-    row.product_name ??
-    row.supplier_name ??
-    row.cash_account_name ??
-    row.account_name ??
-    row.bank_name ??
-    row.title ??
-    row.invoice_no ??
-    row.transaction_no ??
-    row.journal_no ??
-    row.tax_type ??
-    row.email ??
-    row.phone ??
-    row.id ??
-    "-";
-
-  if (hasValue(employeeNo)) return `${String(label)} (${String(employeeNo)})`;
-  if (hasValue(sku)) return `${String(label)} (${String(sku)})`;
-  if (hasValue(code)) return `${String(label)} (${String(code)})`;
-  if (hasValue(accountNumber)) return `${String(label)} - ${String(accountNumber)}`;
-
-  return String(label);
+function pick(row: RawLookupRow, keys: string[]): string {
+  for (const key of keys) {
+    const value = row[key];
+    if (hasValue(value)) return String(value);
+  }
+  return "";
 }
 
-export function rowsToOptions(rows: RawRow[]): ModuleFieldOption[] {
+function getOptionId(row: RawLookupRow): string {
+  return pick(row, [
+    "id", "uuid", "value", "company_id", "branch_id", "employee_id",
+    "leave_type_id", "product_id", "category_id", "supplier_id",
+    "cash_account_id", "transaction_id", "period_id", "tax_rate_id",
+    "lead_id", "contact_id", "deal_id",
+  ]);
+}
+
+function getOptionLabel(row: RawLookupRow, key: string): string {
+  const label = pick(row, [
+    "full_name", "employee_name", "name", "leave_type_name", "company_name",
+    "branch_name", "product_name", "category_name", "supplier_name",
+    "cash_account_name", "account_name", "bank_name", "title", "invoice_no",
+    "transaction_no", "journal_no", "tax_type", "email", "phone", "code", "id",
+  ]) || "-";
+  const employeeNo = pick(row, ["employee_no", "employee_code"]);
+  const code = pick(row, ["code"]);
+  const sku = pick(row, ["sku"]);
+  const accountNumber = pick(row, ["account_number", "number"]);
+
+  if (employeeLookupKeys.has(key) && employeeNo) return `${label} (${employeeNo})`;
+  if (key === "product_id" && sku) return `${label} (${sku})`;
+  if (accountNumber) return `${label} - ${accountNumber}`;
+  if (code && code !== label) return `${label} (${code})`;
+  return label;
+}
+
+export function rowsToOptions(
+  rows: RawLookupRow[],
+  key: string,
+): ModuleFieldOption[] {
   return rows
     .map((row) => {
-      const id = row.id;
-
-      if (typeof id !== "string") return null;
-
-      return {
-        value: id,
-        label: getOptionLabel(row),
-      };
+      const value = getOptionId(row);
+      return value ? { value, label: getOptionLabel(row, key) } : null;
     })
     .filter((item): item is ModuleFieldOption => Boolean(item));
 }
 
-async function fetchApiRows(
-  endpoint: string,
-  params?: Record<string, unknown>,
-  options?: {
-    silent?: boolean;
-  }
-): Promise<RawRow[]> {
-  try {
-    const response = await api.get(endpoint, {
-      params,
-    });
-
-    return normalizeRows(response.data);
-  } catch (error) {
-    if (!options?.silent) {
-      console.warn(`Failed to fetch lookup ${endpoint}:`, error);
-    }
-
-    return [];
-  }
-}
-
-export async function fetchCompanies() {
-  return fetchApiRows("/api/v1/companies", {
-    limit: 100,
-    sort_by: "name",
-    sort_order: "asc",
-  });
-}
-
-export async function fetchBranchesByCompany(companyId: string) {
-  if (!isValidUuid(companyId)) return [];
-
-  const candidates = [
-    {
-      endpoint: `/api/v1/companies/${companyId}/branches`,
-      params: {},
-    },
-    {
-      endpoint: "/api/v1/branches",
-      params: {
-        company_id: companyId,
-      },
-    },
-  ];
-
-  for (const candidate of candidates) {
-    const rows = await fetchApiRows(candidate.endpoint, candidate.params, {
-      silent: true,
-    });
-
-    if (rows.length > 0) return rows;
-  }
-
-  return [];
-}
-
-function getSortByForLookup(key: string) {
-  if (key === "employee_id") return "full_name";
-  if (key === "reviewer_id") return "full_name";
-  if (key === "approved_by") return "full_name";
-  if (key === "assigned_to") return "full_name";
-  if (key === "category_id") return "name";
-  if (key === "parent_category_id") return "name";
-  if (key === "supplier_id") return "name";
-  if (key === "product_id") return "name";
-
+function getSortBy(key: string): string {
+  if (employeeLookupKeys.has(key)) return "full_name";
+  if ([
+    "leave_type_id", "product_id", "category_id", "parent_category_id",
+    "supplier_id", "company_id", "branch_id",
+  ].includes(key)) return "name";
   return "created_at";
 }
 
-export async function fetchRelatedRows(
-  key: string,
-  companyId?: string
-) {
-  const endpoint = relatedLookupEndpoints[key];
+async function fetchRows(
+  endpoints: string[],
+  params?: Record<string, unknown>,
+): Promise<RawLookupRow[]> {
+  let lastFallbackError: unknown;
 
-  if (!endpoint) return [];
+  for (const endpoint of endpoints) {
+    try {
+      const response = await api.get(endpoint, { params });
+      const rows = normalizeRows(response.data);
+      if (rows.length) return rows;
+    } catch (error: unknown) {
+      if (!isEndpointFallbackError(error)) throw error;
+      lastFallbackError = error;
+    }
+  }
+
+  // Endpoint optional yang benar-benar tidak tersedia dianggap lookup kosong.
+  void lastFallbackError;
+  return [];
+}
+
+export async function fetchOptionsForField(
+  key: string,
+  companyId: string,
+): Promise<ModuleFieldOption[]> {
+  if (key === "branch_id") {
+    if (!isValidUuid(companyId)) return [];
+    const rows = await fetchRows(
+      [`/api/v1/companies/${companyId}/branches`, "/api/v1/branches"],
+      { company_id: companyId, limit: 100, sort_by: "name", sort_order: "asc" },
+    );
+    return rowsToOptions(rows, key);
+  }
+
+  const endpoints = lookupEndpointMap[key];
+  if (!endpoints) return [];
 
   const params: Record<string, unknown> = {
     limit: 100,
-    sort_by: getSortByForLookup(key),
+    sort_by: getSortBy(key),
     sort_order: "asc",
   };
+  if (companyId && key !== "company_id") params.company_id = companyId;
 
-  if (companyId && isValidUuid(companyId)) {
-    params.company_id = companyId;
+  let rows = await fetchRows(endpoints, params);
+  if (
+    rows.length === 0
+    && (employeeLookupKeys.has(key) || key === "leave_type_id")
+    && companyId
+  ) {
+    rows = await fetchRows(endpoints, {
+      limit: 100,
+      sort_by: getSortBy(key),
+      sort_order: "asc",
+    });
   }
 
-  return fetchApiRows(endpoint, params);
+  return rowsToOptions(rows, key);
 }

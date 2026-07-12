@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { isEndpointFallbackError } from "@/lib/api-error";
 
 export type SettingsRow = Record<string, unknown>;
 
@@ -159,8 +160,10 @@ async function requestFirst<T>(requests: Array<() => Promise<T>>, fallback: T) {
   for (const request of requests) {
     try {
       return await request();
-    } catch {
-      // coba endpoint berikutnya
+    } catch (error) {
+      if (!isEndpointFallbackError(error)) {
+        throw error;
+      }
     }
   }
 

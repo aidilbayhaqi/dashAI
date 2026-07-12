@@ -91,9 +91,18 @@ export type RegisterCompanyOption = {
 };
 
 export type DashboardSummary = {
+  company_id: string | null;
+  branch_id: string | null;
+  period_start: string;
+  period_end: string;
+  previous_period_start: string;
+  previous_period_end: string;
+  revenue_basis: "posted_income";
   total_products: number;
   total_employees: number;
   total_leads: number;
   total_deals: number;
   total_revenue: number;
+  previous_total_revenue: number;
+  revenue_change_percent: number | null;
 };

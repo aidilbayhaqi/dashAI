@@ -138,6 +138,21 @@ class Settings(BaseSettings):
     # =========================================================
 
     ENABLE_REALTIME_LISTENER: bool = True
+    REALTIME_RECONNECT_MIN_SECONDS: float = 1.0
+    REALTIME_RECONNECT_MAX_SECONDS: float = 30.0
+    REALTIME_SEND_TIMEOUT_SECONDS: float = 5.0
+    REALTIME_MAX_MESSAGE_BYTES: int = 4096
+    REALTIME_MAX_CONNECTIONS_PER_CHANNEL: int = 250
+    REALTIME_DEDUP_TTL_SECONDS: int = 300
+
+    # =========================================================
+    # AI ANALYTICS (READ-ONLY)
+    # =========================================================
+
+    OPENAI_API_KEY: str | None = None
+    AI_MODEL: str | None = None
+    AI_ENABLE_PROVIDER: bool = False
+    AI_MAX_QUESTION_LENGTH: int = 600
 
     # =========================================================
     # UPLOADS
@@ -154,6 +169,8 @@ class Settings(BaseSettings):
     @field_validator(
         "REDIS_PASSWORD",
         "COOKIE_DOMAIN",
+        "OPENAI_API_KEY",
+        "AI_MODEL",
         mode="before",
     )
     @classmethod
@@ -167,6 +184,30 @@ class Settings(BaseSettings):
         normalized = str(value).strip()
 
         return normalized or None
+
+
+    @field_validator(
+        "REALTIME_RECONNECT_MIN_SECONDS",
+        "REALTIME_RECONNECT_MAX_SECONDS",
+        "REALTIME_SEND_TIMEOUT_SECONDS",
+    )
+    @classmethod
+    def validate_positive_seconds(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("Realtime timeout/reconnect values must be positive")
+        return value
+
+    @field_validator(
+        "REALTIME_MAX_MESSAGE_BYTES",
+        "REALTIME_MAX_CONNECTIONS_PER_CHANNEL",
+        "REALTIME_DEDUP_TTL_SECONDS",
+        "AI_MAX_QUESTION_LENGTH",
+    )
+    @classmethod
+    def validate_positive_limits(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("Realtime and AI limits must be positive")
+        return value
 
     @field_validator("DATABASE_URL")
     @classmethod

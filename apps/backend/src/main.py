@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from src.core.config import settings
 from src.core.redis import check_redis_connection, close_redis_connection
 from src.db.database import check_database_connection, engine
+from src.ai.route_ai import router as ai_router
 from src.modules.admin.route_admin import router as admin_router
 from src.modules.automation.route_automation import router as automation_router
 from src.modules.auth.route_auth import router as auth_router
@@ -135,8 +136,8 @@ def register_routes(app: FastAPI) -> None:
     app.include_router(file_router, prefix=settings.API_PREFIX)
     app.include_router(admin_router, prefix=settings.API_PREFIX)
     app.include_router(automation_router, prefix=settings.API_PREFIX)
-
     app.include_router(dashboard_router, prefix=settings.API_PREFIX)
+    app.include_router(ai_router, prefix=settings.API_PREFIX)
 
     app.include_router(realtime_router)
 

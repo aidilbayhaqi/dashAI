@@ -1,3 +1,3 @@
-import type { ModuleField } from "@/types/modules";
+import type { ModuleColumn, ModuleField } from "@/types/modules";
 
-export type InputField = ModuleField;
+export type InputField = ModuleField | ModuleColumn;

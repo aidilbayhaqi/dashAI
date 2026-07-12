@@ -61,6 +61,7 @@ class CRMDealService(BaseDomainService):
 
         await self.db.commit()
         await self.db.refresh(deal)
+        await self._publish_change("recalculated", deal)
 
         return deal
 
@@ -94,6 +95,7 @@ class CRMDealService(BaseDomainService):
 
         await self.db.commit()
         await self.db.refresh(deal)
+        await self._publish_change("won", deal)
 
         return deal
 
@@ -109,6 +111,7 @@ class CRMDealService(BaseDomainService):
 
         await self.db.commit()
         await self.db.refresh(deal)
+        await self._publish_change("lost", deal)
 
         return deal
 
@@ -125,9 +128,18 @@ class CRMDealItemService(BaseDomainService):
             total_amount=total_amount,
         )
 
+        deal = await self.db.get(CRMDeal, payload.deal_id)
+        if deal is None:
+            return None
+
         self.db.add(item)
         await self.db.commit()
         await self.db.refresh(item)
+        await self._publish_change(
+            "created",
+            item,
+            company_id=deal.company_id,
+        )
 
         return item
 

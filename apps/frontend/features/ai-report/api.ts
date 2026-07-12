@@ -1,20 +1,34 @@
-import type { ModuleData } from "@/types/modules";
-import type { AIReportModuleKey } from "./types";
-import { aiReportDummyData } from "./dummy";
-// import { api } from "@/lib/api";
+import { api } from "@/lib/api";
 
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+import type { AIAnalyticsAnswer, AIAnalyticsSummary } from "./types";
+
+function scopeParams(companyId: string) {
+  return companyId === "all" ? {} : { company_id: companyId };
 }
 
-export async function getAIReportModuleData(
-  moduleKey: AIReportModuleKey
-): Promise<ModuleData> {
-  await wait(400);
+export async function getAIAnalyticsSummary(
+  companyId: string,
+): Promise<AIAnalyticsSummary> {
+  const response = await api.get<AIAnalyticsSummary>(
+    "/api/v1/ai/analytics/summary",
+    { params: scopeParams(companyId) },
+  );
+  return response.data;
+}
 
-  // NANTI SAAT FETCH API:
-  // const response = await api.get("/api/v1/ai/reports/summary");
-  // return response.data;
-
-  return aiReportDummyData[moduleKey];
+export async function askAIAnalytics({
+  companyId,
+  question,
+}: {
+  companyId: string;
+  question: string;
+}): Promise<AIAnalyticsAnswer> {
+  const response = await api.post<AIAnalyticsAnswer>(
+    "/api/v1/ai/analytics/ask",
+    {
+      question,
+      ...(companyId === "all" ? {} : { company_id: companyId }),
+    },
+  );
+  return response.data;
 }
