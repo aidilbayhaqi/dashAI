@@ -35,6 +35,13 @@ from src.security.tenant import (
     resolve_company_id,
 )
 
+from src.ai.gemini_agent_service import (
+    run_gemini_erp_agent,
+)
+from src.ai.gemini_schema import (
+    GeminiAgentChatResponse,
+    GeminiAgentQuestionRequest,
+)
 
 router = APIRouter(prefix="/ai/analytics", tags=["AI Analytics"])
 
@@ -143,3 +150,77 @@ async def ask_ai_analytics(
     )
     response = build_rule_based_answer(question, dashboard)
     return await maybe_enhance_answer_with_provider(response, dashboard)
+
+@router.post(
+    "/agent/chat",
+    response_model=GeminiAgentChatResponse,
+)
+async def chat_with_gemini_agent(
+    payload: GeminiAgentQuestionRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(
+        require_permission(
+            AI_ANALYTICS_VIEW
+        )
+    ),
+):
+    if not settings.AI_AGENT_ENABLED:
+        raise HTTPException(
+            status_code=(
+                status.HTTP_503_SERVICE_UNAVAILABLE
+            ),
+            detail="AI Agent belum diaktifkan.",
+        )
+
+    await enforce_ai_rate_limit(
+        current_user.user_id
+    )
+
+    effective_company_id = resolve_company_id(
+        current_user=current_user,
+        requested_company_id=(
+            payload.company_id
+        ),
+        required_for_superuser=True,
+    )
+
+    if effective_company_id is None:
+        raise HTTPException(
+            status_code=(
+                status.HTTP_422_UNPROCESSABLE_CONTENT
+            ),
+            detail="Company harus dipilih.",
+        )
+
+    (
+        effective_branch_id,
+        allowed_branch_ids,
+    ) = resolve_branch_query_scope(
+        current_user=current_user,
+        requested_branch_id=(
+            payload.branch_id
+        ),
+    )
+
+    if effective_branch_id is not None:
+        await ensure_branch_belongs_to_company(
+            db=db,
+            branch_id=effective_branch_id,
+            company_id=effective_company_id,
+            current_user=current_user,
+        )
+
+    period = resolve_dashboard_period(
+        period_start=payload.period_start,
+        period_end=payload.period_end,
+    )
+
+    return await run_gemini_erp_agent(
+        db=db,
+        current_user=current_user,
+        company_id=effective_company_id,
+        branch_id=effective_branch_id,
+        allowed_branch_ids=allowed_branch_ids,
+        period=period,
+        question=payload.question.strip(),
+    )

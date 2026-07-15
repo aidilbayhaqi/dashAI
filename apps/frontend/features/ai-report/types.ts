@@ -2,6 +2,57 @@ export type AIReportModuleKey = "overview";
 export type AIInsightSeverity = "info" | "warning" | "critical";
 export type AIPriority = "low" | "medium" | "high";
 
+export type AIAgentConfidence =
+  | "low"
+  | "medium"
+  | "high";
+
+export type AIAgentRequest = {
+  question: string;
+
+  company_id?: string;
+  branch_id?: string;
+
+  period_start?: string;
+  period_end?: string;
+};
+
+export type AIAgentResponse = {
+  generated_at: string;
+
+  mode: "read_only_agent";
+  provider: "gemini";
+  model: string;
+
+  company_id: string;
+  branch_id: string | null;
+
+  question: string;
+  answer: string;
+
+  confidence: AIAgentConfidence;
+
+  tools_used: string[];
+  evidence: string[];
+  suggested_links: string[];
+
+  needs_human_review: boolean;
+};
+
+export type AIChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+
+  content: string;
+  createdAt: string;
+
+  confidence?: AIAgentConfidence;
+  evidence?: string[];
+  suggestedLinks?: string[];
+  toolsUsed?: string[];
+};
+
+
 export type AIAnalyticsFinding = {
   id: string;
   module: string;

@@ -1,5 +1,6 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
 import {
   useEffect,
   useMemo,
@@ -86,9 +87,10 @@ export function CompaniesClient() {
 
     retry: false,
   });
-
-  const companies =
-    companiesQuery.data ?? [];
+  const companies = useMemo(
+    () => companiesQuery.data ?? [],
+    [companiesQuery.data],
+  );
 
   const filteredCompanies =
     useMemo(() => {

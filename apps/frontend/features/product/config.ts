@@ -1,7 +1,5 @@
 import {
-  Boxes,
   Package,
-  PackageCheck,
   Tags,
   Truck,
   Warehouse,

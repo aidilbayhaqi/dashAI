@@ -38,7 +38,6 @@ import {
   confirmSalesOrderPayment,
   getAutomationMonitoring,
 } from "@/features/automation/api";
-import type { AutomationMonitoringRow } from "@/features/automation/types";
 import type { ModuleAction, ModuleRow } from "@/types/modules";
 
 import {
@@ -121,8 +120,10 @@ export function FinanceModuleClient({
       (moduleKey === "transactions" || moduleKey === "invoices"),
     refetchInterval: 15_000,
   });
-
-  const monitoringRows = paymentMonitoringQuery.data ?? [];
+  const monitoringRows = useMemo(
+    () => paymentMonitoringQuery.data ?? [],
+    [paymentMonitoringQuery.data],
+  );
   const monitoringByOrder = useMemo(
     () => new Map(monitoringRows.map((row) => [row.order_id, row] as const)),
     [monitoringRows],

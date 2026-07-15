@@ -1,5 +1,6 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useState } from "react";
 import { Building2, Filter, Loader2, RotateCcw } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -69,7 +70,6 @@ export function CompanyScopeFilter() {
 
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [selectedCompany, setSelectedCompany] = useState("all");
-  const [appliedCompany, setAppliedCompany] = useState("all");
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -88,13 +88,11 @@ export function CompanyScopeFilter() {
      */
     if (companyId && !isCurrentUserSuperAdmin()) {
       setSelectedCompany("all");
-      setAppliedCompany("all");
       setSelectedCompanyId("all");
       return;
     }
 
     setSelectedCompany(selected);
-    setAppliedCompany(selected);
   }, []);
 
   useEffect(() => {
@@ -168,22 +166,14 @@ export function CompanyScopeFilter() {
 
   function applyFilter() {
     setSelectedCompanyId(selectedCompany);
-    setAppliedCompany(selectedCompany);
     invalidateScopedQueries();
   }
 
   function resetFilter() {
     setSelectedCompany("all");
     setSelectedCompanyId("all");
-    setAppliedCompany("all");
     invalidateScopedQueries();
   }
-
-  const appliedCompanyName =
-    appliedCompany === "all"
-      ? "All Companies"
-      : companies.find((company) => company.id === appliedCompany)?.name ??
-        appliedCompany;
 
   if (!mounted) return null;
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+/* eslint-disable react-hooks/set-state-in-effect */
+import { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
 
@@ -38,15 +39,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   function toggleTheme() {
     setTheme(theme === "dark" ? "light" : "dark");
   }
-
-  const value = useMemo(
-    () => ({
-      theme,
-      toggleTheme,
-      setTheme,
-    }),
-    [theme]
-  );
+  const value: ThemeContextValue = {
+    theme,
+    toggleTheme,
+    setTheme,
+  };
 
   return (
     <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>

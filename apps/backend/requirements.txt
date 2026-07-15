@@ -28,3 +28,5 @@ websockets>=15,<17
 
 python-multipart>=0.0.20,<0.1
 aiofiles>=24,<25
+
+google-genai>=2.3,<3
