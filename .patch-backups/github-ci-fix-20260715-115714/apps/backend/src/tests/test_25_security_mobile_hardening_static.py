@@ -64,14 +64,9 @@ def test_mobile_shell_and_manifest_are_present():
             "or mount apps/frontend into the API test environment."
         )
     monitoring = _frontend_source("features/automation/monitoring-table.tsx")
-
-    # Monitoring now uses one adaptive table instead of separate
-    # MonitoringMobileCard and desktop-table component trees.
-    assert "block w-full border-separate" in monitoring
-    assert "xl:table" in monitoring
-    assert "grid grid-cols-2" in monitoring
-    assert "xl:table-row" in monitoring
-    assert "xl:table-cell" in monitoring
+    assert "MonitoringMobileCard" in monitoring
+    assert "md:hidden" in monitoring
+    assert "hidden overflow-x-auto md:block" in monitoring
 
 
 def test_ai_rate_limit_and_retryable_outbox_are_present():

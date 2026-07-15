@@ -198,7 +198,7 @@ jobs:
         run: pnpm exec tsc --noEmit
 
       - name: Frontend lint
-        run: pnpm lint
+        run: pnpm lint -- --max-warnings=0
 
       - name: Frontend unit tests
         run: pnpm exec vitest run --reporter=default

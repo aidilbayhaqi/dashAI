@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
     "test:automation": "vitest run features/automation --reporter=verbose",
     "test:automation:watch": "vitest features/automation"
