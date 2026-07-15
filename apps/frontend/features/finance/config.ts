@@ -19,19 +19,6 @@ const companyFields: ModuleField[] = [
   },
 ];
 
-const taxStatusOptions = [
-  { label: "Draft", value: "draft" },
-  { label: "Accrued", value: "accrued" },
-  { label: "Paid", value: "paid" },
-  { label: "Reported", value: "reported" },
-  { label: "Cancelled", value: "cancelled" },
-];
-
-const journalStatusOptions = [
-  { label: "Draft", value: "draft" },
-  { label: "Posted", value: "posted" },
-  { label: "Reversed", value: "reversed" },
-];
 
 const financeTransactionFormFields: ModuleField[] = [
   ...companyFields,

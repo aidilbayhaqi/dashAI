@@ -181,6 +181,20 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 5
 
     # =========================================================
+    # GEMINI AI AGENT
+    # =========================================================
+
+    AI_AGENT_ENABLED: bool = False
+    AI_PROVIDER: str = "gemini"
+
+    GEMINI_API_KEY: str | None = None
+    GEMINI_MODEL: str = "gemini-3.1-flash-lite"
+
+    GEMINI_AGENT_TIMEOUT_SECONDS: float = 30.0
+    GEMINI_AGENT_MAX_OUTPUT_TOKENS: int = 1200
+    GEMINI_AGENT_TEMPERATURE: float = 0.1
+
+    # =========================================================
     # FIELD VALIDATORS
     # =========================================================
 
@@ -189,6 +203,7 @@ class Settings(BaseSettings):
         "COOKIE_DOMAIN",
         "OPENAI_API_KEY",
         "AI_MODEL",
+        "GEMINI_API_KEY",
         mode="before",
     )
     @classmethod
@@ -202,6 +217,47 @@ class Settings(BaseSettings):
         normalized = str(value).strip()
 
         return normalized or None
+    
+    @field_validator("GEMINI_AGENT_TIMEOUT_SECONDS")
+    @classmethod
+    def validate_gemini_timeout(
+        cls,
+        value: float,
+    ) -> float:
+        if value <= 0:
+            raise ValueError(
+                "GEMINI_AGENT_TIMEOUT_SECONDS must be positive"
+            )
+
+        return value
+
+
+    @field_validator("GEMINI_AGENT_MAX_OUTPUT_TOKENS")
+    @classmethod
+    def validate_gemini_output_tokens(
+        cls,
+        value: int,
+    ) -> int:
+        if value <= 0:
+            raise ValueError(
+                "GEMINI_AGENT_MAX_OUTPUT_TOKENS must be positive"
+            )
+
+        return value
+
+
+    @field_validator("GEMINI_AGENT_TEMPERATURE")
+    @classmethod
+    def validate_gemini_temperature(
+        cls,
+        value: float,
+    ) -> float:
+        if value < 0 or value > 2:
+            raise ValueError(
+                "GEMINI_AGENT_TEMPERATURE must be between 0 and 2"
+            )
+
+        return value
 
 
     @field_validator(
@@ -360,6 +416,24 @@ class Settings(BaseSettings):
                 "COOKIE_SECURE harus true "
                 "di production"
             )
+        
+        if self.AI_AGENT_ENABLED:
+            if self.AI_PROVIDER != "gemini":
+                raise ValueError(
+                    "AI_PROVIDER must be gemini when using Gemini Agent"
+                )
+
+            if not self.GEMINI_API_KEY:
+                raise ValueError(
+                    "GEMINI_API_KEY is required "
+                    "when AI_AGENT_ENABLED=true"
+                )
+
+            if not self.GEMINI_MODEL:
+                raise ValueError(
+                    "GEMINI_MODEL is required "
+                    "when AI_AGENT_ENABLED=true"
+                )
 
         return self
 

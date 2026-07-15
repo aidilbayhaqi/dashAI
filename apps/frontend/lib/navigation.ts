@@ -15,7 +15,6 @@ import {
   Package,
   PackageCheck,
   ReceiptText,
-  Settings,
   ShieldCheck,
   ShoppingBasket,
   Tags,

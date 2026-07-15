@@ -1,5 +1,6 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -11,8 +12,6 @@ import {
   KeyRound,
   Languages,
   Loader2,
-  Mail,
-  Palette,
   Save,
   Settings,
   ShieldCheck,

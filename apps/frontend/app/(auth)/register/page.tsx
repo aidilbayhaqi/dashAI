@@ -141,10 +141,10 @@ export default function RegisterPage() {
         router.refresh();
       },
     });
-
-
-  const companies =
-    companiesQuery.data ?? [];
+  const companies = useMemo(
+    () => companiesQuery.data ?? [],
+    [companiesQuery.data],
+  );
 
 
   const filteredCompanies =

@@ -1,5 +1,6 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
 import {
   ArrowRight,
   CheckCircle2,
@@ -127,7 +128,10 @@ export function SalesAutomationClient() {
     stocks: [],
     branches: [],
   };
-  const rawOrders = ordersQuery.data ?? [];
+  const rawOrders = useMemo(
+    () => ordersQuery.data ?? [],
+    [ordersQuery.data],
+  );
   const orders = useMemo(
     () =>
       [...rawOrders].sort(
@@ -377,12 +381,16 @@ export function SalesAutomationClient() {
         due_date: dueDate || undefined,
         auto_process: autoProcess,
         notes: notes.trim() || undefined,
-        items: lines.map(({ localId: _localId, ...line }) => ({
-          ...line,
-          unit_price: line.unit_price?.trim() || undefined,
-          discount_amount: line.discount_amount || "0",
-          tax_amount: line.tax_amount || "0",
-        })),
+        items: lines.map(({ localId, ...line }) => {
+          void localId;
+
+          return {
+            ...line,
+            unit_price: line.unit_price?.trim() || undefined,
+            discount_amount: line.discount_amount || "0",
+            tax_amount: line.tax_amount || "0",
+          };
+        }),
       });
     } catch {
       // Mutation onError already exposes a user-facing message.

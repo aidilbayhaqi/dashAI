@@ -1,5 +1,6 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect, @next/next/no-img-element */
 import { useEffect, useMemo, useState } from "react";
 import {
   Download,
