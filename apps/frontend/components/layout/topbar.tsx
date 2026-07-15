@@ -3,20 +3,20 @@
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Bell,
-  Command,
   Loader2,
   LogOut,
   Menu,
-  Search,
 } from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { TopbarNotifications } from "@/components/layout/topbar-notifications";
+import { TopbarSearch } from "@/components/layout/topbar-search";
 import { logout } from "@/features/auth/api";
 
 function formatPageTitle(pathname: string): string {
   const segments = pathname.split("/").filter(Boolean);
   if (segments.length === 0) return "Command Center";
+
   return segments
     .map((segment) =>
       segment
@@ -35,6 +35,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   async function handleLogout(): Promise<void> {
     if (logoutPending) return;
     setLogoutPending(true);
+
     try {
       await logout();
     } finally {
@@ -45,19 +46,20 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   }
 
   return (
-    <header className="sticky top-0 z-30 px-3 pt-3 sm:px-5 sm:pt-5 lg:px-8">
-      <div className="flex min-h-16 items-center justify-between gap-3 rounded-[1.35rem] border border-slate-200/80 bg-white/85 px-3 py-3 shadow-sm backdrop-blur-2xl sm:px-5 dark:border-slate-800/80 dark:bg-slate-950/80">
+    <header className="safe-area-top pointer-events-none fixed inset-x-0 top-0 z-30 px-3 pt-3 sm:px-5 sm:pt-4 lg:left-[19.25rem] lg:px-0 lg:pr-4 xl:pr-6">
+      <div className="pointer-events-auto mx-auto flex min-h-14 max-w-[1800px] items-center justify-between gap-3 rounded-[1.5rem] border border-white/80 bg-white/90 px-3 py-2.5 shadow-[0_18px_45px_rgba(15,23,42,0.10)] ring-1 ring-slate-200/50 backdrop-blur-2xl sm:min-h-16 sm:px-5 dark:border-slate-800/80 dark:bg-slate-950/88 dark:ring-slate-800/60">
         <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
             onClick={onMenuClick}
             aria-label="Buka menu"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 lg:hidden dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200/90 bg-white text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 lg:hidden dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-800"
           >
             <Menu size={19} />
           </button>
+
           <div className="min-w-0">
-            <p className="truncate text-sm font-black tracking-tight text-slate-950 dark:text-white">
+            <p className="truncate text-sm font-black tracking-tight text-slate-950 sm:text-base dark:text-white">
               {formatPageTitle(pathname)}
             </p>
             <p className="hidden truncate text-xs text-slate-500 sm:block dark:text-slate-400">
@@ -67,24 +69,8 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          <div className="hidden h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-slate-400 transition focus-within:border-slate-400 xl:flex dark:border-slate-800 dark:bg-slate-900/70">
-            <Search size={17} />
-            <input
-              placeholder="Search anything..."
-              className="w-44 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400 2xl:w-64 dark:text-slate-200"
-            />
-            <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[10px] font-bold text-slate-400 dark:border-slate-700 dark:bg-slate-950">
-              <Command size={11} />K
-            </div>
-          </div>
-
-          <button
-            type="button"
-            aria-label="Notifications"
-            className="hidden h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 sm:inline-flex dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-900"
-          >
-            <Bell size={18} />
-          </button>
+          <TopbarSearch />
+          <TopbarNotifications />
 
           <ThemeToggle />
 
@@ -93,10 +79,16 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             onClick={handleLogout}
             disabled={logoutPending}
             aria-label="Logout"
-            className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-bold text-white shadow-lg shadow-slate-900/10 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+            className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-950 px-3 text-sm font-bold text-white shadow-lg shadow-slate-900/15 transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
           >
-            {logoutPending ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
-            <span className="hidden sm:inline">{logoutPending ? "Logging out..." : "Logout"}</span>
+            {logoutPending ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <LogOut size={16} />
+            )}
+            <span className="hidden sm:inline">
+              {logoutPending ? "Logging out..." : "Logout"}
+            </span>
           </button>
         </div>
       </div>

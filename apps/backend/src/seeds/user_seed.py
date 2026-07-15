@@ -5,6 +5,7 @@ from datetime import datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.time import utc_now_naive
 from src.modules.users.model_user import (
     PermissionAction,
     User,
@@ -159,8 +160,8 @@ async def seed_users_and_access(
                     department_name=user["department_name"],
                     is_owner=user["is_owner"],
                     is_active=True,
-                    invited_at=datetime.utcnow(),
-                    joined_at=datetime.utcnow(),
+                    invited_at=utc_now_naive(),
+                    joined_at=utc_now_naive(),
                 )
             )
 

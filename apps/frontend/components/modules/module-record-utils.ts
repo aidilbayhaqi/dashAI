@@ -54,6 +54,7 @@ const TECHNICAL_KEYS = new Set([
   "created_by",
   "approved_by",
   "source_id",
+  "source_module",
   "aggregate_id",
   "event_key",
 ]);

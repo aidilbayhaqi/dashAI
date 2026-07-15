@@ -7,6 +7,7 @@ from sqlalchemy import Date, DateTime, Enum, ForeignKey, Index, Integer, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.core.time import utc_now_naive
 from src.db.base import Base
 
 
@@ -72,8 +73,8 @@ class CRMLead(Base):
     next_follow_up_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
 
     company = relationship("Company")
     branch = relationship("CompanyBranch")
@@ -102,7 +103,7 @@ class CRMContact(Base):
     email: Mapped[str | None] = mapped_column(String(150), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
 
     lead = relationship("CRMLead")
     owner = relationship("User")
@@ -135,8 +136,8 @@ class CRMDeal(Base):
 
     finance_transaction_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("finance_transactions.id", ondelete="SET NULL"), nullable=True, index=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
 
     lead = relationship("CRMLead")
     contact = relationship("CRMContact")
@@ -194,8 +195,8 @@ class CRMCampaign(Base):
 
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
 
     company = relationship("Company")
     branch = relationship("CompanyBranch")
@@ -226,7 +227,7 @@ class CRMActivity(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
 
     assigned_user = relationship("User")
 

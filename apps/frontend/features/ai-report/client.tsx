@@ -64,7 +64,7 @@ export function AIReportModuleClient() {
 
   return (
     <div className="min-w-0 space-y-6">
-      <section className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-950 p-6 text-white shadow-xl sm:p-8 dark:border-slate-800">
+      <section className="relative overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-950 p-4 text-white shadow-xl sm:rounded-[2rem] sm:p-8 dark:border-slate-800">
         <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
         <div className="relative grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
           <div className="min-w-0">

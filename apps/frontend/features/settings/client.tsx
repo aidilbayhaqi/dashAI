@@ -439,7 +439,7 @@ export function SettingsClient() {
           </div>
         </div>
 
-        <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 p-4 sm:p-6 md:grid-cols-2 xl:grid-cols-4">
           <SummaryItem icon={Wallet} label="Currency" value={summary.currency} />
           <SummaryItem icon={Clock3} label="Timezone" value={summary.timezone} />
           <SummaryItem icon={Languages} label="Language" value={summary.language} />

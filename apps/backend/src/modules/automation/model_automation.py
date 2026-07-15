@@ -21,6 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.core.time import utc_now_naive
 from src.db.base import Base
 
 
@@ -102,10 +103,10 @@ class SalesOrder(Base):
     fulfilled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime, nullable=False, default=utc_now_naive
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive
     )
 
     company = relationship("Company")
@@ -193,9 +194,10 @@ class DomainEventOutbox(Base):
     )
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     occurred_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime, nullable=False, default=utc_now_naive
     )
     processed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     company = relationship("Company")

@@ -1,4 +1,4 @@
-import { Building2, Settings, ShieldCheck } from "lucide-react";
+import { Building2, ShieldCheck } from "lucide-react";
 import type { ModuleConfig } from "@/types/modules";
 import type { AdminModuleKey } from "./types";
 

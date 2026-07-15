@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, Field
 
 from src.core.redis import redis_client
+from src.modules.dashboard.cache_dashboard import invalidate_dashboard_cache
 
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,7 @@ async def publish_realtime_event(
     )
     message = event.model_dump(mode="json")
 
+    await invalidate_dashboard_cache(event.company_id)
     await redis_client.publish(
         ERP_EVENT_CHANNEL,
         json.dumps(message, separators=(",", ":"), default=str),

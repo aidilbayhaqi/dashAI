@@ -1,23 +1,15 @@
 {
-    "name": "DashAI",
-    "version": "1.0.0",
-    "description": "",
-    "main": "index.js",
-    "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
-    },
-    "keywords": [],
-    "author": "",
-    "license": "ISC",
-    "devEngines": {
-        "packageManager": {
-            "name": "pnpm",
-            "version": "11.9.0",
-            "onFail": "download"
-        }
-    },
-    "type": "module",
-    "devDependencies": {
-        "turbo": "^2.9.17"
-    }
+  "name": "dashai-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "frontend:dev": "pnpm --dir apps/frontend dev",
+    "frontend:typecheck": "pnpm --dir apps/frontend exec tsc --noEmit",
+    "frontend:test": "pnpm --dir apps/frontend exec vitest run",
+    "frontend:build": "pnpm --dir apps/frontend build",
+    "frontend:lint": "pnpm --dir apps/frontend lint",
+    "quality": "pnpm frontend:typecheck && pnpm frontend:test && pnpm frontend:build"
+  }
 }

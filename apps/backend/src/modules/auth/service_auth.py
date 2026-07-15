@@ -21,6 +21,7 @@ from sqlalchemy.orm import (
     selectinload,
 )
 
+from src.core.time import utc_now_naive
 from src.modules.auth.schema_auth import (
     AuthUserResponse,
     LoginResponse,
@@ -1007,7 +1008,7 @@ class AuthService:
 
             registered_owner_id = owner.id
 
-            now = datetime.utcnow()
+            now = utc_now_naive()
 
             owner_access = (
                 UserCompanyAccess(
@@ -1213,7 +1214,7 @@ class AuthService:
 
             registered_user_id = user.id
 
-            now = datetime.utcnow()
+            now = utc_now_naive()
 
             company_access = (
                 UserCompanyAccess(
@@ -1516,7 +1517,7 @@ class AuthService:
         )
 
         user.last_login_at = (
-            datetime.utcnow()
+            utc_now_naive()
         )
 
         try:
@@ -1810,231 +1811,3 @@ class AuthService:
             ),
             token_type="bearer",
         )
-
-    # =========================================================
-
-async def refresh(
-    self,
-    refresh_token: str,
-) -> TokenResponse:
-    try:
-        payload = decode_token(
-            refresh_token
-        )
-
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=(
-                status
-                .HTTP_401_UNAUTHORIZED
-            ),
-            detail=(
-                "Invalid refresh token"
-            ),
-        ) from exc
-
-    if (
-        payload.get("type")
-        != "refresh"
-    ):
-        raise HTTPException(
-            status_code=(
-                status
-                .HTTP_401_UNAUTHORIZED
-            ),
-            detail=(
-                "Invalid token type"
-            ),
-        )
-
-    old_jti = payload.get(
-        "jti"
-    )
-
-    if not old_jti:
-        raise HTTPException(
-            status_code=(
-                status
-                .HTTP_401_UNAUTHORIZED
-            ),
-            detail=(
-                "Refresh token JTI "
-                "tidak tersedia."
-            ),
-        )
-
-    user_id = payload.get(
-        "sub"
-    )
-
-    if not user_id:
-        raise HTTPException(
-            status_code=(
-                status
-                .HTTP_401_UNAUTHORIZED
-            ),
-            detail=(
-                "Invalid token subject"
-            ),
-        )
-
-    try:
-        parsed_user_id = UUID(
-            str(user_id)
-        )
-
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=(
-                status
-                .HTTP_401_UNAUTHORIZED
-            ),
-            detail=(
-                "Invalid token subject"
-            ),
-        ) from exc
-
-    user = await self.get_user_by_id(
-        parsed_user_id
-    )
-
-    if user is None:
-        raise HTTPException(
-            status_code=(
-                status
-                .HTTP_401_UNAUTHORIZED
-            ),
-            detail="User not found",
-        )
-
-    if (
-        user.status
-        != UserStatus.ACTIVE
-    ):
-        raise HTTPException(
-            status_code=(
-                status
-                .HTTP_403_FORBIDDEN
-            ),
-            detail=(
-                "User account "
-                "is not active"
-            ),
-        )
-
-    selected_access: (
-        UserCompanyAccess | None
-    ) = None
-
-    company_id = payload.get(
-        "company_id"
-    )
-
-    if company_id:
-        try:
-            parsed_company_id = UUID(
-                str(company_id)
-            )
-
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=(
-                    status
-                    .HTTP_401_UNAUTHORIZED
-                ),
-                detail=(
-                    "Invalid company context"
-                ),
-            ) from exc
-
-        selected_access = (
-            await self
-            ._get_company_access(
-                user.id,
-                parsed_company_id,
-            )
-        )
-
-        if (
-            selected_access is None
-            and not user.is_superuser
-        ):
-            raise HTTPException(
-                status_code=(
-                    status
-                    .HTTP_403_FORBIDDEN
-                ),
-                detail=(
-                    "User has no active "
-                    "access to this company"
-                ),
-            )
-
-    token, _, _ = (
-        await self._issue_tokens(
-            user=user,
-            access=selected_access,
-            persist_refresh_token=False,
-        )
-    )
-
-    if not token.refresh_token:
-        raise HTTPException(
-            status_code=(
-                status
-                .HTTP_500_INTERNAL_SERVER_ERROR
-            ),
-            detail=(
-                "Refresh session baru "
-                "gagal dibuat."
-            ),
-        )
-
-    new_refresh_payload = (
-        decode_token(
-            token.refresh_token
-        )
-    )
-
-    try:
-        was_rotated = (
-            await rotate_refresh_token(
-                old_jti=str(
-                    old_jti
-                ),
-                new_payload=(
-                    new_refresh_payload
-                ),
-            )
-        )
-
-    except Exception as exc:
-        logger.exception(
-            "Failed to rotate "
-            "refresh token in Redis"
-        )
-
-        raise HTTPException(
-            status_code=(
-                status
-                .HTTP_503_SERVICE_UNAVAILABLE
-            ),
-            detail=(
-                "Layanan session sedang "
-                "bermasalah. Coba lagi."
-            ),
-        ) from exc
-
-    if not was_rotated:
-        raise HTTPException(
-            status_code=(
-                status
-                .HTTP_401_UNAUTHORIZED
-            ),
-            detail=(
-                "Refresh token revoked, "
-                "expired, or already used"
-            ),
-        )
-
-    return token

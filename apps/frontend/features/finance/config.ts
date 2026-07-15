@@ -19,22 +19,6 @@ const companyFields: ModuleField[] = [
   },
 ];
 
-const transactionStatusOptions = [
-  { label: "Draft", value: "draft" },
-  { label: "Posted", value: "posted" },
-  { label: "Void", value: "void" },
-  { label: "Cancelled", value: "cancelled" },
-];
-
-const invoiceStatusOptions = [
-  { label: "Draft", value: "draft" },
-  { label: "Sent", value: "sent" },
-  { label: "Partially Paid", value: "partially_paid" },
-  { label: "Paid", value: "paid" },
-  { label: "Overdue", value: "overdue" },
-  { label: "Cancelled", value: "cancelled" },
-];
-
 const taxStatusOptions = [
   { label: "Draft", value: "draft" },
   { label: "Accrued", value: "accrued" },
@@ -124,12 +108,6 @@ const financeTransactionFormFields: ModuleField[] = [
     required: true,
   },
   {
-    key: "status",
-    label: "Status",
-    type: "select",
-    options: transactionStatusOptions,
-  },
-  {
     key: "description",
     label: "Description",
     type: "textarea",
@@ -182,17 +160,6 @@ const invoiceFormFields: ModuleField[] = [
     required: true,
   },
   {
-    key: "paid_amount",
-    label: "Paid Amount",
-    type: "number",
-  },
-  {
-    key: "status",
-    label: "Status",
-    type: "select",
-    options: invoiceStatusOptions,
-  },
-  {
     key: "notes",
     label: "Notes",
     type: "textarea",
@@ -201,62 +168,15 @@ const invoiceFormFields: ModuleField[] = [
 
 const cashflowFormFields: ModuleField[] = [
   ...companyFields,
-  {
-    key: "period_id",
-    label: "Accounting Period",
-    type: "select",
-  },
-  {
-    key: "report_date",
-    label: "Report Date",
-    type: "date",
-    required: true,
-  },
+  { key: "period_id", label: "Accounting Period", type: "select" },
+  { key: "start_date", label: "Start Date", type: "date", required: true },
+  { key: "end_date", label: "End Date", type: "date", required: true },
+  { key: "report_date", label: "Report Date", type: "date", required: true },
   {
     key: "beginning_cash_balance",
     label: "Beginning Cash Balance",
     type: "number",
     required: true,
-  },
-  {
-    key: "operating_cash_in",
-    label: "Operating Cash In",
-    type: "number",
-  },
-  {
-    key: "operating_cash_out",
-    label: "Operating Cash Out",
-    type: "number",
-  },
-  {
-    key: "investing_cash_in",
-    label: "Investing Cash In",
-    type: "number",
-  },
-  {
-    key: "investing_cash_out",
-    label: "Investing Cash Out",
-    type: "number",
-  },
-  {
-    key: "financing_cash_in",
-    label: "Financing Cash In",
-    type: "number",
-  },
-  {
-    key: "financing_cash_out",
-    label: "Financing Cash Out",
-    type: "number",
-  },
-  {
-    key: "net_cashflow",
-    label: "Net Cashflow",
-    type: "number",
-  },
-  {
-    key: "ending_cash_balance",
-    label: "Ending Cash Balance",
-    type: "number",
   },
 ];
 
@@ -295,35 +215,14 @@ const taxFormFields: ModuleField[] = [
     required: true,
   },
   {
-    key: "paid_amount",
-    label: "Paid Amount",
-    type: "number",
-  },
-  {
     key: "due_date",
     label: "Due Date",
-    type: "date",
-  },
-  {
-    key: "paid_date",
-    label: "Paid Date",
-    type: "date",
-  },
-  {
-    key: "reported_date",
-    label: "Reported Date",
     type: "date",
   },
   {
     key: "reference_no",
     label: "Reference No",
     placeholder: "SSP / e-Billing / Bukti setor",
-  },
-  {
-    key: "status",
-    label: "Status",
-    type: "select",
-    options: taxStatusOptions,
   },
   {
     key: "notes",
@@ -347,31 +246,6 @@ const ledgerFormFields: ModuleField[] = [
     required: true,
   },
   {
-    key: "total_debit",
-    label: "Total Debit",
-    type: "number",
-  },
-  {
-    key: "total_credit",
-    label: "Total Credit",
-    type: "number",
-  },
-  {
-    key: "is_balanced",
-    label: "Balanced?",
-    type: "select",
-    options: [
-      { label: "No", value: "false" },
-      { label: "Yes", value: "true" },
-    ],
-  },
-  {
-    key: "status",
-    label: "Status",
-    type: "select",
-    options: journalStatusOptions,
-  },
-  {
     key: "memo",
     label: "Memo",
     type: "textarea",
@@ -393,7 +267,6 @@ export const financeModuleConfig: Record<FinanceModuleKey, ModuleConfig> = {
       { key: "transaction_no", label: "Transaction No" },
       { key: "account_name", label: "Cash Account" },
       { key: "type_label", label: "Type" },
-      { key: "creation_mode_label", label: "Source" },
       { key: "cashflow_activity_label", label: "Activity" },
       { key: "amount", label: "Amount", format: "currency" },
       { key: "status_label", label: "Status" },
@@ -411,17 +284,16 @@ export const financeModuleConfig: Record<FinanceModuleKey, ModuleConfig> = {
     tableDescription:
       "Data transaksi finance yang sudah disesuaikan dengan model FinanceTransaction backend.",
     columns: [
-      { key: "date", label: "Date" },
-      { key: "transaction_no", label: "Transaction No" },
-      { key: "account_name", label: "Cash Account" },
-      { key: "counterparty", label: "Counterparty" },
-      { key: "type_label", label: "Type" },
-      { key: "cashflow_activity_label", label: "Activity" },
-      { key: "amount", label: "Amount", format: "currency" },
-      { key: "status_label", label: "Status" },
-      { key: "attachment", label: "Attachment" },
+      { key: "date", label: "Date", className: "w-[130px] min-w-[130px] whitespace-nowrap" },
+      { key: "transaction_no", label: "Transaction", className: "w-[190px] min-w-[190px] whitespace-nowrap" },
+      { key: "counterparty", label: "Counterparty", className: "w-[210px] min-w-[210px] max-w-[210px]" },
+      { key: "account_name", label: "Cash Account", className: "w-[210px] min-w-[210px] max-w-[210px]" },
+      { key: "type_label", label: "Type", className: "w-[135px] min-w-[135px] whitespace-nowrap" },
+      { key: "amount", label: "Amount", format: "currency", className: "w-[170px] min-w-[170px] whitespace-nowrap text-right" },
+      { key: "status_label", label: "Status", className: "w-[130px] min-w-[130px] whitespace-nowrap" },
     ],
     formFields: financeTransactionFormFields,
+    detailFields: financeTransactionFormFields,
   },
 
   invoices: {
@@ -434,15 +306,13 @@ export const financeModuleConfig: Record<FinanceModuleKey, ModuleConfig> = {
     tableDescription:
       "Data invoice langsung dari endpoint /finance/invoices, bukan disaring dari transactions.",
     columns: [
-      { key: "invoice_no", label: "Invoice No" },
-      { key: "creation_mode_label", label: "Source" },
-      { key: "client_name", label: "Client" },
-      { key: "invoice_date_display", label: "Invoice Date" },
-      { key: "due_date_display", label: "Due Date" },
-      { key: "total", label: "Total", format: "currency" },
-      { key: "paid", label: "Paid", format: "currency" },
-      { key: "outstanding", label: "Outstanding", format: "currency" },
-      { key: "status_label", label: "Status" },
+      { key: "invoice_no", label: "Invoice", className: "min-w-[145px]" },
+      { key: "client_name", label: "Client", className: "min-w-[150px]" },
+      { key: "invoice_date_display", label: "Issued", className: "min-w-[110px]" },
+      { key: "due_date_display", label: "Due", className: "min-w-[110px]" },
+      { key: "total", label: "Total", format: "currency", className: "min-w-[130px]" },
+      { key: "outstanding", label: "Outstanding", format: "currency", className: "min-w-[140px]" },
+      { key: "status_label", label: "Status", className: "min-w-[110px]" },
     ],
     formFields: invoiceFormFields,
   },
@@ -457,17 +327,13 @@ export const financeModuleConfig: Record<FinanceModuleKey, ModuleConfig> = {
     tableDescription:
       "Data cashflow dibaca langsung dari field backend finance_cashflow_snapshots.",
     columns: [
-  { key: "report_date_display", label: "Date" },
-  { key: "beginning_cash_balance_display", label: "Beginning Cash", format: "currency" },
-  { key: "operating_cash_in_display", label: "Operating In", format: "currency" },
-  { key: "operating_cash_out_display", label: "Operating Out", format: "currency" },
-  { key: "investing_cash_in_display", label: "Investing In", format: "currency" },
-  { key: "investing_cash_out_display", label: "Investing Out", format: "currency" },
-  { key: "financing_cash_in_display", label: "Financing In", format: "currency" },
-  { key: "financing_cash_out_display", label: "Financing Out", format: "currency" },
-  { key: "net_cashflow_display", label: "Net Cashflow", format: "currency" },
-  { key: "ending_cash_balance_display", label: "Ending Cash", format: "currency" },
-],
+      { key: "report_date_display", label: "Date", className: "min-w-[110px]" },
+      { key: "beginning_cash_balance_display", label: "Beginning", format: "currency", className: "min-w-[135px]" },
+      { key: "total_cash_in_display", label: "Cash In", format: "currency", className: "min-w-[125px]" },
+      { key: "total_cash_out_display", label: "Cash Out", format: "currency", className: "min-w-[125px]" },
+      { key: "net_cashflow_display", label: "Net", format: "currency", className: "min-w-[125px]" },
+      { key: "ending_cash_balance_display", label: "Ending", format: "currency", className: "min-w-[135px]" },
+    ],
     formFields: cashflowFormFields,
   },
 
@@ -481,13 +347,12 @@ export const financeModuleConfig: Record<FinanceModuleKey, ModuleConfig> = {
     tableDescription:
       "Data pajak perusahaan berdasarkan tax_period, tax_type, dan status backend yang valid.",
     columns: [
-      { key: "tax_period", label: "Period" },
-      { key: "tax_type_label", label: "Tax Type" },
-      { key: "taxable", label: "Taxable", format: "currency" },
-      { key: "tax_amount_display", label: "Tax Amount", format: "currency" },
-      { key: "paid_amount_display", label: "Paid", format: "currency" },
-      { key: "due_date_display", label: "Due Date" },
-      { key: "status_label", label: "Status" },
+      { key: "tax_period", label: "Period", className: "min-w-[105px]" },
+      { key: "tax_type_label", label: "Tax Type", className: "min-w-[115px]" },
+      { key: "taxable", label: "Taxable", format: "currency", className: "min-w-[130px]" },
+      { key: "tax_amount_display", label: "Tax", format: "currency", className: "min-w-[125px]" },
+      { key: "due_date_display", label: "Due", className: "min-w-[110px]" },
+      { key: "status_label", label: "Status", className: "min-w-[110px]" },
     ],
     formFields: taxFormFields,
   },
@@ -502,12 +367,12 @@ export const financeModuleConfig: Record<FinanceModuleKey, ModuleConfig> = {
     tableDescription:
       "Daftar jurnal keuangan sesuai model FinanceJournalEntry backend.",
     columns: [
-      { key: "journal_no", label: "Journal No" },
-      { key: "journal_date_display", label: "Journal Date" },
-      { key: "total_debit_display", label: "Debit", format: "currency" },
-      { key: "total_credit_display", label: "Credit", format: "currency" },
-      { key: "is_balanced_display", label: "Balanced" },
-      { key: "status_label", label: "Status" },
+      { key: "journal_no", label: "Journal", className: "min-w-[145px]" },
+      { key: "journal_date_display", label: "Date", className: "min-w-[110px]" },
+      { key: "total_debit_display", label: "Debit", format: "currency", className: "min-w-[130px]" },
+      { key: "total_credit_display", label: "Credit", format: "currency", className: "min-w-[130px]" },
+      { key: "is_balanced_display", label: "Balanced", className: "min-w-[105px]" },
+      { key: "status_label", label: "Status", className: "min-w-[110px]" },
     ],
     formFields: ledgerFormFields,
   },

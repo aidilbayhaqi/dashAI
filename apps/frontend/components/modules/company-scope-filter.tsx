@@ -242,7 +242,7 @@ export function CompanyScopeFilter() {
             value={selectedCompany}
             onChange={(event) => setSelectedCompany(event.target.value)}
             disabled={isLoading}
-            className="h-11 min-w-[280px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none transition focus:border-blue-600 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-900 dark:bg-[#02040a] dark:text-white dark:disabled:bg-slate-900"
+            className="h-11 w-full min-w-0 sm:min-w-[280px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 outline-none transition focus:border-blue-600 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-900 dark:bg-[#02040a] dark:text-white dark:disabled:bg-slate-900"
           >
             <option value="all">
               {isLoading ? "Loading companies..." : "All Companies"}

@@ -1,5 +1,6 @@
 export type AutomationProduct = {
   id: string;
+  branch_id?: string | null;
   name: string;
   sku: string;
   selling_price: number | string;

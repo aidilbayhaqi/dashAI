@@ -636,3 +636,55 @@ class FinanceInvoiceResponse(FinanceInvoiceCreate, ORMBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+
+# =========================================================
+# EXPLICIT FINANCE COMMANDS
+# =========================================================
+
+class FinanceInvoicePaymentRequest(BaseModel):
+    amount: Decimal | None = Field(default=None, gt=0)
+    cash_account_id: UUID | None = None
+    payment_date: date | None = None
+    reference_no: str | None = Field(default=None, max_length=100)
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class FinanceCashBalanceAdjustmentRequest(BaseModel):
+    amount: Decimal = Field(gt=0)
+    direction: str = Field(pattern="^(increase|decrease)$")
+    adjustment_date: date | None = None
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class FinanceCommandResponse(BaseModel):
+    id: UUID
+    status: str
+    message: str
+
+class FinanceTaxPaymentRequest(BaseModel):
+    cash_account_id: UUID | None = None
+    payment_date: date | None = None
+    reference_no: str | None = Field(default=None, max_length=100)
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class FinanceReportGenerationRequest(BaseModel):
+    period_id: UUID | None = None
+    start_date: date
+    end_date: date
+    report_date: date
+
+    @model_validator(mode="after")
+    def validate_period(self):
+        if self.end_date < self.start_date:
+            raise ValueError("end_date must be on or after start_date")
+        return self
+
+
+class FinanceCashflowGenerationRequest(FinanceReportGenerationRequest):
+    beginning_cash_balance: Decimal = Decimal("0.00")
+
+
+class FinanceBalanceSheetGenerationRequest(BaseModel):
+    period_id: UUID | None = None
+    report_date: date

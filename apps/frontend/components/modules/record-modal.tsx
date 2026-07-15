@@ -82,6 +82,7 @@ export function RecordModal({
   const [formError, setFormError] = useState<string | null>(null);
 
   const companyId = String(values.company_id ?? "");
+  const productId = String(values.product_id ?? "");
   const canChooseCompany = isCurrentUserSuperAdmin() || !getCurrentCompanyId();
   const busy = isSubmitting || Boolean(uploadingKey);
 
@@ -121,9 +122,28 @@ export function RecordModal({
       await Promise.all(lookupFields.map(async (field) => {
         setLoadingByKey((current) => ({ ...current, [field.key]: true }));
         try {
-          const options = await fetchOptionsForField(field.key, companyId);
+          const options = await fetchOptionsForField(field.key, companyId, {
+            productId,
+            moduleKey,
+            mode,
+          });
           if (!cancelled) {
             setOptionsByKey((current) => ({ ...current, [field.key]: options }));
+
+            if (field.key === "branch_id" && productId) {
+              setValues((current) => {
+                const currentBranchId = String(current.branch_id ?? "");
+                const availableIds = new Set(options.map((option) => option.value));
+
+                if (currentBranchId && availableIds.has(currentBranchId)) {
+                  return current;
+                }
+                if (options.length === 1) {
+                  return { ...current, branch_id: options[0].value };
+                }
+                return currentBranchId ? { ...current, branch_id: "" } : current;
+              });
+            }
           }
         } catch (error: unknown) {
           if (!cancelled) {
@@ -139,7 +159,7 @@ export function RecordModal({
 
     void loadLookups();
     return () => { cancelled = true; };
-  }, [companyId, inputFields, open]);
+  }, [companyId, inputFields, mode, moduleKey, open, productId]);
 
   function updateValue(key: string, value: string) {
     setFormError(null);
@@ -147,6 +167,9 @@ export function RecordModal({
       const next = { ...current, [key]: value };
       if (key === "company_id") {
         for (const dependentKey of dependentCompanyFields) next[dependentKey] = "";
+      }
+      if (key === "product_id") {
+        next.branch_id = "";
       }
       return next;
     });
@@ -160,6 +183,9 @@ export function RecordModal({
   function getSelectPlaceholder(field: InputField): string {
     if (loadingByKey[field.key]) return `Loading ${field.label}...`;
     if (field.key === "branch_id" && !companyId) return "Pilih company dulu";
+    if (field.key === "branch_id" && moduleKey === "stock" && !productId) {
+      return "Pilih product dulu";
+    }
     if (isSelectField(field) && getOptions(field).length === 0) {
       return `${field.label} belum tersedia`;
     }
@@ -169,7 +195,8 @@ export function RecordModal({
   function isSelectDisabled(field: InputField): boolean {
     if (busy || loadingByKey[field.key]) return true;
     if (field.key === "company_id" && !canChooseCompany) return true;
-    return field.key === "branch_id" && !companyId;
+    if (field.key === "branch_id" && !companyId) return true;
+    return field.key === "branch_id" && moduleKey === "stock" && !productId;
   }
 
   async function handleUpload(field: InputField, file: File | null) {

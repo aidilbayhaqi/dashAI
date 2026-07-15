@@ -417,4 +417,36 @@ describe("SalesAutomationClient", () => {
     ).toBeInTheDocument();
   });
 
+  it("blocks automatic POST when branch stock is insufficient", async () => {
+    const user = userEvent.setup();
+
+    renderWithQueryClient(<SalesAutomationClient />);
+
+    await user.type(
+      await screen.findByLabelText("Customer name"),
+      "PT Stok Kurang",
+    );
+    await user.selectOptions(
+      screen.getByLabelText("Branch / warehouse"),
+      "branch-1",
+    );
+    await user.selectOptions(
+      screen.getByLabelText("Product item 1"),
+      "product-1",
+    );
+
+    const quantityInput = screen.getByLabelText("Quantity item 1");
+    await user.clear(quantityInput);
+    await user.type(quantityInput, "9");
+
+    await user.click(
+      screen.getByRole("button", { name: "Create & automate flow" }),
+    );
+
+    expect(
+      screen.getByText("Stok Laptop Test tidak mencukupi pada branch yang dipilih."),
+    ).toBeInTheDocument();
+    expect(automationApiMock.createSalesOrder).not.toHaveBeenCalled();
+  });
+
 });

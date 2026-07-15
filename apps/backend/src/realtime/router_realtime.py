@@ -2,7 +2,7 @@ import json
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 
 from src.core.config import settings
 from src.realtime.listener import listener_state
@@ -11,9 +11,18 @@ from src.realtime.manager import (
     build_company_channel,
     manager,
 )
+from src.realtime.tickets import (
+    consume_realtime_ticket,
+    create_realtime_ticket,
+)
 from src.security.authentication.jwt import decode_token
-from src.security.dependencies import CurrentUser, get_current_user
 from src.security.authentication.token_store import is_access_token_blacklisted
+from src.security.dependencies import CurrentUser, require_permission
+from src.security.permissions import (
+    REALTIME_EVENTS_VIEW,
+    realtime_modules_from_permissions,
+)
+from src.security.tenant import resolve_company_id
 
 
 logger = logging.getLogger(__name__)
@@ -21,8 +30,6 @@ router = APIRouter(prefix="/realtime", tags=["Realtime"])
 
 
 def _origin_is_allowed(websocket: WebSocket) -> bool:
-    # Starlette WebSocket always exposes ``headers``. Using ``getattr`` keeps
-    # this helper compatible with lightweight test doubles and older callers.
     headers = getattr(websocket, "headers", None)
     origin = headers.get("origin") if headers is not None else None
     if not origin:
@@ -40,10 +47,23 @@ async def _close_websocket(
     try:
         await websocket.close(code=code, reason=reason)
     except TypeError:
-        # Compatibility for simple test doubles whose close method only
-        # accepts ``code``. Real Starlette WebSocket objects use the branch
-        # above and retain the close reason.
         await websocket.close(code=code)
+
+
+async def _authenticate_legacy_access_token(token: str) -> dict | None:
+    try:
+        payload = decode_token(token)
+    except ValueError:
+        return None
+
+    if payload.get("type") != "access":
+        return None
+
+    jti = payload.get("jti")
+    if not jti or await is_access_token_blacklisted(str(jti)):
+        return None
+
+    return payload
 
 
 async def authenticate_websocket(websocket: WebSocket) -> dict | None:
@@ -55,42 +75,35 @@ async def authenticate_websocket(websocket: WebSocket) -> dict | None:
         )
         return None
 
+    ticket = websocket.query_params.get("ticket")
+    if ticket:
+        payload = await consume_realtime_ticket(ticket)
+        if payload is None:
+            await _close_websocket(
+                websocket,
+                code=1008,
+                reason="Invalid or expired realtime ticket",
+            )
+            return None
+        return payload
+
     token = websocket.query_params.get("token")
-    if not token:
+    if not token or not settings.REALTIME_ALLOW_QUERY_ACCESS_TOKEN:
         await _close_websocket(
             websocket,
             code=1008,
-            reason="Missing access token",
+            reason="Missing realtime ticket",
         )
         return None
 
-    try:
-        payload = decode_token(token)
-    except ValueError:
+    payload = await _authenticate_legacy_access_token(token)
+    if payload is None:
         await _close_websocket(
             websocket,
             code=1008,
             reason="Invalid access token",
         )
         return None
-
-    if payload.get("type") != "access":
-        await _close_websocket(
-            websocket,
-            code=1008,
-            reason="Access token required",
-        )
-        return None
-
-    jti = payload.get("jti")
-    if not jti or await is_access_token_blacklisted(str(jti)):
-        await _close_websocket(
-            websocket,
-            code=1008,
-            reason="Token revoked",
-        )
-        return None
-
     return payload
 
 
@@ -105,7 +118,10 @@ def _normalize_company_id(value: object) -> str | None:
 
 def resolve_realtime_channel(websocket: WebSocket, payload: dict) -> str | None:
     if payload.get("is_superuser") is True:
-        requested_company_id = websocket.query_params.get("company_id")
+        requested_company_id = (
+            payload.get("realtime_company_id")
+            or websocket.query_params.get("company_id")
+        )
         if requested_company_id:
             normalized_company_id = _normalize_company_id(requested_company_id)
             return (
@@ -125,9 +141,43 @@ def _channel_company_id(channel: str) -> str | None:
     return channel.removeprefix("company:")
 
 
+@router.post("/ticket")
+async def issue_realtime_ticket(
+    company_id: UUID | None = Query(default=None),
+    current_user: CurrentUser = Depends(
+        require_permission(REALTIME_EVENTS_VIEW)
+    ),
+):
+    effective_company_id = resolve_company_id(
+        current_user=current_user,
+        requested_company_id=company_id,
+    )
+    payload = {
+        "sub": str(current_user.user_id),
+        "is_superuser": current_user.is_superuser,
+        "company_id": (
+            str(current_user.company_id) if current_user.company_id else None
+        ),
+        "realtime_company_id": (
+            str(effective_company_id) if effective_company_id else None
+        ),
+        "permissions": current_user.permissions,
+        "access_scope": current_user.access_scope,
+        "branch_ids": current_user.branch_ids,
+        "type": "realtime_ticket",
+    }
+    ticket = await create_realtime_ticket(payload)
+    return {
+        "ticket": ticket,
+        "expires_in": settings.REALTIME_TICKET_TTL_SECONDS,
+    }
+
+
 @router.get("/health")
 async def realtime_health(
-    _current_user: CurrentUser = Depends(get_current_user),
+    _current_user: CurrentUser = Depends(
+        require_permission(REALTIME_EVENTS_VIEW)
+    ),
 ):
     return {
         "listener_connected": listener_state.connected,
@@ -147,35 +197,62 @@ async def websocket_endpoint(websocket: WebSocket):
 
     channel = resolve_realtime_channel(websocket, payload)
     if channel is None:
-        await websocket.close(code=1008, reason="Company scope unavailable")
+        await _close_websocket(
+            websocket,
+            code=1008,
+            reason="Company scope unavailable",
+        )
         return
 
-    if not await manager.connect(channel, websocket):
+    is_superuser = payload.get("is_superuser") is True
+    allowed_modules = None if is_superuser else (
+        realtime_modules_from_permissions(payload.get("permissions") or [])
+    )
+    allowed_branch_ids = None
+    if not is_superuser and payload.get("access_scope") == "selected_branches":
+        allowed_branch_ids = {
+            str(branch_id)
+            for branch_id in (payload.get("branch_ids") or [])
+            if branch_id
+        }
+    if not await manager.connect(
+        channel,
+        websocket,
+        allowed_modules=allowed_modules,
+        allowed_branch_ids=allowed_branch_ids,
+    ):
         return
 
     try:
         await websocket.send_json(
             {
                 "type": "connection.success",
-                "schema_version": "1.0",
+                "schema_version": "1.1",
                 "scope": "global" if channel == GLOBAL_REALTIME_CHANNEL else "company",
                 "user_id": payload.get("sub"),
                 "company_id": _channel_company_id(channel),
+                "modules": sorted(allowed_modules) if allowed_modules is not None else ["*"],
+                "branches": (
+                    sorted(allowed_branch_ids)
+                    if allowed_branch_ids is not None
+                    else ["*"]
+                ),
             }
         )
 
         while True:
             message = await websocket.receive_text()
             if len(message.encode("utf-8")) > settings.REALTIME_MAX_MESSAGE_BYTES:
-                await websocket.close(code=1009, reason="Message too large")
+                await _close_websocket(
+                    websocket,
+                    code=1009,
+                    reason="Message too large",
+                )
                 return
 
             if message == "ping":
                 await websocket.send_json(
-                    {
-                        "type": "pong",
-                        "message": "WebSocket is alive",
-                    }
+                    {"type": "pong", "message": "WebSocket is alive"}
                 )
                 continue
 
@@ -189,10 +266,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
             if isinstance(data, dict) and data.get("type") == "ping":
                 await websocket.send_json(
-                    {
-                        "type": "pong",
-                        "message": "WebSocket is alive",
-                    }
+                    {"type": "pong", "message": "WebSocket is alive"}
                 )
                 continue
 

@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Integer, Stri
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.core.time import utc_now_naive
 from src.db.base import Base
 
 
@@ -65,14 +66,14 @@ class Company(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
     )
 
     branches = relationship(
@@ -128,14 +129,14 @@ class CompanyBranch(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
     )
 
     company = relationship("Company", back_populates="branches")

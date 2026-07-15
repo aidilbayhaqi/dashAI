@@ -7,10 +7,11 @@ from math import ceil
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.core.time import utc_now_naive
 from src.modules.automation.model_automation import (
     DomainEventOutbox,
     DomainEventStatus,
@@ -21,6 +22,7 @@ from src.modules.automation.model_automation import (
 from src.modules.automation.schema_automation import SalesOrderCreate
 from src.modules.finance.model_finance import (
     CashflowActivity,
+    FinanceCashAccount,
     FinanceInvoice,
     FinanceTransaction,
     InvoiceStatus,
@@ -51,6 +53,50 @@ def quantity(value: Decimal | int | str) -> Decimal:
 class BusinessAutomationService:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def _resolve_active_cash_account(
+        self,
+        *,
+        company_id: UUID,
+    ) -> FinanceCashAccount:
+        """Return the deterministic default cash account for automation.
+
+        Sales automation must never create a finance transaction without a
+        cash account. We prefer an account whose name indicates the primary
+        operational account, then fall back to the oldest active account.
+        """
+        priority = case(
+            (func.lower(FinanceCashAccount.name).like("%utama%"), 0),
+            (func.lower(FinanceCashAccount.name).like("%operasional%"), 1),
+            (func.lower(FinanceCashAccount.name).like("%bank%"), 2),
+            else_=3,
+        )
+        result = await self.db.execute(
+            select(FinanceCashAccount)
+            .where(
+                FinanceCashAccount.company_id == company_id,
+                FinanceCashAccount.is_active.is_(True),
+            )
+            .order_by(
+                priority,
+                FinanceCashAccount.created_at.asc(),
+                FinanceCashAccount.name.asc(),
+                FinanceCashAccount.id.asc(),
+            )
+            .limit(1)
+        )
+        cash_account = result.scalar_one_or_none()
+
+        if cash_account is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Sales automation requires an active cash account. "
+                    "Create or activate one in Finance > Cash Accounts first."
+                ),
+            )
+
+        return cash_account
 
     async def _get_order(
         self,
@@ -333,7 +379,13 @@ class BusinessAutomationService:
                 detail="Linked finance record was not found",
             )
 
-        now = datetime.utcnow()
+        if transaction.cash_account_id is None:
+            cash_account = await self._resolve_active_cash_account(
+                company_id=company_id,
+            )
+            transaction.cash_account_id = cash_account.id
+
+        now = utc_now_naive()
         invoice.paid_amount = money(invoice.total_amount)
         invoice.status = InvoiceStatus.PAID
         transaction.status = TransactionStatus.POSTED
@@ -383,16 +435,26 @@ class BusinessAutomationService:
         if existing is not None:
             return existing
 
+        event_payload = dict(payload)
+        if "branch_id" not in event_payload:
+            branch_id = await self.db.scalar(
+                select(SalesOrder.branch_id).where(SalesOrder.id == order_id)
+            )
+            event_payload["branch_id"] = (
+                str(branch_id) if branch_id is not None else None
+            )
+
         event = DomainEventOutbox(
             company_id=company_id,
             aggregate_type="sales_order",
             aggregate_id=order_id,
             event_type=event_type,
             event_key=event_key,
-            payload=payload,
-            status=DomainEventStatus.PROCESSED,
-            attempts=1,
-            processed_at=datetime.utcnow(),
+            payload=event_payload,
+            status=DomainEventStatus.PENDING,
+            attempts=0,
+            processed_at=None,
+            next_attempt_at=None,
         )
         self.db.add(event)
         await self.db.flush()
@@ -418,6 +480,23 @@ class BusinessAutomationService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="One or more products were not found",
+            )
+
+        incompatible_product = next(
+            (
+                product for product in products.values()
+                if product.branch_id is not None
+                and product.branch_id != payload.branch_id
+            ),
+            None,
+        )
+        if incompatible_product is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Product {incompatible_product.name} is not available "
+                    "in selected branch"
+                ),
             )
 
         order_no = payload.order_no or (
@@ -682,7 +761,11 @@ class BusinessAutomationService:
 
             stock_by_product[product.id] = stock
 
-        now = datetime.utcnow()
+        cash_account = await self._resolve_active_cash_account(
+            company_id=company_id,
+        )
+
+        now = utc_now_naive()
         order.status = SalesOrderStatus.APPROVED
         order.approved_by = user_id
         order.approved_at = now
@@ -762,6 +845,7 @@ class BusinessAutomationService:
                 transaction_date=order.order_date,
                 transaction_type=TransactionType.INCOME,
                 cashflow_activity=CashflowActivity.OPERATING,
+                cash_account_id=cash_account.id,
                 status=TransactionStatus.POSTED,
                 counterparty_name=order.customer_name,
                 reference_no=order.order_no,
@@ -778,6 +862,10 @@ class BusinessAutomationService:
             )
             self.db.add(transaction)
             await self.db.flush()
+        elif transaction.cash_account_id is None:
+            # Backward compatibility for orders created before cash-account
+            # enforcement was introduced.
+            transaction.cash_account_id = cash_account.id
 
         invoice_result = await self.db.execute(
             select(FinanceInvoice).where(
@@ -832,6 +920,8 @@ class BusinessAutomationService:
                 "order_id": str(order.id),
                 "transaction_id": str(transaction.id),
                 "transaction_no": transaction.transaction_no,
+                "cash_account_id": str(cash_account.id),
+                "cash_account_name": cash_account.name,
                 "total_amount": str(transaction.total_amount),
             },
         )

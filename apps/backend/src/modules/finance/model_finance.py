@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Enum,
@@ -19,6 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.core.time import utc_now_naive
 from src.db.base import Base
 
 
@@ -139,14 +141,14 @@ class FinanceAccountingPeriod(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
     )
 
     company = relationship("Company")
@@ -207,14 +209,14 @@ class FinanceAccount(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
     )
 
     company = relationship("Company")
@@ -267,7 +269,7 @@ class FinanceTaxRate(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     company = relationship("Company")
@@ -325,14 +327,14 @@ class FinanceCashAccount(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
     )
 
     company = relationship("Company")
@@ -444,14 +446,14 @@ class FinanceTransaction(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
     )
 
     company = relationship("Company")
@@ -464,6 +466,14 @@ class FinanceTransaction(Base):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "subtotal_amount >= 0 AND discount_amount >= 0 AND tax_amount >= 0",
+            name="ck_finance_transaction_nonnegative_components",
+        ),
+        CheckConstraint(
+            "total_amount > 0",
+            name="ck_finance_transaction_positive_total",
+        ),
         UniqueConstraint(
             "company_id",
             "transaction_no",
@@ -535,13 +545,21 @@ class FinanceInvoice(Base):
     attachment_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
 
     company = relationship("Company")
     branch = relationship("CompanyBranch")
 
     __table_args__ = (
+        CheckConstraint(
+            "subtotal_amount >= 0 AND tax_amount >= 0 AND total_amount > 0",
+            name="ck_finance_invoice_nonnegative_amounts",
+        ),
+        CheckConstraint(
+            "paid_amount >= 0 AND paid_amount <= total_amount",
+            name="ck_finance_invoice_paid_within_total",
+        ),
         UniqueConstraint("company_id", "invoice_no", name="uq_finance_invoice_company_no"),
         Index("ix_finance_invoices_company_status", "company_id", "status"),
         Index("ix_finance_invoices_company_due", "company_id", "due_date"),
@@ -686,14 +704,14 @@ class FinanceJournalEntry(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
     )
 
     company = relationship("Company")
@@ -706,6 +724,10 @@ class FinanceJournalEntry(Base):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "total_debit >= 0 AND total_credit >= 0",
+            name="ck_finance_journal_nonnegative_totals",
+        ),
         UniqueConstraint(
             "company_id",
             "journal_no",
@@ -838,7 +860,7 @@ class FinanceTaxRecord(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     company = relationship("Company")
@@ -893,14 +915,14 @@ class FinanceBudget(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
     )
 
     company = relationship("Company")
@@ -1067,7 +1089,7 @@ class FinanceProfitLossSnapshot(Base):
     generated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     company = relationship("Company")
@@ -1164,7 +1186,7 @@ class FinanceCashflowSnapshot(Base):
     generated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     company = relationship("Company")
@@ -1245,7 +1267,7 @@ class FinanceMarginSnapshot(Base):
     generated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     company = relationship("Company")
@@ -1318,7 +1340,7 @@ class FinanceBalanceSheetSnapshot(Base):
     generated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     company = relationship("Company")

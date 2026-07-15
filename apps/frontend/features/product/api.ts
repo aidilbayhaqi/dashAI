@@ -6,7 +6,9 @@ import type { ModuleData, ModuleRow } from "@/types/modules";
 import type { ProductModuleKey } from "./types";
 import { productDummyData } from "./dummy";
 
-const USE_DUMMY = process.env.NEXT_PUBLIC_USE_DUMMY_API === "true";
+const USE_DUMMY =
+  process.env.NODE_ENV !== "production" &&
+  process.env.NEXT_PUBLIC_USE_DUMMY_API === "true";
 
 type GetProductModuleDataInput =
   | ProductModuleKey

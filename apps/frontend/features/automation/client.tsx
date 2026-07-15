@@ -13,9 +13,9 @@ import {
   Sparkles,
   Trash2,
   Workflow,
+  type LucideIcon,
 } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import type { LucideIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { CompanyScopeFilter } from "@/components/modules/company-scope-filter";
@@ -32,6 +32,7 @@ import {
   useCompanyScope,
 } from "@/lib/company-scope";
 import { cn } from "@/lib/utils";
+import { getApiErrorMessage } from "@/lib/api-error";
 
 import {
   confirmSalesOrderPayment,
@@ -42,114 +43,28 @@ import {
   getSalesOrders,
   processSalesOrder,
 } from "./api";
+import {
+  getCompatibleBranchIds,
+  isProductAvailableInBranch,
+} from "@/lib/product-branch";
 import type {
   AutomationContext,
   AutomationMonitoringRow,
   DomainEvent,
   SalesOrder,
-  SalesOrderLineInput,
 } from "./types";
 import { AutomationMonitoringTable } from "./monitoring-table";
-
-type FormLine = SalesOrderLineInput & { localId: string };
-
-function createLocalId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `line-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function makeLine(): FormLine {
-  return {
-    localId: createLocalId(),
-    product_id: "",
-    quantity: "1",
-    unit_price: "",
-    discount_amount: "0",
-    tax_amount: "0",
-  };
-}
-
-function formatMoney(value: number | string | null | undefined) {
-  const parsed = Number(value ?? 0);
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(Number.isFinite(parsed) ? parsed : 0);
-}
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("id-ID", {
-    dateStyle: "medium",
-    timeStyle: value.includes("T") ? "short" : undefined,
-  }).format(date);
-}
-
-function statusClass(status: string) {
-  if (status === "fulfilled" || status === "processed") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/50 dark:text-emerald-300";
-  }
-  if (status === "draft" || status === "pending") {
-    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/50 dark:text-amber-300";
-  }
-  if (status === "failed" || status === "cancelled") {
-    return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/50 dark:text-rose-300";
-  }
-  return "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300";
-}
+import { makeAutomationLine, type AutomationFormLine } from "./form-utils";
+import {
+  AutomationEmptyState,
+  AutomationFlowNode,
+  automationStatusClass,
+  formatAutomationDate,
+  formatAutomationMoney,
+} from "./ui";
 
 function extractError(error: unknown) {
-  if (error && typeof error === "object") {
-    const response = (error as { response?: { data?: { detail?: unknown } } })
-      .response;
-    const detail = response?.data?.detail;
-    if (typeof detail === "string") return detail;
-  }
-  return error instanceof Error ? error.message : "Terjadi kesalahan.";
-}
-
-function FlowNode({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="min-w-0 flex-1 rounded-3xl border border-slate-200/80 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
-      <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
-          <Icon size={18} />
-        </div>
-        <div className="min-w-0">
-          <p className="font-black text-slate-950 dark:text-white">{title}</p>
-          <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
-            {description}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function EmptyState({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50/70 p-8 text-center dark:border-slate-700 dark:bg-slate-900/40">
-      <Workflow className="mx-auto text-slate-400" size={28} />
-      <p className="mt-3 font-black text-slate-900 dark:text-white">{title}</p>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        {description}
-      </p>
-    </div>
-  );
+  return getApiErrorMessage(error);
 }
 
 export function SalesAutomationClient() {
@@ -166,10 +81,11 @@ export function SalesAutomationClient() {
   const [dueDate, setDueDate] = useState("");
   const [notes, setNotes] = useState("");
   const [autoProcess, setAutoProcess] = useState(true);
-  const [lines, setLines] = useState<FormLine[]>([makeLine()]);
+  const [lines, setLines] = useState<AutomationFormLine[]>([makeAutomationLine()]);
   const [formError, setFormError] = useState("");
   const [toast, setToast] = useState<FeedbackToastState>(null);
   const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null);
+  const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -230,7 +146,7 @@ export function SalesAutomationClient() {
       setCustomerName("");
       setDueDate("");
       setNotes("");
-      setLines([makeLine()]);
+      setLines([makeAutomationLine()]);
       setFormError("");
       setToast({
         type: "success",
@@ -260,6 +176,7 @@ export function SalesAutomationClient() {
 
   const processMutation = useMutation({
     mutationFn: processSalesOrder,
+    onMutate: (variables) => setProcessingOrderId(variables.orderId),
     onSuccess: async (order) => {
       setToast({
         type: "success",
@@ -278,6 +195,7 @@ export function SalesAutomationClient() {
         title: "Draft gagal diproses",
         description: extractError(error),
       }),
+    onSettled: () => setProcessingOrderId(null),
   });
 
   const confirmPaymentMutation = useMutation({
@@ -326,6 +244,64 @@ export function SalesAutomationClient() {
     return map;
   }, [context.stocks]);
 
+  const allBranchIds = useMemo(
+    () => context.branches.map((branch) => branch.id),
+    [context.branches],
+  );
+
+  const selectedProductIds = useMemo(
+    () => lines.map((line) => line.product_id).filter(Boolean),
+    [lines],
+  );
+
+  const compatibleBranchIds = useMemo(
+    () => getCompatibleBranchIds(
+      context.products,
+      context.stocks,
+      allBranchIds,
+      selectedProductIds,
+    ),
+    [allBranchIds, context.products, context.stocks, selectedProductIds],
+  );
+
+  const compatibleBranches = useMemo(
+    () => context.branches.filter((branch) => compatibleBranchIds.includes(branch.id)),
+    [compatibleBranchIds, context.branches],
+  );
+
+  const productsForSelectedBranch = useMemo(() => {
+    if (!branchId) {
+      return context.products.filter((product) =>
+        getCompatibleBranchIds(
+          context.products,
+          context.stocks,
+          allBranchIds,
+          [product.id],
+        ).length > 0
+      );
+    }
+
+    return context.products.filter((product) =>
+      isProductAvailableInBranch(
+        product,
+        branchId,
+        context.stocks,
+        allBranchIds,
+      )
+    );
+  }, [allBranchIds, branchId, context.products, context.stocks]);
+
+  useEffect(() => {
+    if (compatibleBranches.length === 1 && !branchId) {
+      setBranchId(compatibleBranches[0].id);
+      return;
+    }
+
+    if (branchId && !compatibleBranchIds.includes(branchId)) {
+      setBranchId("");
+    }
+  }, [branchId, compatibleBranchIds, compatibleBranches]);
+
   const estimatedTotal = useMemo(() => {
     return lines.reduce((sum, line) => {
       const product = context.products.find(
@@ -339,7 +315,7 @@ export function SalesAutomationClient() {
     }, 0);
   }, [context.products, lines]);
 
-  function updateLine(localId: string, patch: Partial<FormLine>) {
+  function updateLine(localId: string, patch: Partial<AutomationFormLine>) {
     setLines((current) =>
       current.map((line) =>
         line.localId === localId ? { ...line, ...patch } : line
@@ -372,22 +348,52 @@ export function SalesAutomationClient() {
       return;
     }
 
-    await createMutation.mutateAsync({
-      company_id: companyId,
-      branch_id: branchId,
-      customer_name: customerName.trim(),
-      due_date: dueDate || undefined,
-      auto_process: autoProcess,
-      notes: notes || undefined,
-      items: lines.map(({ localId: _localId, ...line }) => line),
+    const productIds = lines.map((line) => line.product_id);
+    if (new Set(productIds).size !== productIds.length) {
+      setFormError("Produk yang sama tidak boleh dimasukkan lebih dari satu kali.");
+      return;
+    }
+
+    const insufficientStock = lines.find((line) => {
+      const product = context.products.find((item) => item.id === line.product_id);
+      if (!autoProcess || !product?.track_stock || product.product_type !== "physical") {
+        return false;
+      }
+      const available = stockIndex.get(`${branchId}:${line.product_id}`) ?? 0;
+      return available < Number(line.quantity);
     });
+
+    if (insufficientStock) {
+      const product = context.products.find((item) => item.id === insufficientStock.product_id);
+      setFormError(`Stok ${product?.name ?? "produk"} tidak mencukupi pada branch yang dipilih.`);
+      return;
+    }
+
+    try {
+      await createMutation.mutateAsync({
+        company_id: companyId,
+        branch_id: branchId,
+        customer_name: customerName.trim(),
+        due_date: dueDate || undefined,
+        auto_process: autoProcess,
+        notes: notes.trim() || undefined,
+        items: lines.map(({ localId: _localId, ...line }) => ({
+          ...line,
+          unit_price: line.unit_price?.trim() || undefined,
+          discount_amount: line.discount_amount || "0",
+          tax_amount: line.tax_amount || "0",
+        })),
+      });
+    } catch {
+      // Mutation onError already exposes a user-facing message.
+    }
   }
 
   if (!companyId) {
     return (
       <div className="space-y-5">
         {isSuperAdmin ? <CompanyScopeFilter /> : null}
-        <EmptyState
+        <AutomationEmptyState
           title="Pilih company untuk memulai"
           description="Automation membutuhkan scope company agar produk, stok, transaksi, dan invoice tidak tercampur antar tenant."
         />
@@ -396,10 +402,10 @@ export function SalesAutomationClient() {
   }
 
   return (
-    <div className="space-y-7">
+    <div className="min-w-0 space-y-5 sm:space-y-7">
       <FeedbackToast toast={toast} onClose={() => setToast(null)} />
-      <section className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 text-white shadow-2xl shadow-slate-900/10 dark:border-slate-800">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+      <section className="overflow-hidden rounded-[1.6rem] border border-slate-200/80 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-5 text-white shadow-2xl shadow-slate-900/10 sm:rounded-[2rem] sm:p-7 dark:border-slate-800">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-indigo-100">
               <Sparkles size={14} /> Business Automation
@@ -420,7 +426,7 @@ export function SalesAutomationClient() {
               void contextQuery.refetch();
               void monitoringQuery.refetch();
             }}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-bold transition hover:bg-white/15"
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-bold transition hover:bg-white/15 sm:w-fit"
           >
             <RefreshCw size={16} /> Refresh realtime result
           </button>
@@ -437,7 +443,7 @@ export function SalesAutomationClient() {
             { label: "Waiting", value: metrics.draft, icon: Loader2 },
             {
               label: "Automated Value",
-              value: formatMoney(metrics.totalValue),
+              value: formatAutomationMoney(metrics.totalValue),
               icon: CircleDollarSign,
             },
           ] satisfies Array<{
@@ -463,38 +469,45 @@ export function SalesAutomationClient() {
         ))}
       </section>
 
-      <section className="flex flex-col items-stretch gap-3 xl:flex-row xl:items-center">
-        <FlowNode
+      <section className="grid gap-3 md:grid-cols-2 2xl:flex 2xl:items-center">
+        <AutomationFlowNode
           icon={PackageCheck}
           title="1. Product & Stock"
           description="Harga diambil dari product dan stok divalidasi per branch."
         />
-        <ArrowRight className="mx-auto shrink-0 rotate-90 text-slate-300 xl:rotate-0" />
-        <FlowNode
+        <ArrowRight className="hidden shrink-0 text-slate-300 2xl:block" />
+        <AutomationFlowNode
           icon={Workflow}
           title="2. Sales Order"
           description="Subtotal, discount, tax, dan total dihitung otomatis."
         />
-        <ArrowRight className="mx-auto shrink-0 rotate-90 text-slate-300 xl:rotate-0" />
-        <FlowNode
+        <ArrowRight className="hidden shrink-0 text-slate-300 2xl:block" />
+        <AutomationFlowNode
           icon={ReceiptText}
           title="3. Transaction"
           description="Income transaction berstatus posted dibuat dari source order."
         />
-        <ArrowRight className="mx-auto shrink-0 rotate-90 text-slate-300 xl:rotate-0" />
-        <FlowNode
+        <ArrowRight className="hidden shrink-0 text-slate-300 2xl:block" />
+        <AutomationFlowNode
           icon={FileText}
           title="4. Invoice"
           description="Invoice sent dibuat dengan source link dan audit event."
         />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+
+      {contextQuery.isError ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+          Data produk, stok, atau branch gagal dimuat: {extractError(contextQuery.error)}
+        </div>
+      ) : null}
+
+      <section className="grid min-w-0 gap-6 2xl:grid-cols-[1.08fr_0.92fr]">
         <form
           onSubmit={submitOrder}
-          className="rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/70"
+          className="min-w-0 rounded-[1.6rem] border border-slate-200/80 bg-white p-4 shadow-sm sm:rounded-[2rem] sm:p-6 dark:border-slate-800 dark:bg-slate-900/70"
         >
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-300">
                 New Sales Order
@@ -503,12 +516,12 @@ export function SalesAutomationClient() {
                 Create once, flow automatically
               </h2>
             </div>
-            <div className="rounded-2xl bg-slate-100 px-3 py-2 text-right dark:bg-slate-800">
+            <div className="w-fit rounded-2xl bg-slate-100 px-3 py-2 text-left sm:text-right dark:bg-slate-800">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Estimated total
               </p>
               <p className="font-black text-slate-950 dark:text-white">
-                {formatMoney(estimatedTotal)}
+                {formatAutomationMoney(estimatedTotal)}
               </p>
             </div>
           </div>
@@ -519,6 +532,7 @@ export function SalesAutomationClient() {
                 Customer name
               </span>
               <input
+                aria-label="Customer name"
                 value={customerName}
                 onChange={(event) => setCustomerName(event.target.value)}
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-950"
@@ -531,17 +545,49 @@ export function SalesAutomationClient() {
                 Branch / warehouse
               </span>
               <select
+                aria-label="Branch / warehouse"
                 value={branchId}
-                onChange={(event) => setBranchId(event.target.value)}
+                onChange={(event) => {
+                  const nextBranchId = event.target.value;
+                  let removedProduct = false;
+
+                  setBranchId(nextBranchId);
+                  setLines((current) => current.map((line) => {
+                    if (!line.product_id || !nextBranchId) return line;
+                    const product = context.products.find(
+                      (candidate) => candidate.id === line.product_id,
+                    );
+                    if (!product || isProductAvailableInBranch(
+                      product,
+                      nextBranchId,
+                      context.stocks,
+                      allBranchIds,
+                    )) return line;
+
+                    removedProduct = true;
+                    return { ...line, product_id: "", unit_price: "" };
+                  }));
+
+                  if (removedProduct) {
+                    setFormError(
+                      "Produk yang tidak tersedia di branch baru telah dikosongkan. Pilih produk yang sesuai.",
+                    );
+                  } else {
+                    setFormError("");
+                  }
+                }}
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-950"
               >
-                <option value="">Select branch</option>
-                {context.branches.map((branch) => (
+                <option value="">Select compatible branch</option>
+                {compatibleBranches.map((branch) => (
                   <option key={branch.id} value={branch.id}>
                     {branch.name}{branch.code ? ` (${branch.code})` : ""}
                   </option>
                 ))}
               </select>
+              <p className="text-xs font-semibold text-slate-400">
+                {compatibleBranches.length} branch mendukung produk yang dipilih.
+              </p>
             </label>
 
             <label className="space-y-2">
@@ -549,6 +595,7 @@ export function SalesAutomationClient() {
                 Due date
               </span>
               <input
+                aria-label="Due date"
                 type="date"
                 value={dueDate}
                 onChange={(event) => setDueDate(event.target.value)}
@@ -579,7 +626,7 @@ export function SalesAutomationClient() {
               <h3 className="font-black text-slate-950 dark:text-white">Order items</h3>
               <button
                 type="button"
-                onClick={() => setLines((current) => [...current, makeLine()])}
+                onClick={() => setLines((current) => [...current, makeAutomationLine()])}
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black transition hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
               >
                 <Plus size={14} /> Add item
@@ -613,28 +660,69 @@ export function SalesAutomationClient() {
                     </button>
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-[1.5fr_0.55fr_0.8fr_0.7fr_0.7fr]">
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
                     <select
+                      aria-label={`Product item ${index + 1}`}
                       value={line.product_id}
                       onChange={(event) => {
+                        const nextProductId = event.target.value;
                         const product = context.products.find(
-                          (candidate) => candidate.id === event.target.value
+                          (candidate) => candidate.id === nextProductId
                         );
+                        const nextProductIds = lines
+                          .map((candidate) => (
+                            candidate.localId === line.localId
+                              ? nextProductId
+                              : candidate.product_id
+                          ))
+                          .filter(Boolean);
+                        const nextCompatibleBranchIds = getCompatibleBranchIds(
+                          context.products,
+                          context.stocks,
+                          allBranchIds,
+                          nextProductIds,
+                        );
+
+                        if (nextProductId && nextCompatibleBranchIds.length === 0) {
+                          setFormError(
+                            "Produk ini tidak memiliki branch yang sama dengan item lain pada Sales Order.",
+                          );
+                          return;
+                        }
+
                         updateLine(line.localId, {
-                          product_id: event.target.value,
+                          product_id: nextProductId,
                           unit_price: String(product?.selling_price ?? ""),
                         });
+
+                        if (
+                          nextProductId
+                          && (!branchId || !nextCompatibleBranchIds.includes(branchId))
+                        ) {
+                          setBranchId(
+                            nextCompatibleBranchIds.length === 1
+                              ? nextCompatibleBranchIds[0]
+                              : "",
+                          );
+                        }
+                        setFormError("");
                       }}
-                      className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm sm:col-span-2 xl:col-span-2 dark:border-slate-700 dark:bg-slate-900"
                     >
                       <option value="">Select product</option>
-                      {context.products.map((product) => (
-                        <option key={product.id} value={product.id}>
+                      {productsForSelectedBranch.map((product) => {
+                        const selectedElsewhere = lines.some(
+                          (candidate) => candidate.localId !== line.localId && candidate.product_id === product.id,
+                        );
+                        return (
+                        <option key={product.id} value={product.id} disabled={selectedElsewhere}>
                           {product.sku} — {product.name}
                         </option>
-                      ))}
+                        );
+                      })}
                     </select>
                     <input
+                      aria-label={`Quantity item ${index + 1}`}
                       type="number"
                       min="0.0001"
                       step="0.0001"
@@ -642,20 +730,22 @@ export function SalesAutomationClient() {
                       onChange={(event) =>
                         updateLine(line.localId, { quantity: event.target.value })
                       }
-                      className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm sm:col-span-2 xl:col-span-2 dark:border-slate-700 dark:bg-slate-900"
                       placeholder="Qty"
                     />
                     <input
+                      aria-label={`Unit price item ${index + 1}`}
                       type="number"
                       min="0"
                       value={line.unit_price}
                       onChange={(event) =>
                         updateLine(line.localId, { unit_price: event.target.value })
                       }
-                      className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm sm:col-span-2 xl:col-span-2 dark:border-slate-700 dark:bg-slate-900"
                       placeholder="Price"
                     />
                     <input
+                      aria-label={`Discount item ${index + 1}`}
                       type="number"
                       min="0"
                       value={line.discount_amount}
@@ -664,17 +754,18 @@ export function SalesAutomationClient() {
                           discount_amount: event.target.value,
                         })
                       }
-                      className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm sm:col-span-2 xl:col-span-2 dark:border-slate-700 dark:bg-slate-900"
                       placeholder="Discount"
                     />
                     <input
+                      aria-label={`Tax item ${index + 1}`}
                       type="number"
                       min="0"
                       value={line.tax_amount}
                       onChange={(event) =>
                         updateLine(line.localId, { tax_amount: event.target.value })
                       }
-                      className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm sm:col-span-2 xl:col-span-2 dark:border-slate-700 dark:bg-slate-900"
                       placeholder="Tax"
                     />
                   </div>
@@ -682,7 +773,7 @@ export function SalesAutomationClient() {
                   {selectedProduct ? (
                     <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
                       <span className="rounded-full bg-white px-3 py-1 dark:bg-slate-900">
-                        Default price: {formatMoney(selectedProduct.selling_price)}
+                        Default price: {formatAutomationMoney(selectedProduct.selling_price)}
                       </span>
                       <span
                         className={cn(
@@ -734,7 +825,7 @@ export function SalesAutomationClient() {
         </form>
 
         <div className="space-y-6">
-          <section className="rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+          <section className="rounded-[1.5rem] sm:rounded-[2rem] border border-slate-200/80 bg-white p-4 sm:p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
@@ -749,9 +840,9 @@ export function SalesAutomationClient() {
               ) : null}
             </div>
 
-            <div className="mt-5 max-h-[42rem] space-y-3 overflow-y-auto pr-1">
+            <div className="mt-5 max-h-[34rem] space-y-3 overflow-y-auto pr-1 sm:max-h-[42rem]">
               {orders.length === 0 ? (
-                <EmptyState
+                <AutomationEmptyState
                   title="No sales orders yet"
                   description="Create the first order to see the automated result."
                 />
@@ -767,13 +858,13 @@ export function SalesAutomationClient() {
                           {order.order_no}
                         </p>
                         <p className="mt-1 text-sm text-slate-500">
-                          {order.customer_name} · {formatDate(order.created_at)}
+                          {order.customer_name} · {formatAutomationDate(order.created_at)}
                         </p>
                       </div>
                       <span
                         className={cn(
                           "rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-wider",
-                          statusClass(order.status)
+                          automationStatusClass(order.status)
                         )}
                       >
                         {order.status}
@@ -784,7 +875,7 @@ export function SalesAutomationClient() {
                       <div className="rounded-2xl bg-white p-3 dark:bg-slate-900">
                         <p className="text-xs text-slate-500">Order total</p>
                         <p className="mt-1 font-black text-slate-950 dark:text-white">
-                          {formatMoney(order.total_amount)}
+                          {formatAutomationMoney(order.total_amount)}
                         </p>
                       </div>
                       <div className="rounded-2xl bg-white p-3 dark:bg-slate-900">
@@ -796,10 +887,10 @@ export function SalesAutomationClient() {
                     </div>
 
                     <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                      <span className={cn("rounded-full border px-3 py-1 font-bold", order.transaction_id ? statusClass("processed") : statusClass("pending"))}>
+                      <span className={cn("rounded-full border px-3 py-1 font-bold", order.transaction_id ? automationStatusClass("processed") : automationStatusClass("pending"))}>
                         Transaction {order.transaction_id ? "created" : "waiting"}
                       </span>
-                      <span className={cn("rounded-full border px-3 py-1 font-bold", order.invoice_id ? statusClass("processed") : statusClass("pending"))}>
+                      <span className={cn("rounded-full border px-3 py-1 font-bold", order.invoice_id ? automationStatusClass("processed") : automationStatusClass("pending"))}>
                         Invoice {order.invoice_id ? "created" : "waiting"}
                       </span>
                       <span className="rounded-full border border-slate-200 bg-white px-3 py-1 font-bold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
@@ -810,13 +901,13 @@ export function SalesAutomationClient() {
                     {order.status === "draft" ? (
                       <button
                         type="button"
-                        disabled={processMutation.isPending}
+                        disabled={processingOrderId === order.id}
                         onClick={() =>
                           processMutation.mutate({ companyId, orderId: order.id })
                         }
                         className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white transition hover:bg-indigo-500 disabled:opacity-60"
                       >
-                        {processMutation.isPending ? (
+                        {processingOrderId === order.id ? (
                           <Loader2 className="animate-spin" size={16} />
                         ) : (
                           <Workflow size={16} />
@@ -830,7 +921,7 @@ export function SalesAutomationClient() {
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+          <section className="rounded-[1.5rem] sm:rounded-[2rem] border border-slate-200/80 bg-white p-4 sm:p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
@@ -859,12 +950,12 @@ export function SalesAutomationClient() {
                         <p className="truncate text-sm font-black text-slate-950 dark:text-white">
                           {event.event_type}
                         </p>
-                        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-black uppercase", statusClass(event.status))}>
+                        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-black uppercase", automationStatusClass(event.status))}>
                           {event.status}
                         </span>
                       </div>
                       <p className="mt-1 text-xs text-slate-500">
-                        {formatDate(event.occurred_at)} · attempts {event.attempts}
+                        {formatAutomationDate(event.occurred_at)} · attempts {event.attempts}
                       </p>
                     </div>
                   </div>

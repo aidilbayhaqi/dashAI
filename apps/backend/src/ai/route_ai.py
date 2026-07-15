@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.ai.rate_limit import enforce_ai_rate_limit
 from src.ai.schema_ai import (
     AIAnalyticsAnswerResponse,
     AIAnalyticsQuestionRequest,
@@ -16,11 +17,18 @@ from src.ai.service_ai import (
 )
 from src.core.config import settings
 from src.db.database import get_db
+from src.modules.dashboard.cache_dashboard import (
+    build_dashboard_cache_key,
+    get_cached_dashboard,
+    set_cached_dashboard,
+)
 from src.modules.dashboard.service_dashboard import (
     build_dashboard_summary,
+    filter_dashboard_summary_for_permissions,
     resolve_dashboard_period,
 )
-from src.security.dependencies import CurrentUser, get_current_user
+from src.security.dependencies import CurrentUser, require_permission
+from src.security.permissions import AI_ANALYTICS_VIEW
 from src.security.tenant import (
     ensure_branch_belongs_to_company,
     resolve_branch_query_scope,
@@ -61,12 +69,27 @@ async def _resolve_dashboard(
         period_start=period_start,
         period_end=period_end,
     )
-    return await build_dashboard_summary(
-        db=db,
+    cache_key = build_dashboard_cache_key(
         company_id=effective_company_id,
         exact_branch_id=effective_branch_id,
         allowed_branch_ids=allowed_branch_ids,
         period=period,
+    )
+    summary = await get_cached_dashboard(cache_key)
+    if summary is None:
+        summary = await build_dashboard_summary(
+            db=db,
+            company_id=effective_company_id,
+            exact_branch_id=effective_branch_id,
+            allowed_branch_ids=allowed_branch_ids,
+            period=period,
+        )
+        await set_cached_dashboard(cache_key, summary)
+
+    return filter_dashboard_summary_for_permissions(
+        summary,
+        permissions=current_user.permissions,
+        is_superuser=current_user.is_superuser,
     )
 
 
@@ -77,7 +100,9 @@ async def ai_analytics_summary(
     period_start: date | None = Query(default=None),
     period_end: date | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(
+        require_permission(AI_ANALYTICS_VIEW)
+    ),
 ):
     dashboard = await _resolve_dashboard(
         db=db,
@@ -94,8 +119,11 @@ async def ai_analytics_summary(
 async def ask_ai_analytics(
     payload: AIAnalyticsQuestionRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(
+        require_permission(AI_ANALYTICS_VIEW)
+    ),
 ):
+    await enforce_ai_rate_limit(current_user.user_id)
     question = payload.question.strip()
     if len(question) > settings.AI_MAX_QUESTION_LENGTH:
         raise HTTPException(

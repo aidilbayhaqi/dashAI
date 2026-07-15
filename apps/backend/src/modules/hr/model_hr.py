@@ -7,6 +7,7 @@ from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Index, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.core.time import utc_now_naive
 from src.db.base import Base
 
 
@@ -82,8 +83,8 @@ class Employee(Base):
 
     base_salary: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=Decimal("0.00"))
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
 
     company = relationship("Company")
     branch = relationship("CompanyBranch")
@@ -181,7 +182,7 @@ class LeaveRequest(Base):
 
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
     approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     employee = relationship("Employee")
@@ -215,8 +216,8 @@ class HRTask(Base):
     weight_score: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False, default=Decimal("0.00"))
     completion_score: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False, default=Decimal("0.00"))
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
 
     employee = relationship("Employee")
     assigned_by = relationship("User")
@@ -267,7 +268,7 @@ class KPIReview(Base):
     rating: Mapped[str | None] = mapped_column(String(50), nullable=True)
     status: Mapped[ApprovalStatus] = mapped_column(Enum(ApprovalStatus, name="kpi_review_status_enum"), nullable=False, default=ApprovalStatus.DRAFT)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
 
     employee = relationship("Employee")
     reviewer = relationship("User")
@@ -325,7 +326,7 @@ class PayrollRun(Base):
 
     finance_transaction_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("finance_transactions.id", ondelete="SET NULL"), nullable=True, index=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     slips = relationship("PayrollSlip", back_populates="payroll_run", cascade="all, delete-orphan")

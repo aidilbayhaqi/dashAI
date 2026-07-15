@@ -17,6 +17,8 @@ import {
   UserRound,
 } from "lucide-react";
 
+import { getApiErrorMessage } from "@/lib/api-error";
+
 import {
   createCompanyBranch,
   createCompanyProfile,
@@ -27,27 +29,6 @@ import {
   type CompanyProfilePayload,
   type CompanyProfileRow,
 } from "./api";
-
-function getErrorMessage(error: unknown) {
-  if (!error || typeof error !== "object") return "Terjadi kesalahan.";
-
-  const record = error as {
-    response?: {
-      data?: {
-        detail?: string;
-        message?: string;
-      };
-    };
-    message?: string;
-  };
-
-  return (
-    record.response?.data?.detail ||
-    record.response?.data?.message ||
-    record.message ||
-    "Terjadi kesalahan."
-  );
-}
 
 function getString(row: CompanyProfileRow | null | undefined, keys: string[]) {
   return getProfileDisplayValue(row, keys, "") || "";
@@ -323,8 +304,8 @@ export function CompanyProfileClient() {
 
   if (isError) {
     return (
-      <div className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-sm font-bold text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
-        {getErrorMessage(error)}
+      <div className="rounded-3xl border border-rose-200 bg-rose-50 p-4 sm:p-6 text-sm font-bold text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+        {getApiErrorMessage(error)}
       </div>
     );
   }
@@ -345,7 +326,7 @@ export function CompanyProfileClient() {
   return (
     <div className="space-y-6">
       <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm dark:border-slate-900 dark:bg-[#050816]">
-        <div className="border-b border-slate-100 bg-slate-50/80 p-6 dark:border-slate-900 dark:bg-[#02040a]">
+        <div className="border-b border-slate-100 bg-slate-50/80 p-4 sm:p-6 dark:border-slate-900 dark:bg-[#02040a]">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-[#0f2a5f] text-white shadow-lg shadow-blue-950/20">
@@ -374,7 +355,7 @@ export function CompanyProfileClient() {
           </div>
         </div>
 
-        <div className="grid gap-4 p-6 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 p-4 sm:p-6 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard
             icon={UserRound}
             label="Current User"
@@ -399,7 +380,7 @@ export function CompanyProfileClient() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1fr_390px]">
-        <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-900 dark:bg-[#050816]">
+        <div className="rounded-[1.5rem] border sm:rounded-[2rem] border-slate-200 bg-white p-4 sm:p-6 shadow-sm dark:border-slate-900 dark:bg-[#050816]">
           <SectionHeader
             icon={Building2}
             title="Informasi Perusahaan"
@@ -522,7 +503,7 @@ export function CompanyProfileClient() {
 
               {saveCompanyMutation.isError ? (
                 <p className="mt-3 text-sm font-bold text-rose-600">
-                  {getErrorMessage(saveCompanyMutation.error)}
+                  {getApiErrorMessage(saveCompanyMutation.error)}
                 </p>
               ) : null}
             </div>
@@ -530,7 +511,7 @@ export function CompanyProfileClient() {
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-900 dark:bg-[#050816]">
+          <div className="rounded-[1.5rem] border sm:rounded-[2rem] border-slate-200 bg-white p-4 sm:p-6 shadow-sm dark:border-slate-900 dark:bg-[#050816]">
             <SectionHeader
               icon={Globe2}
               title="Company Snapshot"
@@ -557,7 +538,7 @@ export function CompanyProfileClient() {
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-900 dark:bg-[#050816]">
+          <div className="rounded-[1.5rem] border sm:rounded-[2rem] border-slate-200 bg-white p-4 sm:p-6 shadow-sm dark:border-slate-900 dark:bg-[#050816]">
             <SectionHeader
               icon={Plus}
               title="Tambah Cabang"
@@ -649,7 +630,7 @@ export function CompanyProfileClient() {
 
               {createBranchMutation.isError ? (
                 <p className="text-sm font-bold text-rose-600">
-                  {getErrorMessage(createBranchMutation.error)}
+                  {getApiErrorMessage(createBranchMutation.error)}
                 </p>
               ) : null}
             </form>
@@ -657,7 +638,7 @@ export function CompanyProfileClient() {
         </div>
       </section>
 
-      <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-900 dark:bg-[#050816]">
+      <section className="rounded-[1.5rem] border sm:rounded-[2rem] border-slate-200 bg-white p-4 sm:p-6 shadow-sm dark:border-slate-900 dark:bg-[#050816]">
         <SectionHeader
           icon={MapPin}
           title="Daftar Cabang"
@@ -670,7 +651,55 @@ export function CompanyProfileClient() {
           </div>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-900">
-            <div className="overflow-x-auto">
+            <div className="space-y-3 p-3 md:hidden">
+              {branches.map((branch, index) => {
+                const activeValue = branch.is_active ?? branch.status ?? true;
+                const isActive =
+                  activeValue === true ||
+                  String(activeValue).toLowerCase() === "active" ||
+                  String(activeValue).toLowerCase() === "true";
+
+                return (
+                  <article
+                    key={`mobile-${String(branch.id ?? branch.uuid ?? index)}`}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-base font-black text-slate-950 dark:text-white">
+                          {getProfileDisplayValue(branch, ["name", "branch_name"])}
+                        </p>
+                        <p className="mt-1 text-xs font-bold uppercase tracking-wider text-slate-400">
+                          {getProfileDisplayValue(branch, ["code", "branch_code"])}
+                        </p>
+                      </div>
+                      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                        <CheckCircle2 size={13} />
+                        {isActive ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                    <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <dt className="text-xs font-black uppercase tracking-wider text-slate-400">Phone</dt>
+                        <dd className="mt-1 break-words font-bold text-slate-700 dark:text-slate-300">
+                          {getProfileDisplayValue(branch, ["phone"])}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs font-black uppercase tracking-wider text-slate-400">Location</dt>
+                        <dd className="mt-1 break-words font-bold text-slate-700 dark:text-slate-300">
+                          {[
+                            getProfileDisplayValue(branch, ["city"], ""),
+                            getProfileDisplayValue(branch, ["province"], ""),
+                          ].filter(Boolean).join(", ") || "-"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </article>
+                );
+              })}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[760px] border-collapse text-left">
                 <thead className="bg-slate-50 dark:bg-[#02040a]">
                   <tr>

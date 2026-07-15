@@ -453,7 +453,7 @@ export default function RegisterPage() {
 
 
   return (
-    <main className="min-h-screen bg-[#02040a] text-white">
+    <main className="safe-area-top safe-area-bottom min-h-screen overflow-x-hidden bg-[#02040a] text-white">
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute left-[-160px] top-[-160px] h-[440px] w-[440px] rounded-full bg-blue-700/20 blur-3xl" />
 
@@ -550,7 +550,7 @@ export default function RegisterPage() {
           </div>
         </aside>
 
-        <div className="flex items-start justify-center px-5 py-10 lg:items-center">
+        <div className="flex items-start justify-center px-4 py-6 sm:px-5 sm:py-10 lg:items-center">
           <div className="w-full max-w-2xl">
             <div className="mb-8 text-center lg:hidden">
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-slate-950">

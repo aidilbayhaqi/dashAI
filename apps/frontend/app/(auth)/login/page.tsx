@@ -59,7 +59,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#02040a] text-white">
+    <main className="safe-area-top safe-area-bottom min-h-screen overflow-x-hidden bg-[#02040a] text-white">
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute left-[-140px] top-[-140px] h-[420px] w-[420px] rounded-full bg-blue-700/20 blur-3xl" />
         <div className="absolute bottom-[-180px] right-[-120px] h-[420px] w-[420px] rounded-full bg-blue-950/30 blur-3xl" />
@@ -123,7 +123,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-center px-5 py-10">
+        <div className="flex items-center justify-center px-4 py-6 sm:px-5 sm:py-10">
           <div className="w-full max-w-md">
             <div className="mb-8 text-center lg:hidden">
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-slate-950">
@@ -137,7 +137,7 @@ export default function LoginPage() {
 
             <form
               onSubmit={handleSubmit}
-              className="rounded-[2rem] border border-white/10 bg-white/[0.07] p-6 shadow-2xl shadow-black/40 backdrop-blur-2xl"
+              className="rounded-[1.5rem] border border-white/10 bg-white/[0.07] p-4 sm:rounded-[2rem] sm:p-6 shadow-2xl shadow-black/40 backdrop-blur-2xl"
             >
               <div className="mb-7">
                 <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white">

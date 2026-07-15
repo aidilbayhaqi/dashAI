@@ -7,6 +7,7 @@ from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Numeric, Stri
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.core.time import utc_now_naive
 from src.db.base import Base
 
 
@@ -61,8 +62,8 @@ class ProductCategory(Base):
 
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
 
     company = relationship("Company")
     parent_category = relationship("ProductCategory", remote_side=[id])
@@ -132,8 +133,8 @@ class Product(Base):
         default=ProductStatus.ACTIVE,
     )
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
 
     company = relationship("Company")
     branch = relationship("CompanyBranch")
@@ -175,8 +176,8 @@ class ProductSupplier(Base):
         default=ProductSupplierStatus.ACTIVE,
     )
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
 
     company = relationship("Company")
 
@@ -213,7 +214,7 @@ class ProductStock(Base):
     reserved_quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0.0000"))
     reorder_point: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0.0000"))
 
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
 
     company = relationship("Company")
     product = relationship("Product", back_populates="stocks")
@@ -263,7 +264,7 @@ class ProductStockMovement(Base):
         nullable=False,
     )
 
-    movement_date: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    movement_date: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
 
     quantity: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
     unit_cost: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, default=Decimal("0.00"))

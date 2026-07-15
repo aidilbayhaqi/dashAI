@@ -273,19 +273,26 @@ PERMISSION_MATRIX = {
     "admin": [
         "settings",
     ],
+    "dashboard": [
+        "summary",
+    ],
+    "realtime": [
+        "events",
+    ],
     "ai": [
         "reports",
+        "analytics",
     ],
 }
 
 
 ROLE_ALLOWED_MODULES = {
-    "owner": {"company", "users", "finance", "products", "hr", "crm", "admin", "ai"},
-    "admin": {"company", "users", "finance", "products", "hr", "crm", "admin", "ai"},
-    "finance_manager": {"company", "finance", "ai"},
-    "hr_manager": {"company", "users", "hr", "ai"},
-    "sales_manager": {"company", "products", "crm", "ai"},
-    "warehouse_staff": {"company", "products"},
+    "owner": {"company", "users", "finance", "products", "hr", "crm", "admin", "dashboard", "realtime", "ai"},
+    "admin": {"company", "users", "finance", "products", "hr", "crm", "admin", "dashboard", "realtime", "ai"},
+    "finance_manager": {"company", "finance", "dashboard", "realtime", "ai"},
+    "hr_manager": {"company", "users", "hr", "dashboard", "realtime", "ai"},
+    "sales_manager": {"company", "products", "crm", "dashboard", "realtime", "ai"},
+    "warehouse_staff": {"company", "products", "dashboard", "realtime"},
 }
 
 

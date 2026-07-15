@@ -148,3 +148,15 @@ export function getCurrentCompanyId(): string | null {
 
   return null;
 }
+
+export function hasCurrentUserPermission(permission: string): boolean {
+  const user = getCurrentUserScope();
+  if (!user) return false;
+  if (isCurrentUserSuperAdmin()) return true;
+  const values = Array.isArray(user.permissions) ? user.permissions : [];
+  return values.some((value) => String(value) === permission);
+}
+
+export function hasAnyCurrentUserPermission(permissions: string[]): boolean {
+  return permissions.some(hasCurrentUserPermission);
+}

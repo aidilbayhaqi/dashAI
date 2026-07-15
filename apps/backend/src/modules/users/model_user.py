@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, String, Text,
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.core.time import utc_now_naive
 from src.db.base import Base
 
 
@@ -66,14 +67,14 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
     )
 
     company_accesses = relationship(
@@ -110,14 +111,14 @@ class UserRole(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
     )
 
     company = relationship("Company")
@@ -167,7 +168,7 @@ class UserPermission(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     role_permissions = relationship(
@@ -213,7 +214,7 @@ class UserRolePermission(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     role = relationship("UserRole", back_populates="permissions")
@@ -283,14 +284,14 @@ class UserCompanyAccess(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
     )
 
     user = relationship("User", back_populates="company_accesses")
@@ -344,7 +345,7 @@ class UserBranchAccess(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     company_access = relationship("UserCompanyAccess", back_populates="branch_accesses")

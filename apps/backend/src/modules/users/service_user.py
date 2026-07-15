@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.core.time import utc_now_naive
 from src.modules.users.model_user import (
     AccessScope,
     User,
@@ -187,8 +188,8 @@ class UserService:
 
     async def create_company_access(self, payload: UserCompanyAccessCreate):
         access = UserCompanyAccess(
-            invited_at=datetime.utcnow(),
-            joined_at=datetime.utcnow(),
+            invited_at=utc_now_naive(),
+            joined_at=utc_now_naive(),
             **payload.model_dump(),
         )
 

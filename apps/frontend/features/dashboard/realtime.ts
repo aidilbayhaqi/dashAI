@@ -3,17 +3,21 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { bootstrapAccessToken } from "@/lib/api";
+import { api, bootstrapAccessToken } from "@/lib/api";
 
 import type {
   DashboardRealtimeEvent,
   DashboardRealtimeState,
 } from "./types";
 
-
 const INITIAL_RECONNECT_DELAY = 1_000;
 const MAX_RECONNECT_DELAY = 30_000;
 const HEARTBEAT_INTERVAL = 25_000;
+
+type RealtimeTicketResponse = {
+  ticket: string;
+  expires_in: number;
+};
 
 const moduleQueryKeys: Record<string, string[]> = {
   products: ["product"],
@@ -26,8 +30,7 @@ const moduleQueryKeys: Record<string, string[]> = {
   users: ["admin"],
 };
 
-
-function buildRealtimeUrl(accessToken: string, companyId: string): string {
+function buildRealtimeUrl(ticket: string, companyId: string): string {
   const configuredWebSocketUrl = process.env.NEXT_PUBLIC_WS_URL;
   const configuredApiUrl =
     process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -40,7 +43,7 @@ function buildRealtimeUrl(accessToken: string, companyId: string): string {
 
   url.protocol = ["https:", "wss:"].includes(url.protocol) ? "wss:" : "ws:";
   url.search = "";
-  url.searchParams.set("token", accessToken);
+  url.searchParams.set("ticket", ticket);
 
   if (companyId !== "all") {
     url.searchParams.set("company_id", companyId);
@@ -49,22 +52,34 @@ function buildRealtimeUrl(accessToken: string, companyId: string): string {
   return url.toString();
 }
 
+async function createRealtimeTicket(companyId: string): Promise<string> {
+  await bootstrapAccessToken();
+  const response = await api.post<RealtimeTicketResponse>(
+    "/realtime/ticket",
+    {},
+    {
+      params: companyId === "all" ? undefined : { company_id: companyId },
+    },
+  );
 
-function isBusinessEvent(event: DashboardRealtimeEvent): boolean {
-  return ![
-    "connection.success",
-    "pong",
-    "error",
-  ].includes(event.type);
+  if (!response.data.ticket) {
+    throw new Error("Realtime ticket tidak tersedia.");
+  }
+
+  return response.data.ticket;
 }
 
+function isBusinessEvent(event: DashboardRealtimeEvent): boolean {
+  return !["connection.success", "pong", "error"].includes(event.type);
+}
 
 export function useDashboardRealtime(companyId: string): DashboardRealtimeState {
   const queryClient = useQueryClient();
   const [state, setState] = useState<DashboardRealtimeState>({
-    status: typeof navigator !== "undefined" && !navigator.onLine
-      ? "offline"
-      : "connecting",
+    status:
+      typeof navigator !== "undefined" && !navigator.onLine
+        ? "offline"
+        : "connecting",
     lastEventAt: null,
   });
 
@@ -93,10 +108,11 @@ export function useDashboardRealtime(companyId: string): DashboardRealtimeState 
       if (disposed || reconnectTimer || !navigator.onLine) return;
       setState((current) => ({ ...current, status: "reconnecting" }));
       const jitter = Math.floor(Math.random() * 350);
-      const delay = Math.min(
-        INITIAL_RECONNECT_DELAY * (2 ** reconnectAttempt),
-        MAX_RECONNECT_DELAY,
-      ) + jitter;
+      const delay =
+        Math.min(
+          INITIAL_RECONNECT_DELAY * 2 ** reconnectAttempt,
+          MAX_RECONNECT_DELAY,
+        ) + jitter;
       reconnectAttempt += 1;
       reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
@@ -105,21 +121,22 @@ export function useDashboardRealtime(companyId: string): DashboardRealtimeState 
     }
 
     async function invalidateForEvent(event: DashboardRealtimeEvent) {
-      await queryClient.invalidateQueries({
-        queryKey: ["dashboard"],
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["ai-report"],
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+        queryClient.invalidateQueries({ queryKey: ["ai-report"] }),
+      ]);
 
       const moduleName = String(event.module ?? "").toLowerCase();
-      for (const key of moduleQueryKeys[moduleName] ?? []) {
-        await queryClient.invalidateQueries({ queryKey: [key] });
-      }
+      await Promise.all(
+        (moduleQueryKeys[moduleName] ?? []).map((key) =>
+          queryClient.invalidateQueries({ queryKey: [key] }),
+        ),
+      );
     }
 
     async function connect() {
       if (disposed || !navigator.onLine || document.hidden) return;
+      clearTimers();
       closeSocket();
       setState((current) => ({
         ...current,
@@ -127,10 +144,10 @@ export function useDashboardRealtime(companyId: string): DashboardRealtimeState 
       }));
 
       try {
-        const accessToken = await bootstrapAccessToken();
+        const ticket = await createRealtimeTicket(companyId);
         if (disposed) return;
 
-        socket = new WebSocket(buildRealtimeUrl(accessToken, companyId));
+        socket = new WebSocket(buildRealtimeUrl(ticket, companyId));
         socket.onopen = () => {
           reconnectAttempt = 0;
           setState((current) => ({ ...current, status: "connected" }));
@@ -148,7 +165,7 @@ export function useDashboardRealtime(companyId: string): DashboardRealtimeState 
             setState({ status: "connected", lastEventAt: Date.now() });
             void invalidateForEvent(event);
           } catch {
-            // Ignore malformed server frames without dropping the socket.
+            // Frame invalid diabaikan tanpa menjatuhkan koneksi.
           }
         };
 

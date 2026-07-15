@@ -38,6 +38,7 @@ import { ModuleEmpty } from "./module-empty";
 import { ModuleError } from "./module-error";
 import { ModuleLoading } from "./module-loading";
 import { ModuleMetricCard } from "./module-metric-card";
+import { ModuleFilterSelect } from "./module-filter-select";
 import { RecordModal } from "./record-modal";
 import { ModuleTable, makeModuleRowKey } from "./module-table";
 
@@ -616,7 +617,7 @@ export function ModulePage({
 
           <div className="rounded-3xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-900 dark:bg-[#02040a]/70">
             <div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_220px_220px_auto]">
-              <div className="flex h-11 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 dark:border-slate-900 dark:bg-[#050816]">
+              <div className="flex h-11 items-center gap-3 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-blue-50 to-slate-50 px-4 shadow-sm transition focus-within:border-indigo-300 focus-within:ring-4 focus-within:ring-indigo-100/60 dark:border-slate-800 dark:from-slate-900 dark:via-indigo-950/40 dark:to-slate-950 dark:focus-within:border-indigo-800 dark:focus-within:ring-indigo-950/60">
                 <Search size={17} className="text-slate-400" />
                 <input
                   value={search}
@@ -626,41 +627,39 @@ export function ModulePage({
                 />
               </div>
 
-              <label className="relative flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 dark:border-slate-900 dark:bg-[#050816]">
-                <ListFilter size={16} className="shrink-0 text-slate-400" />
-                <select
-                  aria-label="Filter status"
-                  value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
-                  className="w-full appearance-none bg-transparent pr-5 text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
-                >
-                  <option value="all">Semua status ({tableRows.length})</option>
-                  {statusOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label} ({option.count})
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <ModuleFilterSelect
+                ariaLabel="Filter status"
+                icon={<ListFilter size={16} />}
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[
+                  {
+                    value: "all",
+                    label: `Semua status (${tableRows.length})`,
+                  },
+                  ...statusOptions.map((option) => ({
+                    value: option.value,
+                    label: `${option.label} (${option.count})`,
+                  })),
+                ]}
+              />
 
-              <label className="relative flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 dark:border-slate-900 dark:bg-[#050816]">
-                <ArrowUpDown size={16} className="shrink-0 text-slate-400" />
-                <select
-                  aria-label="Urutkan data"
-                  value={sortMode}
-                  onChange={(event) => setSortMode(event.target.value)}
-                  className="w-full appearance-none bg-transparent pr-5 text-sm font-bold text-slate-700 outline-none dark:text-slate-200"
-                >
-                  <option value="updated_desc">Terbaru diperbarui</option>
-                  <option value="updated_asc">Terlama diperbarui</option>
-                  <option value="created_desc">Terbaru dibuat</option>
-                  <option value="created_asc">Terlama dibuat</option>
-                  <option value="name_asc">Nama A–Z</option>
-                  <option value="name_desc">Nama Z–A</option>
-                  <option value="amount_desc">Nominal terbesar</option>
-                  <option value="amount_asc">Nominal terkecil</option>
-                </select>
-              </label>
+              <ModuleFilterSelect
+                ariaLabel="Urutkan data"
+                icon={<ArrowUpDown size={16} />}
+                value={sortMode}
+                onChange={setSortMode}
+                options={[
+                  { value: "updated_desc", label: "Terbaru diperbarui" },
+                  { value: "updated_asc", label: "Terlama diperbarui" },
+                  { value: "created_desc", label: "Terbaru dibuat" },
+                  { value: "created_asc", label: "Terlama dibuat" },
+                  { value: "name_asc", label: "Nama A-Z" },
+                  { value: "name_desc", label: "Nama Z-A" },
+                  { value: "amount_desc", label: "Nominal terbesar" },
+                  { value: "amount_asc", label: "Nominal terkecil" },
+                ]}
+              />
 
               <button
                 type="button"
@@ -669,7 +668,7 @@ export function ModulePage({
                   setStatusFilter("all");
                   setSortMode("updated_desc");
                 }}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-100 dark:border-slate-900 dark:bg-[#050816] dark:text-slate-300 dark:hover:bg-slate-900"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-indigo-100 bg-gradient-to-br from-slate-100 via-indigo-50 to-blue-50 px-4 text-sm font-black text-slate-700 shadow-sm transition hover:border-indigo-200 hover:text-indigo-700 dark:border-slate-800 dark:from-slate-900 dark:via-indigo-950/40 dark:to-slate-950 dark:text-slate-300 dark:hover:border-indigo-900"
               >
                 <RotateCcw size={16} /> Reset
               </button>

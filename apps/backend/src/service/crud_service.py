@@ -7,15 +7,55 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.schemas.pagination import PaginationMeta
 from src.security.tenant import TenantParentConfig
+from src.realtime.events import publish_realtime_event_safe
 from src.service.domain_integrity import commit_or_raise
 
 
 class CRUDService:
-    def __init__(self, db: AsyncSession, model_class: type):
+    def __init__(
+        self,
+        db: AsyncSession,
+        model_class: type,
+        *,
+        event_module: str | None = None,
+        event_entity: str | None = None,
+    ):
         self.db = db
         self.model_class = model_class
+        self.event_module = event_module
+        self.event_entity = event_entity or getattr(
+            model_class,
+            "__tablename__",
+            model_class.__name__.lower(),
+        )
 
-    async def create(self, payload: Any):
+    async def _publish_change(
+        self,
+        *,
+        action: str,
+        item_id: UUID | str | None,
+        company_id: UUID | str | None,
+        branch_id: UUID | str | None = None,
+    ) -> None:
+        if not self.event_module:
+            return
+        await publish_realtime_event_safe(
+            f"{self.event_module}.{self.event_entity}.{action}",
+            {
+                "id": str(item_id) if item_id is not None else None,
+                "action": action,
+                "branch_id": str(branch_id) if branch_id is not None else None,
+            },
+            company_id=company_id,
+            module=self.event_module,
+        )
+
+    async def create(
+        self,
+        payload: Any,
+        *,
+        event_company_id: UUID | str | None = None,
+    ):
         data = self._to_dict(payload)
         item = self.model_class(**data)
 
@@ -23,6 +63,14 @@ class CRUDService:
 
         await commit_or_raise(self.db)
         await self.db.refresh(item)
+        await self._publish_change(
+            action="created",
+            item_id=getattr(item, "id", None),
+            company_id=(
+                getattr(item, "company_id", None) or event_company_id
+            ),
+            branch_id=getattr(item, "branch_id", None),
+        )
 
         return item
 
@@ -125,7 +173,13 @@ class CRUDService:
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def update(self, item_id: UUID, payload: Any):
+    async def update(
+        self,
+        item_id: UUID,
+        payload: Any,
+        *,
+        event_company_id: UUID | str | None = None,
+    ):
         item = await self.get_by_id(item_id)
 
         if item is None:
@@ -139,18 +193,42 @@ class CRUDService:
 
         await commit_or_raise(self.db)
         await self.db.refresh(item)
+        await self._publish_change(
+            action="updated",
+            item_id=getattr(item, "id", item_id),
+            company_id=(
+                getattr(item, "company_id", None) or event_company_id
+            ),
+            branch_id=getattr(item, "branch_id", None),
+        )
 
         return item
 
-    async def delete(self, item_id: UUID) -> bool:
+    async def delete(
+        self,
+        item_id: UUID,
+        *,
+        event_company_id: UUID | str | None = None,
+    ) -> bool:
         item = await self.get_by_id(item_id)
 
         if item is None:
             return False
 
-        await self.db.delete(item)
+        resolved_company_id = (
+            getattr(item, "company_id", None) or event_company_id
+        )
+        resolved_item_id = getattr(item, "id", item_id)
+        resolved_branch_id = getattr(item, "branch_id", None)
 
+        await self.db.delete(item)
         await commit_or_raise(self.db)
+        await self._publish_change(
+            action="deleted",
+            item_id=resolved_item_id,
+            company_id=resolved_company_id,
+            branch_id=resolved_branch_id,
+        )
 
         return True
 

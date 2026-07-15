@@ -229,6 +229,27 @@ async def get_current_user(
     )
 
 
+def require_any_permission(*permissions: str):
+    required = tuple(dict.fromkeys(permission for permission in permissions if permission))
+
+    async def dependency(
+        current_user: CurrentUser = Depends(get_current_user),
+    ) -> CurrentUser:
+        if current_user.is_superuser:
+            return current_user
+
+        if not any(permission in current_user.permissions for permission in required):
+            joined = ", ".join(required)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission denied. Requires one of: {joined}",
+            )
+
+        return current_user
+
+    return dependency
+
+
 def require_permission(permission: str):
     async def dependency(
         current_user: CurrentUser = Depends(get_current_user),

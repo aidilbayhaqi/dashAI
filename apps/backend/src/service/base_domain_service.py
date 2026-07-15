@@ -36,6 +36,7 @@ class BaseDomainService:
     ) -> None:
         resolved_id = item_id or getattr(item, "id", None)
         resolved_company_id = company_id or getattr(item, "company_id", None)
+        resolved_branch_id = getattr(item, "branch_id", None)
         model_name = self.model_class.__name__.lower()
         module = self._realtime_module()
         await publish_realtime_event_safe(
@@ -43,6 +44,11 @@ class BaseDomainService:
             {
                 "id": str(resolved_id) if resolved_id else None,
                 "action": action,
+                "branch_id": (
+                    str(resolved_branch_id)
+                    if resolved_branch_id is not None
+                    else None
+                ),
             },
             company_id=resolved_company_id,
             module=module,

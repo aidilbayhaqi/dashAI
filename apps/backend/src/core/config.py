@@ -144,6 +144,23 @@ class Settings(BaseSettings):
     REALTIME_MAX_MESSAGE_BYTES: int = 4096
     REALTIME_MAX_CONNECTIONS_PER_CHANNEL: int = 250
     REALTIME_DEDUP_TTL_SECONDS: int = 300
+    REALTIME_TICKET_TTL_SECONDS: int = 60
+    REALTIME_ALLOW_QUERY_ACCESS_TOKEN: bool = True
+
+    # =========================================================
+    # DASHBOARD CACHE
+    # =========================================================
+
+    DASHBOARD_CACHE_TTL_SECONDS: int = 20
+
+    # =========================================================
+    # AUTOMATION OUTBOX
+    # =========================================================
+
+    ENABLE_OUTBOX_WORKER: bool = True
+    OUTBOX_POLL_INTERVAL_SECONDS: float = 1.0
+    OUTBOX_BATCH_SIZE: int = 50
+    OUTBOX_MAX_ATTEMPTS: int = 5
 
     # =========================================================
     # AI ANALYTICS (READ-ONLY)
@@ -153,6 +170,7 @@ class Settings(BaseSettings):
     AI_MODEL: str | None = None
     AI_ENABLE_PROVIDER: bool = False
     AI_MAX_QUESTION_LENGTH: int = 600
+    AI_RATE_LIMIT_PER_MINUTE: int = 20
 
     # =========================================================
     # UPLOADS
@@ -190,6 +208,7 @@ class Settings(BaseSettings):
         "REALTIME_RECONNECT_MIN_SECONDS",
         "REALTIME_RECONNECT_MAX_SECONDS",
         "REALTIME_SEND_TIMEOUT_SECONDS",
+        "OUTBOX_POLL_INTERVAL_SECONDS",
     )
     @classmethod
     def validate_positive_seconds(cls, value: float) -> float:
@@ -201,7 +220,12 @@ class Settings(BaseSettings):
         "REALTIME_MAX_MESSAGE_BYTES",
         "REALTIME_MAX_CONNECTIONS_PER_CHANNEL",
         "REALTIME_DEDUP_TTL_SECONDS",
+        "REALTIME_TICKET_TTL_SECONDS",
+        "DASHBOARD_CACHE_TTL_SECONDS",
+        "OUTBOX_BATCH_SIZE",
+        "OUTBOX_MAX_ATTEMPTS",
         "AI_MAX_QUESTION_LENGTH",
+        "AI_RATE_LIMIT_PER_MINUTE",
     )
     @classmethod
     def validate_positive_limits(cls, value: int) -> int:
@@ -288,6 +312,12 @@ class Settings(BaseSettings):
             != "production"
         ):
             return self
+
+        if self.REALTIME_ALLOW_QUERY_ACCESS_TOKEN:
+            raise ValueError(
+                "REALTIME_ALLOW_QUERY_ACCESS_TOKEN harus false di production; "
+                "gunakan one-time realtime ticket"
+            )
 
         if self.DEBUG:
             raise ValueError(

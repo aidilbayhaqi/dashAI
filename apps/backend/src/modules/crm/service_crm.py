@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.time import utc_now_naive
 from src.service.base_domain_service import BaseDomainService
 from src.modules.crm.model_crm import (
     CRMActivity,
@@ -90,7 +91,7 @@ class CRMDealService(BaseDomainService):
         await self.db.flush()
 
         deal.stage = DealStage.WON
-        deal.closed_at = datetime.utcnow()
+        deal.closed_at = utc_now_naive()
         deal.finance_transaction_id = transaction.id
 
         await self.db.commit()
@@ -106,7 +107,7 @@ class CRMDealService(BaseDomainService):
             return None
 
         deal.stage = DealStage.LOST
-        deal.closed_at = datetime.utcnow()
+        deal.closed_at = utc_now_naive()
         deal.won_lost_reason = reason
 
         await self.db.commit()

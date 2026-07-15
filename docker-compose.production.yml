@@ -126,6 +126,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       REDIS_DB: "0"
       QDRANT_URL: http://qdrant:6333
+      REALTIME_ALLOW_QUERY_ACCESS_TOKEN: "false"
     depends_on:
       postgres:
         condition: service_healthy

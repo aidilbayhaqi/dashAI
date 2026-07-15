@@ -5,7 +5,9 @@ from uuid import UUID
 from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.time import utc_now_naive
 from src.service.base_domain_service import BaseDomainService
+from src.service.domain_integrity import commit_or_raise
 from src.modules.finance.model_finance import (
     AccountType,
     BudgetStatus,
@@ -32,7 +34,7 @@ from src.modules.finance.model_finance import (
     TransactionType,
 )
 
-from src.realtime.events import publish_realtime_event
+from src.realtime.events import publish_realtime_event_safe
 
 def to_decimal(value) -> Decimal:
     return Decimal(str(value or 0))
@@ -289,81 +291,35 @@ class FinanceTransactionService(BaseDomainService):
         return list(result.scalars().all())
 
     async def post_transaction(self, transaction_id: UUID):
-        transaction = await self.get_by_id(transaction_id)
+        """Compatibility facade for callers that have not migrated yet.
 
+        All state transitions delegate to FinanceCommandService so balance
+        mutation, row locking, tenant scoping, and realtime events stay atomic.
+        """
+        transaction = await self.get_by_id(transaction_id)
         if transaction is None:
             return None
+        from src.modules.finance.service_finance_commands import (
+            FinanceCommandService,
+        )
 
-        transaction.status = TransactionStatus.POSTED
-        transaction.posted_at = datetime.utcnow()
-
-        if transaction.cash_account_id:
-            cash_service = FinanceCashAccountService(self.db)
-
-            if transaction.transaction_type in [
-                TransactionType.INCOME,
-                TransactionType.REFUND,
-            ]:
-                await cash_service.increase_balance(
-                    transaction.cash_account_id,
-                    transaction.total_amount,
-                )
-
-            if transaction.transaction_type in [
-                TransactionType.EXPENSE,
-                TransactionType.TAX_PAYMENT,
-            ]:
-                await cash_service.decrease_balance(
-                    transaction.cash_account_id,
-                    transaction.total_amount,
-                )
-
-        await self.db.commit()
-        await self.db.refresh(transaction)
-
-        await publish_realtime_event(
-        company_id=str(transaction.company_id),
-        event_type="finance.transaction.posted",
-        module="finance",
-        payload={
-            "transaction_id": transaction.id,
-            "transaction_no": transaction.transaction_no,
-            "transaction_type": transaction.transaction_type,
-            "status": transaction.status,
-            "total_amount": transaction.total_amount,
-            "transaction_date": transaction.transaction_date,
-            "posted_at": transaction.posted_at,
-        },
-    )
-
-        return transaction
+        return await FinanceCommandService(self.db).post_transaction(
+            transaction_id=transaction.id,
+            company_id=transaction.company_id,
+        )
 
     async def void_transaction(self, transaction_id: UUID):
         transaction = await self.get_by_id(transaction_id)
-
         if transaction is None:
             return None
+        from src.modules.finance.service_finance_commands import (
+            FinanceCommandService,
+        )
 
-        transaction.status = TransactionStatus.VOID
-
-        await self.db.commit()
-        await self.db.refresh(transaction)
-
-        await publish_realtime_event(
-        company_id=str(transaction.company_id),
-        event_type="finance.transaction.voided",
-        module="finance",
-        payload={
-            "transaction_id": transaction.id,
-            "transaction_no": transaction.transaction_no,
-            "transaction_type": transaction.transaction_type,
-            "status": transaction.status,
-            "total_amount": transaction.total_amount,
-            "transaction_date": transaction.transaction_date,
-        },
-    )
-
-        return transaction
+        return await FinanceCommandService(self.db).void_transaction(
+            transaction_id=transaction.id,
+            company_id=transaction.company_id,
+        )
 
     async def get_total_by_type(
         self,
@@ -480,7 +436,7 @@ class FinanceJournalEntryService(BaseDomainService):
             raise ValueError("Journal is not balanced. Debit and credit must be equal.")
 
         journal.status = JournalStatus.POSTED
-        journal.posted_at = datetime.utcnow()
+        journal.posted_at = utc_now_naive()
 
         await self.db.commit()
         await self.db.refresh(journal)
@@ -833,28 +789,19 @@ class FinanceProfitLossSnapshotService(BaseDomainService):
         )
 
         self.db.add(snapshot)
-        await self.db.commit()
+        await commit_or_raise(self.db)
         await self.db.refresh(snapshot)
 
-        await publish_realtime_event(
-    company_id=str(company_id),
-    event_type="finance.profit_loss.generated",
-    module="finance",
-    payload={
-        "snapshot_id": snapshot.id,
-        "period_id": snapshot.period_id,
-        "report_date": snapshot.report_date,
-        "total_revenue": snapshot.total_revenue,
-        "total_cogs": snapshot.total_cogs,
-        "gross_profit": snapshot.gross_profit,
-        "operating_expense": snapshot.operating_expense,
-        "operating_profit": snapshot.operating_profit,
-        "tax_expense": snapshot.tax_expense,
-        "net_profit": snapshot.net_profit,
-        "gross_margin_percent": snapshot.gross_margin_percent,
-        "net_margin_percent": snapshot.net_margin_percent,
-    },
-)
+        await publish_realtime_event_safe(
+            "finance.profit_loss.generated",
+            {
+                "snapshot_id": str(snapshot.id),
+                "period_id": str(snapshot.period_id) if snapshot.period_id else None,
+                "report_date": snapshot.report_date.isoformat(),
+            },
+            company_id=company_id,
+            module="finance",
+        )
 
         return snapshot
 
@@ -926,8 +873,18 @@ class FinanceCashflowSnapshotService(BaseDomainService):
         )
 
         self.db.add(snapshot)
-        await self.db.commit()
+        await commit_or_raise(self.db)
         await self.db.refresh(snapshot)
+        await publish_realtime_event_safe(
+            "finance.cashflow.generated",
+            {
+                "snapshot_id": str(snapshot.id),
+                "period_id": str(snapshot.period_id) if snapshot.period_id else None,
+                "report_date": snapshot.report_date.isoformat(),
+            },
+            company_id=company_id,
+            module="finance",
+        )
 
         return snapshot
 
@@ -967,8 +924,14 @@ class FinanceMarginSnapshotService(BaseDomainService):
         )
 
         self.db.add(snapshot)
-        await self.db.commit()
+        await commit_or_raise(self.db)
         await self.db.refresh(snapshot)
+        await publish_realtime_event_safe(
+            "finance.margin.generated",
+            {"snapshot_id": str(snapshot.id), "report_date": snapshot.report_date.isoformat()},
+            company_id=company_id,
+            module="finance",
+        )
 
         return snapshot
 
@@ -1016,7 +979,13 @@ class FinanceBalanceSheetSnapshotService(BaseDomainService):
         )
 
         self.db.add(snapshot)
-        await self.db.commit()
+        await commit_or_raise(self.db)
         await self.db.refresh(snapshot)
+        await publish_realtime_event_safe(
+            "finance.balance_sheet.generated",
+            {"snapshot_id": str(snapshot.id), "report_date": snapshot.report_date.isoformat()},
+            company_id=company_id,
+            module="finance",
+        )
 
         return snapshot

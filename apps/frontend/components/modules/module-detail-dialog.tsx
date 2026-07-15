@@ -265,7 +265,7 @@ export function ModuleDetailDialog({
         if (event.currentTarget === event.target) onClose();
       }}
     >
-      <div className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-white shadow-2xl shadow-slate-950/40 dark:bg-[#050816]">
+      <div className="flex max-h-[96dvh] w-full max-w-6xl flex-col overflow-hidden rounded-t-[2rem] sm:max-h-[94vh] sm:rounded-[2rem] border border-white/10 bg-white shadow-2xl shadow-slate-950/40 dark:bg-[#050816]">
         <div className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-5 text-white sm:p-7">
           <div className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-indigo-500/20 blur-3xl" />
           <div className="absolute -bottom-20 left-1/4 h-48 w-48 rounded-full bg-blue-500/10 blur-3xl" />

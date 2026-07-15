@@ -101,7 +101,7 @@ export function ModulePagination({
         </label>
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="mobile-scroll-snap flex max-w-full items-center gap-1.5 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-visible">
         <button
           type="button"
           onClick={() => goToPage(1)}

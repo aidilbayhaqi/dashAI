@@ -13,6 +13,7 @@ from src.core.redis import check_redis_connection, close_redis_connection
 from src.db.database import check_database_connection, engine
 from src.ai.route_ai import router as ai_router
 from src.modules.admin.route_admin import router as admin_router
+from src.modules.automation.outbox_worker import start_outbox_worker
 from src.modules.automation.route_automation import router as automation_router
 from src.modules.auth.route_auth import router as auth_router
 from src.modules.company.route_company import router as company_router
@@ -38,6 +39,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     realtime_task: asyncio.Task | None = None
+    outbox_task: asyncio.Task | None = None
 
     logger.info(
         "Starting %s in %s mode",
@@ -49,19 +51,24 @@ async def lifespan(app: FastAPI):
         realtime_task = asyncio.create_task(start_realtime_listener())
         logger.info("Realtime listener task started")
 
+    if settings.ENABLE_OUTBOX_WORKER:
+        outbox_task = asyncio.create_task(start_outbox_worker())
+        logger.info("Domain event outbox task started")
+
     try:
         yield
 
     finally:
         logger.info("Shutting down %s", settings.APP_NAME)
 
-        if realtime_task:
-            realtime_task.cancel()
-
+        tasks = [task for task in (realtime_task, outbox_task) if task]
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
             try:
-                await realtime_task
+                await task
             except asyncio.CancelledError:
-                logger.info("Realtime listener task stopped")
+                pass
 
         await close_redis_connection()
         await engine.dispose()

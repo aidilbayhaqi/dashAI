@@ -22,6 +22,7 @@ from src.security.tenant import (
 )
 from src.security.tenant_registry import get_model_tenant_config
 from src.service.crud_service import CRUDService
+from src.service.write_policy import CRUDWritePolicy
 
 
 def _permission_dependency(permission_prefix: str | None, action: str):
@@ -45,6 +46,7 @@ def _build_query_filters(
     date_from: date | None = None,
     date_to: date | None = None,
     date_filter_field: str = "created_at",
+    write_policy: CRUDWritePolicy | None = None,
 ):
     filters = {}
 
@@ -100,6 +102,7 @@ def create_crud_router(
     permission_prefix: str | None = None,
     search_fields: list[str] | None = None,
     date_filter_field: str = "created_at",
+    write_policy: CRUDWritePolicy | None = None,
 ):
     router = APIRouter(
         prefix=prefix,
@@ -108,6 +111,24 @@ def create_crud_router(
 
     tenant_config = get_model_tenant_config(model_class)
     tenant_parent = tenant_config.tenant_parent
+    event_module = (
+        permission_prefix.split(".", 1)[0]
+        if permission_prefix
+        else None
+    )
+    event_entity = getattr(
+        model_class,
+        "__tablename__",
+        model_class.__name__.lower(),
+    )
+
+    def build_service(db: AsyncSession) -> CRUDService:
+        return CRUDService(
+            db,
+            model_class,
+            event_module=event_module,
+            event_entity=event_entity,
+        )
 
     create_permission = _permission_dependency(permission_prefix, "create")
     view_permission = _permission_dependency(permission_prefix, "view")
@@ -141,7 +162,7 @@ def create_crud_router(
         )
 
         async def operation():
-            service = CRUDService(db, model_class)
+            service = build_service(db)
             data = payload.model_dump()
 
             company_id = await resolve_create_company_id(
@@ -165,7 +186,17 @@ def create_crud_router(
                 user_company_fields=set(tenant_config.user_company_fields),
             )
 
-            return await service.create(data)
+            if write_policy is not None:
+                data = await write_policy.before_create(
+                    db=db,
+                    data=data,
+                    current_user=current_user,
+                )
+
+            return await service.create(
+                data,
+                event_company_id=company_id,
+            )
 
         return await execute_idempotent(
             context=context,
@@ -199,7 +230,7 @@ def create_crud_router(
         if view_permission
         else None,
     ):
-        service = CRUDService(db, model_class)
+        service = build_service(db)
 
         if current_user is None:
             effective_company_id = company_id
@@ -269,7 +300,7 @@ def create_crud_router(
         if view_permission
         else None,
     ):
-        service = CRUDService(db, model_class)
+        service = build_service(db)
         item = await service.get_by_id(item_id)
 
         if item is None:
@@ -300,7 +331,7 @@ def create_crud_router(
         if update_permission
         else None,
     ):
-        service = CRUDService(db, model_class)
+        service = build_service(db)
         existing = await service.get_by_id(item_id)
 
         if existing is None:
@@ -334,7 +365,19 @@ def create_crud_router(
                 user_company_fields=set(tenant_config.user_company_fields),
             )
 
-        updated = await service.update(item_id, data)
+            if write_policy is not None:
+                data = await write_policy.before_update(
+                    db=db,
+                    existing=existing,
+                    data=data,
+                    current_user=current_user,
+                )
+
+        updated = await service.update(
+            item_id,
+            data,
+            event_company_id=company_id if current_user is not None else None,
+        )
 
         if updated is None:
             raise HTTPException(
@@ -355,7 +398,7 @@ def create_crud_router(
         if delete_permission
         else None,
     ):
-        service = CRUDService(db, model_class)
+        service = build_service(db)
         existing = await service.get_by_id(item_id)
 
         if existing is None:
@@ -364,15 +407,25 @@ def create_crud_router(
                 detail="Data not found",
             )
 
+        event_company_id = getattr(existing, "company_id", None)
         if current_user is not None:
-            await ensure_item_access(
+            event_company_id, _ = await ensure_item_access(
                 db=db,
                 item=existing,
                 current_user=current_user,
                 tenant_parent=tenant_parent,
             )
+            if write_policy is not None:
+                await write_policy.before_delete(
+                    db=db,
+                    existing=existing,
+                    current_user=current_user,
+                )
 
-        deleted = await service.delete(item_id)
+        deleted = await service.delete(
+            item_id,
+            event_company_id=event_company_id,
+        )
 
         if not deleted:
             raise HTTPException(

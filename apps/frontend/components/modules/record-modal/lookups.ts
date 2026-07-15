@@ -6,6 +6,12 @@ import type { ModuleFieldOption } from "@/types/modules";
 
 export type RawLookupRow = Record<string, unknown>;
 
+export type LookupContext = {
+  productId?: string;
+  moduleKey?: string;
+  mode?: "create" | "edit";
+};
+
 const lookupEndpointMap: Record<string, string[]> = {
   company_id: ["/api/v1/companies"],
   employee_id: ["/api/v1/hr/employees"],
@@ -178,9 +184,22 @@ async function fetchRows(
 export async function fetchOptionsForField(
   key: string,
   companyId: string,
+  context: LookupContext = {},
 ): Promise<ModuleFieldOption[]> {
   if (key === "branch_id") {
     if (!isValidUuid(companyId)) return [];
+
+    if (isValidUuid(context.productId)) {
+      const rows = await fetchRows(
+        [`/api/v1/products/items/${context.productId}/available-branches`],
+        {
+          company_id: companyId,
+          purpose: context.moduleKey === "stock" && context.mode !== "edit" ? "stock_create" : "usage",
+        },
+      );
+      return rowsToOptions(rows, key);
+    }
+
     const rows = await fetchRows(
       [`/api/v1/companies/${companyId}/branches`, "/api/v1/branches"],
       { company_id: companyId, limit: 100, sort_by: "name", sort_order: "asc" },

@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.core.time import utc_now_naive
 from src.modules.company.model_company import (
     BranchType,
     Company,
@@ -416,7 +417,7 @@ class CompanyService:
                 "Run the permission seed first."
             )
 
-        now = datetime.utcnow()
+        now = utc_now_naive()
 
         try:
             # =================================================

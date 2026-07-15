@@ -2,6 +2,7 @@
 
 import {
   Eye,
+  FileDown,
   Pencil,
   Trash2,
 } from "lucide-react";
@@ -19,6 +20,10 @@ import type {
 } from "@/types/modules";
 
 import { ModulePagination } from "./module-pagination";
+import {
+  RowActionMenu,
+  type RowActionMenuItem,
+} from "./row-action-menu";
 
 
 export function makeModuleRowKey(row: ModuleRow, index: number) {
@@ -99,14 +104,36 @@ function TableValue({
     );
   }
 
+  const compactValue = [
+    "currency",
+    "number",
+    "decimal",
+    "percent",
+    "date",
+    "datetime",
+  ].includes(column.format ?? "")
+    || /(date|period|amount|total|paid|debit|credit|cash|balance)/i.test(`${column.key} ${column.label}`);
+
+  const formattedValue = formatModuleValue(value, column);
+  const source = `${column.key} ${column.label}`.toLowerCase();
+  const isIdentifier = /(transaction|invoice|journal|reference|account|counterparty|client|customer|type)/i.test(source);
+  const shouldTruncate = /(counterparty|account|client|customer|description|memo)/i.test(source);
+
   return (
-    <span className={cn(
-      "block max-w-[280px] break-words text-sm",
-      primary
-        ? "font-black text-slate-950 dark:text-white"
-        : "font-semibold text-slate-500 dark:text-slate-400",
-    )}>
-      {formatModuleValue(value, column)}
+    <span
+      title={rawText !== "-" ? String(formattedValue) : undefined}
+      className={cn(
+        "block min-w-0 text-sm leading-5",
+        compactValue && "whitespace-nowrap tabular-nums",
+        isIdentifier && !shouldTruncate && "whitespace-nowrap",
+        shouldTruncate && "max-w-[220px] truncate whitespace-nowrap",
+        !compactValue && !isIdentifier && "break-words",
+        primary
+          ? "font-black text-slate-950 dark:text-white"
+          : "font-semibold text-slate-500 dark:text-slate-400",
+      )}
+    >
+      {formattedValue}
     </span>
   );
 }
@@ -140,65 +167,66 @@ function RowActions({
   onEdit: (row: ModuleRow) => void;
   onDelete: (row: ModuleRow, rowIndex: number) => void;
 }) {
+  const items: RowActionMenuItem[] = [
+    {
+      label: "Detail",
+      icon: Eye,
+      onClick: () => onDetail(row),
+    },
+    ...(getRowActions?.(row) ?? []).map((action) => ({
+      label: action.label,
+      icon: action.icon,
+      disabled: action.disabled,
+      href: action.href,
+      onClick: action.onClick,
+      variant: action.variant === "danger"
+        ? "danger" as const
+        : action.variant === "primary"
+          ? "primary" as const
+          : "default" as const,
+    })),
+  ];
+
+  if (canUpdate) {
+    items.push({
+      label: "Edit",
+      icon: Pencil,
+      disabled: isUpdating,
+      onClick: () => onEdit(row),
+    });
+  }
+
+  if (canDelete) {
+    items.push({
+      label: "Delete",
+      icon: Trash2,
+      disabled: isDeleting,
+      variant: "danger",
+      onClick: () => onDelete(row, rowIndex),
+    });
+  }
+
+  items.push({
+    label: isInvoice ? "Download Invoice PDF" : "Export PDF",
+    icon: FileDown,
+    onClick: () => {
+      if (isInvoice) {
+        exportInvoiceToPDF(row);
+        return;
+      }
+
+      exportRowsToPDF({
+        filename: `${title} Row`,
+        title: `${title} Detail`,
+        columns,
+        rows: [row],
+      });
+    },
+  });
+
   return (
-    <div className="flex min-w-max items-center gap-2">
-      <button type="button" onClick={() => onDetail(row)} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-800 dark:bg-[#050816] dark:text-slate-300">
-        <Eye size={13} /> Detail
-      </button>
-
-      {(getRowActions?.(row) ?? []).map((action) => {
-        const ActionIcon = action.icon;
-        return (
-          <button
-            key={action.label}
-            type="button"
-            onClick={() => void action.onClick?.()}
-            disabled={action.disabled}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-60",
-              action.variant === "danger"
-                ? "border-rose-200 bg-rose-50 text-rose-700"
-                : action.variant === "primary"
-                  ? "border-emerald-600 bg-emerald-600 text-white"
-                  : "border-indigo-200 bg-indigo-50 text-indigo-700",
-            )}
-          >
-            {ActionIcon ? <ActionIcon size={13} /> : null}
-            {action.label}
-          </button>
-        );
-      })}
-
-      {canUpdate ? (
-        <button type="button" onClick={() => onEdit(row)} disabled={isUpdating} className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 disabled:opacity-60">
-          <Pencil size={13} /> Edit
-        </button>
-      ) : null}
-
-      {canDelete ? (
-        <button type="button" onClick={() => onDelete(row, rowIndex)} disabled={isDeleting} className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 disabled:opacity-60">
-          <Trash2 size={13} /> Delete
-        </button>
-      ) : null}
-
-      <button
-        type="button"
-        onClick={() => {
-          if (isInvoice) {
-            exportInvoiceToPDF(row);
-            return;
-          }
-          exportRowsToPDF({
-            filename: `${title} Row`,
-            title: `${title} Detail`,
-            columns,
-            rows: [row],
-          });
-        }}
-        className="rounded-xl bg-[#0f2a5f] px-3 py-2 text-xs font-black text-white transition hover:bg-blue-950 dark:bg-blue-700"
-      >
-        {isInvoice ? "Invoice PDF" : "Export"}
-      </button>
+    <div className="flex w-full justify-end">
+      <RowActionMenu items={items} />
     </div>
   );
 }
@@ -246,6 +274,17 @@ export function ModuleTable({
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
 }) {
+  const normalizedTitle = title.toLowerCase();
+  const isFinanceTransactionsTable = normalizedTitle.includes("transaction");
+
+  const desktopTableMinWidth = isFinanceTransactionsTable
+    ? "min-w-[1260px]"
+    : columns.length >= 9
+      ? "min-w-[1180px]"
+      : columns.length >= 7
+        ? "min-w-[1040px]"
+        : "min-w-[860px]";
+
   return (
     <div className="min-w-0 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white shadow-sm dark:border-slate-900 dark:bg-[#02040a]">
       <div className="space-y-3 p-3 md:hidden">
@@ -259,7 +298,7 @@ export function ModuleTable({
                 </div>
               ))}
             </div>
-            <div className="mt-4 overflow-x-auto pb-1">
+            <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800">
               <RowActions
                 row={row}
                 rowIndex={rowIndex}
@@ -280,23 +319,50 @@ export function ModuleTable({
         ))}
       </div>
 
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[980px] border-collapse text-left">
+      <div className="hidden overflow-x-auto overscroll-x-contain md:block">
+        <table className={cn(
+          "w-full table-auto border-separate border-spacing-0 text-left",
+          desktopTableMinWidth,
+        )}>
           <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-900 dark:bg-[#050816]">
-              <th className="w-16 px-5 py-4 text-xs font-black uppercase tracking-[0.14em] text-slate-400">No.</th>
-              {columns.map((column) => <th key={column.key} className="px-5 py-4 text-xs font-black uppercase tracking-[0.14em] text-slate-400">{column.label}</th>)}
-              <th className="sticky right-0 bg-slate-50 px-5 py-4 text-right text-xs font-black uppercase tracking-[0.14em] text-slate-400 dark:bg-[#050816]">Action</th>
+            <tr className="bg-slate-50 dark:bg-[#050816]">
+              <th className="w-14 border-b border-slate-200 px-4 py-3 text-[11px] font-black uppercase tracking-[0.12em] text-slate-400 dark:border-slate-900">No.</th>
+              {columns.map((column) => (
+                <th
+                  key={column.key}
+                  className={cn(
+                    "whitespace-nowrap border-b border-slate-200 px-4 py-3 text-[11px] font-black uppercase tracking-[0.12em] text-slate-400 dark:border-slate-900",
+                    column.className,
+                  )}
+                >
+                  {column.label}
+                </th>
+              ))}
+              <th className="sticky right-0 z-20 w-[76px] min-w-[76px] whitespace-nowrap border-b border-slate-200 bg-slate-50 px-2 py-3 text-center text-[11px] font-black uppercase tracking-[0.12em] text-slate-400 shadow-[-10px_0_18px_-16px_rgba(15,23,42,0.45)] dark:border-slate-900 dark:bg-[#050816]">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-900">
+          <tbody>
             {rows.map((row, rowIndex) => (
               <tr key={makeModuleRowKey(row, rowIndex)} className="group transition hover:bg-slate-50/80 dark:hover:bg-[#050816]">
-                <td className="px-5 py-4 text-sm font-black text-slate-400">{(currentPage - 1) * pageSize + rowIndex + 1}</td>
+                <td className="border-b border-slate-100 px-4 py-3 text-sm font-black text-slate-400 dark:border-slate-900">{(currentPage - 1) * pageSize + rowIndex + 1}</td>
                 {columns.map((column, columnIndex) => (
-                  <td key={column.key} className="px-5 py-4 align-middle"><TableValue column={column} value={row[column.key]} primary={columnIndex === 0} /></td>
+                  <td
+                    key={column.key}
+                    className={cn(
+                      "border-b border-slate-100 px-4 py-3.5 align-middle dark:border-slate-900",
+                      column.className,
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <TableValue
+                        column={column}
+                        value={row[column.key]}
+                        primary={columnIndex === 0}
+                      />
+                    </div>
+                  </td>
                 ))}
-                <td className="sticky right-0 bg-white px-5 py-4 text-right group-hover:bg-slate-50/80 dark:bg-[#02040a] dark:group-hover:bg-[#050816]">
+                <td className="sticky right-0 z-10 w-[76px] min-w-[76px] border-b border-slate-100 bg-white px-2 py-3.5 align-middle shadow-[-10px_0_18px_-16px_rgba(15,23,42,0.38)] group-hover:bg-slate-50 dark:border-slate-900 dark:bg-[#02040a] dark:group-hover:bg-[#050816]">
                   <RowActions
                     row={row}
                     rowIndex={rowIndex}
