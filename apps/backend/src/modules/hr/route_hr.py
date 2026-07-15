@@ -40,6 +40,7 @@ from src.modules.hr.schema_hr import (
     KPIReviewUpdate,
     KPIReviewResponse,
 )
+from src.modules.hr.policy_hr import PayrollRunWritePolicy
 from src.modules.hr.service_hr import PayrollRunService
 from src.security.dependencies import CurrentUser, require_permission
 from src.security.idempotency import (
@@ -139,6 +140,7 @@ router.include_router(
         response_schema=PayrollRunResponse,
         search_fields=["payroll_no"],
         date_filter_field="period_start",
+        write_policy=PayrollRunWritePolicy(),
     )
 )
 
