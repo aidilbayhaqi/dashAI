@@ -145,6 +145,7 @@ class FinanceCashAccountCreate(BaseModel):
     opening_balance: Decimal = Decimal("0.00")
     current_balance: Decimal = Decimal("0.00")
     is_active: bool = True
+    is_default: bool = False
 
 
 class FinanceCashAccountUpdate(BaseModel):
@@ -157,6 +158,7 @@ class FinanceCashAccountUpdate(BaseModel):
     opening_balance: Decimal | None = None
     current_balance: Decimal | None = None
     is_active: bool | None = None
+    is_default: bool | None = None
 
 
 class FinanceCashAccountResponse(FinanceCashAccountCreate, ORMBase):
@@ -342,6 +344,7 @@ class FinanceTaxRecordCreate(BaseModel):
     period_id: UUID | None = None
     tax_rate_id: UUID | None = None
     transaction_id: UUID | None = None
+    invoice_id: UUID | None = None
     tax_type: TaxType
     tax_period: str
     taxable_amount: Decimal = Decimal("0.00")
@@ -359,6 +362,7 @@ class FinanceTaxRecordUpdate(BaseModel):
     period_id: UUID | None = None
     tax_rate_id: UUID | None = None
     transaction_id: UUID | None = None
+    invoice_id: UUID | None = None
     tax_type: TaxType | None = None
     tax_period: str | None = None
     taxable_amount: Decimal | None = None

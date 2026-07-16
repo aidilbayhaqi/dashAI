@@ -20,6 +20,7 @@ from src.modules.automation.model_automation import (
     SalesOrderStatus,
 )
 from src.modules.automation.schema_automation import SalesOrderCreate
+from src.modules.finance.service_accounting_bridge import AccountingBridgeService
 from src.modules.finance.service_finance_automation import ensure_invoice_tax_record
 from src.modules.finance.model_finance import (
     CashflowActivity,
@@ -79,6 +80,7 @@ class BusinessAutomationService:
                 FinanceCashAccount.is_active.is_(True),
             )
             .order_by(
+                FinanceCashAccount.is_default.desc(),
                 priority,
                 FinanceCashAccount.created_at.asc(),
                 FinanceCashAccount.name.asc(),
@@ -106,13 +108,20 @@ class BusinessAutomationService:
         order_id: UUID,
         company_id: UUID,
         for_update: bool = False,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> SalesOrder | None:
+        filters = [
+            SalesOrder.id == order_id,
+            SalesOrder.company_id == company_id,
+        ]
+        if allowed_branch_ids is not None:
+            if not allowed_branch_ids:
+                return None
+            filters.append(SalesOrder.branch_id.in_(list(allowed_branch_ids)))
+
         query = (
             select(SalesOrder)
-            .where(
-                SalesOrder.id == order_id,
-                SalesOrder.company_id == company_id,
-            )
+            .where(*filters)
             .options(selectinload(SalesOrder.items))
         )
 
@@ -127,10 +136,12 @@ class BusinessAutomationService:
         *,
         order_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> SalesOrder | None:
         return await self._get_order(
             order_id=order_id,
             company_id=company_id,
+            allowed_branch_ids=allowed_branch_ids,
         )
 
     async def _get_order_items(
@@ -152,11 +163,26 @@ class BusinessAutomationService:
         page: int = 1,
         limit: int = 20,
         query_text: str | None = None,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> dict:
         page = max(page, 1)
         limit = min(max(limit, 1), 100)
 
         filters = [SalesOrder.company_id == company_id]
+        if allowed_branch_ids is not None:
+            if not allowed_branch_ids:
+                return {
+                    "data": [],
+                    "meta": {
+                        "total": 0,
+                        "page": page,
+                        "limit": limit,
+                        "total_pages": 0,
+                        "has_next": False,
+                        "has_prev": page > 1,
+                    },
+                }
+            filters.append(SalesOrder.branch_id.in_(list(allowed_branch_ids)))
 
         if query_text:
             keyword = f"%{query_text.strip()}%"
@@ -199,6 +225,7 @@ class BusinessAutomationService:
         company_id: UUID,
         aggregate_id: UUID | None = None,
         limit: int = 100,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> list[DomainEventOutbox]:
         query = select(DomainEventOutbox).where(
             DomainEventOutbox.company_id == company_id
@@ -207,6 +234,17 @@ class BusinessAutomationService:
         if aggregate_id is not None:
             query = query.where(
                 DomainEventOutbox.aggregate_id == aggregate_id
+            )
+
+        if allowed_branch_ids is not None:
+            if not allowed_branch_ids:
+                return []
+            allowed_order_ids = select(SalesOrder.id).where(
+                SalesOrder.company_id == company_id,
+                SalesOrder.branch_id.in_(list(allowed_branch_ids)),
+            )
+            query = query.where(
+                DomainEventOutbox.aggregate_id.in_(allowed_order_ids)
             )
 
         result = await self.db.execute(
@@ -273,7 +311,14 @@ class BusinessAutomationService:
         *,
         company_id: UUID,
         limit: int = 200,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> list[dict]:
+        filters = [SalesOrder.company_id == company_id]
+        if allowed_branch_ids is not None:
+            if not allowed_branch_ids:
+                return []
+            filters.append(SalesOrder.branch_id.in_(list(allowed_branch_ids)))
+
         result = await self.db.execute(
             select(SalesOrder, FinanceTransaction, FinanceInvoice)
             .outerjoin(
@@ -284,7 +329,7 @@ class BusinessAutomationService:
                 FinanceInvoice,
                 FinanceInvoice.id == SalesOrder.invoice_id,
             )
-            .where(SalesOrder.company_id == company_id)
+            .where(*filters)
             .order_by(SalesOrder.updated_at.desc(), SalesOrder.created_at.desc())
             .limit(min(max(limit, 1), 200))
         )
@@ -303,7 +348,17 @@ class BusinessAutomationService:
         *,
         order_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> dict | None:
+        filters = [
+            SalesOrder.id == order_id,
+            SalesOrder.company_id == company_id,
+        ]
+        if allowed_branch_ids is not None:
+            if not allowed_branch_ids:
+                return None
+            filters.append(SalesOrder.branch_id.in_(list(allowed_branch_ids)))
+
         result = await self.db.execute(
             select(SalesOrder, FinanceTransaction, FinanceInvoice)
             .outerjoin(
@@ -314,10 +369,7 @@ class BusinessAutomationService:
                 FinanceInvoice,
                 FinanceInvoice.id == SalesOrder.invoice_id,
             )
-            .where(
-                SalesOrder.id == order_id,
-                SalesOrder.company_id == company_id,
-            )
+            .where(*filters)
         )
         row = result.one_or_none()
         if row is None:
@@ -336,11 +388,13 @@ class BusinessAutomationService:
         order_id: UUID,
         company_id: UUID,
         user_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> dict:
         order = await self._get_order(
             order_id=order_id,
             company_id=company_id,
             for_update=True,
+            allowed_branch_ids=allowed_branch_ids,
         )
 
         if order is None:
@@ -388,6 +442,7 @@ class BusinessAutomationService:
             monitoring = await self.get_monitoring_item(
                 order_id=order.id,
                 company_id=company_id,
+                allowed_branch_ids=allowed_branch_ids,
             )
             assert monitoring is not None
             return monitoring
@@ -425,6 +480,18 @@ class BusinessAutomationService:
         transaction.posted_at = transaction.posted_at or now
         order.updated_at = now
         await ensure_invoice_tax_record(self.db, invoice=invoice)
+        bridge = AccountingBridgeService(self.db)
+        await bridge.ensure_invoice_issue_journal(
+            invoice=invoice,
+            transaction_id=transaction.id,
+            created_by=user_id,
+        )
+        await bridge.ensure_invoice_payment_journal(
+            invoice=invoice,
+            transaction=transaction,
+            cash_account=cash_account,
+            amount=payment_amount,
+        )
 
         await self._record_event(
             company_id=company_id,
@@ -446,6 +513,7 @@ class BusinessAutomationService:
         monitoring = await self.get_monitoring_item(
             order_id=order.id,
             company_id=company_id,
+            allowed_branch_ids=allowed_branch_ids,
         )
         assert monitoring is not None
         return monitoring
@@ -652,11 +720,13 @@ class BusinessAutomationService:
         order_id: UUID,
         company_id: UUID,
         user_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> SalesOrder:
         order = await self._get_order(
             order_id=order_id,
             company_id=company_id,
             for_update=True,
+            allowed_branch_ids=allowed_branch_ids,
         )
 
         if order is None:
@@ -682,6 +752,7 @@ class BusinessAutomationService:
         refreshed = await self._get_order(
             order_id=order.id,
             company_id=company_id,
+            allowed_branch_ids=allowed_branch_ids,
         )
         assert refreshed is not None
         return refreshed
@@ -814,6 +885,7 @@ class BusinessAutomationService:
             },
         )
 
+        cogs_total = Decimal("0.00")
         for product_id, required in required_by_product.items():
             product = products[product_id]
             stock = stock_by_product.get(product.id)
@@ -821,6 +893,7 @@ class BusinessAutomationService:
             if stock is None:
                 continue
 
+            cogs_total += money(required * Decimal(product.cost_price))
             movement_result = await self.db.execute(
                 select(ProductStockMovement).where(
                     ProductStockMovement.company_id == company_id,
@@ -932,6 +1005,20 @@ class BusinessAutomationService:
             await self.db.flush()
 
         await ensure_invoice_tax_record(self.db, invoice=invoice)
+        bridge = AccountingBridgeService(self.db)
+        await bridge.ensure_invoice_issue_journal(
+            invoice=invoice,
+            transaction_id=transaction.id,
+            created_by=user_id,
+        )
+        await bridge.ensure_sales_cogs_journal(
+            company_id=company_id,
+            order_no=order.order_no,
+            order_date=order.order_date,
+            transaction_id=transaction.id,
+            created_by=user_id,
+            amount=cogs_total,
+        )
 
         order.transaction_id = transaction.id
         order.invoice_id = invoice.id

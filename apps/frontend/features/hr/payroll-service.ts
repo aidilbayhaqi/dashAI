@@ -153,3 +153,17 @@ export async function calculatePayrollRun(id: string) {
   retainIdempotencyKey(operation, {}, key);
   return response.data;
 }
+
+export async function payPayrollRun(id: string) {
+  if (!id) {
+    throw new Error("Payroll ID tidak ditemukan.");
+  }
+
+  const endpoint = `${PAYROLL_ENDPOINT}/${id}/pay`;
+  const payload: Record<string, never> = {};
+  const operation = `POST:${endpoint}`;
+  const { key, headers } = idempotencyHeaders(operation, payload);
+  const response = await api.post(endpoint, payload, { headers });
+  retainIdempotencyKey(operation, payload, key);
+  return response.data;
+}

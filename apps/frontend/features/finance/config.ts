@@ -47,10 +47,7 @@ const financeTransactionFormFields: ModuleField[] = [
     options: [
       { label: "Income", value: "income" },
       { label: "Expense", value: "expense" },
-      { label: "Transfer", value: "transfer" },
-      { label: "Tax Payment", value: "tax_payment" },
       { label: "Refund", value: "refund" },
-      { label: "Adjustment", value: "adjustment" },
     ],
   },
   {

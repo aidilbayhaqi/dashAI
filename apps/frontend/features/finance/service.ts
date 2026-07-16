@@ -274,16 +274,6 @@ async function safeGet(
 
       const rows = uniqueRows(normalizeRowsByKind(kind, response.data));
 
-      if (process.env.NODE_ENV === "development") {
-        console.log("[finance safeGet]", {
-          kind,
-          endpoint,
-          params: candidateParams,
-          response: response.data,
-          rows,
-        });
-      }
-
       return rows;
     } catch (error) {
       if (!isEndpointFallbackError(error)) {
@@ -1033,16 +1023,6 @@ export async function getFinanceModuleData(
   };
 
   const rows = getFinanceRows(moduleKey, bundle);
-
-  if (process.env.NODE_ENV === "development") {
-    console.log("[getFinanceModuleData]", {
-      moduleKey,
-      params,
-      currentRows,
-      bundle,
-      rows,
-    });
-  }
 
   return {
     metrics: buildFinanceMetrics(bundle),

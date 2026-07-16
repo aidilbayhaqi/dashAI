@@ -138,6 +138,7 @@ async def list_sales_orders(
         page=page,
         limit=limit,
         query_text=q,
+        allowed_branch_ids=current_user.allowed_branch_ids,
     )
 
 
@@ -161,6 +162,7 @@ async def get_sales_order(
     order = await service.get_order(
         order_id=order_id,
         company_id=effective_company_id,
+        allowed_branch_ids=current_user.allowed_branch_ids,
     )
 
     if order is None:
@@ -204,6 +206,7 @@ async def process_sales_order(
         order = await service.get_order(
             order_id=order_id,
             company_id=effective_company_id,
+            allowed_branch_ids=current_user.allowed_branch_ids,
         )
 
         if order is None:
@@ -223,6 +226,7 @@ async def process_sales_order(
             order_id=order_id,
             company_id=effective_company_id,
             user_id=current_user.user_id,
+            allowed_branch_ids=current_user.allowed_branch_ids,
         )
 
     return await execute_idempotent(
@@ -253,6 +257,7 @@ async def list_automation_monitoring(
     return await service.list_monitoring(
         company_id=effective_company_id,
         limit=limit,
+        allowed_branch_ids=current_user.allowed_branch_ids,
     )
 
 
@@ -286,6 +291,7 @@ async def confirm_sales_order_payment(
             order_id=order_id,
             company_id=effective_company_id,
             user_id=current_user.user_id,
+            allowed_branch_ids=current_user.allowed_branch_ids,
         )
 
     return await execute_idempotent(
@@ -318,4 +324,5 @@ async def list_domain_events(
         company_id=effective_company_id,
         aggregate_id=aggregate_id,
         limit=limit,
+        allowed_branch_ids=current_user.allowed_branch_ids,
     )

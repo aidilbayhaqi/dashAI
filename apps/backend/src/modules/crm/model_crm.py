@@ -135,6 +135,7 @@ class CRMDeal(Base):
     won_lost_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     finance_transaction_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("finance_transactions.id", ondelete="SET NULL"), nullable=True, index=True)
+    invoice_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("finance_invoices.id", ondelete="SET NULL"), nullable=True, index=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive)
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
@@ -204,7 +205,7 @@ class CRMCampaign(Base):
     __table_args__ = (
         Index("ix_crm_campaigns_company_status", "company_id", "status"),
     )
-    
+
 class CRMActivity(Base):
     __tablename__ = "crm_activities"
 
@@ -235,4 +236,3 @@ class CRMActivity(Base):
         Index("ix_crm_activities_company_status_due", "company_id", "status", "due_at"),
         Index("ix_crm_activities_assigned_due", "assigned_user_id", "due_at"),
     )
-

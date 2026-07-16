@@ -4,7 +4,8 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Calculator, ExternalLink } from "lucide-react";
+import { Calculator, CircleDollarSign, ExternalLink } from "lucide-react";
+import { runSequentialImport } from "@/lib/import-batch";
 
 import { CompanyScopeFilter } from "@/components/modules/company-scope-filter";
 import { ModulePage } from "@/components/modules/module-page";
@@ -24,6 +25,7 @@ import { useHRModule } from "./hook";
 import {
   calculatePayrollRun,
   createPayrollRun,
+  payPayrollRun,
   updatePayrollRun,
 } from "./payroll-service";
 import {
@@ -142,6 +144,15 @@ export function HRModuleClient({
     },
   });
 
+  const payPayrollMutation = useMutation({
+    mutationFn: payPayrollRun,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hr"] });
+      queryClient.invalidateQueries({ queryKey: ["finance"] });
+      queryClient.invalidateQueries({ queryKey: ["automation"] });
+    },
+  });
+
   function getRowActions(row: ModuleRow): ModuleAction[] {
     if (!isPayrollModule || !row.id) return [];
 
@@ -156,6 +167,22 @@ export function HRModuleClient({
         disabled: calculatePayrollMutation.isPending,
         onClick: async () => {
           await calculatePayrollMutation.mutateAsync(String(row.id));
+        },
+      });
+    }
+
+    if (["calculated", "approved"].includes(status)) {
+      actions.push({
+        label: "Pay Payroll",
+        icon: CircleDollarSign,
+        variant: "primary",
+        disabled: payPayrollMutation.isPending,
+        onClick: async () => {
+          const confirmed = window.confirm(
+            "Bayar payroll dan kurangi saldo cash account aktif?"
+          );
+          if (!confirmed) return;
+          await payPayrollMutation.mutateAsync(String(row.id));
         },
       });
     }
@@ -196,11 +223,11 @@ export function HRModuleClient({
           <CompanyScopeFilter />
         ) : null
       }
-      onImportRecords={async (rows) => {
-        for (const payload of rows) {
-          await createMutation.mutateAsync(payload);
-        }
-      }}
+      onImportRecords={(rows) =>
+        runSequentialImport(rows, (payload) =>
+          createMutation.mutateAsync(payload),
+        )
+      }
       onCreateRecord={(payload) =>
         createMutation.mutateAsync(payload)
       }

@@ -145,6 +145,7 @@ async def seed_finance(
                 opening_balance=D("10000000"),
                 current_balance=D("10000000"),
                 is_active=True,
+                is_default=False,
             ),
             FinanceCashAccount(
                 id=ctx.cash_account_ids["main_bank"],
@@ -158,6 +159,7 @@ async def seed_finance(
                 opening_balance=D("250000000"),
                 current_balance=D("250000000"),
                 is_active=True,
+                is_default=True,
             ),
         ]
 

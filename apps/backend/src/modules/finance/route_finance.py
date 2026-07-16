@@ -412,6 +412,7 @@ async def post_finance_transaction(
         operation=lambda: service.post_transaction(
             transaction_id=transaction_id,
             company_id=effective_company_id,
+            allowed_branch_ids=current_user.allowed_branch_ids,
         ),
     )
 
@@ -443,6 +444,7 @@ async def void_finance_transaction(
         operation=lambda: service.void_transaction(
             transaction_id=transaction_id,
             company_id=effective_company_id,
+            allowed_branch_ids=current_user.allowed_branch_ids,
         ),
     )
 
@@ -474,6 +476,7 @@ async def cancel_finance_transaction(
         operation=lambda: service.cancel_transaction(
             transaction_id=transaction_id,
             company_id=effective_company_id,
+            allowed_branch_ids=current_user.allowed_branch_ids,
         ),
     )
 
@@ -505,6 +508,7 @@ async def send_finance_invoice(
         operation=lambda: service.send_invoice(
             invoice_id=invoice_id,
             company_id=effective_company_id,
+            allowed_branch_ids=current_user.allowed_branch_ids,
         ),
     )
 
@@ -537,6 +541,7 @@ async def record_finance_invoice_payment(
         operation=lambda: service.record_invoice_payment(
             invoice_id=invoice_id,
             company_id=effective_company_id,
+            allowed_branch_ids=current_user.allowed_branch_ids,
             user_id=current_user.user_id,
             payload=payload,
         ),
@@ -570,6 +575,7 @@ async def cancel_finance_invoice(
         operation=lambda: service.cancel_invoice(
             invoice_id=invoice_id,
             company_id=effective_company_id,
+            allowed_branch_ids=current_user.allowed_branch_ids,
         ),
     )
 
@@ -601,6 +607,7 @@ async def post_finance_journal(
         operation=lambda: service.post_journal(
             journal_id=journal_id,
             company_id=effective_company_id,
+            allowed_branch_ids=current_user.allowed_branch_ids,
         ),
     )
 
@@ -632,6 +639,7 @@ async def reverse_finance_journal(
         operation=lambda: service.reverse_journal(
             journal_id=journal_id,
             company_id=effective_company_id,
+            allowed_branch_ids=current_user.allowed_branch_ids,
         ),
     )
 
@@ -664,6 +672,7 @@ async def adjust_finance_cash_balance(
         operation=lambda: service.adjust_cash_balance(
             cash_account_id=cash_account_id,
             company_id=effective_company_id,
+            allowed_branch_ids=current_user.allowed_branch_ids,
             user_id=current_user.user_id,
             payload=payload,
         ),
@@ -692,7 +701,9 @@ async def accrue_finance_tax_record(
         request=request, idempotency_key=idempotency_key,
         current_user=current_user, response_model=FinanceTaxRecordResponse,
         operation=lambda: service.accrue_tax_record(
-            tax_record_id=tax_record_id, company_id=effective_company_id
+            tax_record_id=tax_record_id,
+            company_id=effective_company_id,
+            allowed_branch_ids=current_user.allowed_branch_ids,
         ),
     )
 
@@ -720,7 +731,9 @@ async def pay_finance_tax_record(
         request=request, idempotency_key=idempotency_key,
         current_user=current_user, response_model=FinanceTaxRecordResponse,
         operation=lambda: service.pay_tax_record(
-            tax_record_id=tax_record_id, company_id=effective_company_id,
+            tax_record_id=tax_record_id,
+            company_id=effective_company_id,
+            allowed_branch_ids=current_user.allowed_branch_ids,
             user_id=current_user.user_id, payload=payload
         ),
     )
@@ -748,7 +761,9 @@ async def report_finance_tax_record(
         request=request, idempotency_key=idempotency_key,
         current_user=current_user, response_model=FinanceTaxRecordResponse,
         operation=lambda: service.report_tax_record(
-            tax_record_id=tax_record_id, company_id=effective_company_id
+            tax_record_id=tax_record_id,
+            company_id=effective_company_id,
+            allowed_branch_ids=current_user.allowed_branch_ids,
         ),
     )
 
@@ -775,7 +790,9 @@ async def cancel_finance_tax_record(
         request=request, idempotency_key=idempotency_key,
         current_user=current_user, response_model=FinanceTaxRecordResponse,
         operation=lambda: service.cancel_tax_record(
-            tax_record_id=tax_record_id, company_id=effective_company_id
+            tax_record_id=tax_record_id,
+            company_id=effective_company_id,
+            allowed_branch_ids=current_user.allowed_branch_ids,
         ),
     )
 

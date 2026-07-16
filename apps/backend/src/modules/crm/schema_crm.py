@@ -90,6 +90,7 @@ class CRMDealResponse(CRMDealCreate, ORMBase):
     closed_at: datetime | None
     won_lost_reason: str | None
     finance_transaction_id: UUID | None
+    invoice_id: UUID | None = None
     created_at: datetime
     updated_at: datetime
 

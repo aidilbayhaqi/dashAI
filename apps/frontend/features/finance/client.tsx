@@ -12,6 +12,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { runSequentialImport } from "@/lib/import-batch";
 
 import { ModulePage } from "@/components/modules/module-page";
 import { CompanyScopeFilter } from "@/components/modules/company-scope-filter";
@@ -234,16 +235,22 @@ export function FinanceModuleClient({
     if (!rowId || !effectiveCompanyId) return [];
     const status = normalizeStatus(row.status ?? row.status_label);
     const sourceModule = String(row.source_module ?? "").toLowerCase();
-    const isSalesOrderSource = sourceModule === "sales_order";
+    const automationOwnedSource =
+      sourceModule === "sales_order" ||
+      sourceModule === "crm_deal" ||
+      sourceModule === "hr_payroll";
+    const sourceSpecificInvoice =
+      sourceModule === "sales_order" ||
+      sourceModule === "crm_deal";
     const actions: ModuleAction[] = [];
 
     if (moduleKey === "transactions" && canApproveTransactions) {
-      if (status === "draft") {
+      if (status === "draft" && !automationOwnedSource) {
         actions.push(
           commandAction(rowId, "Post Transaction", ShieldCheck, () => postTransaction(rowId, effectiveCompanyId), "Posting transaksi akan mengunci nominal dan memperbarui saldo cash account. Lanjutkan?", "primary"),
           commandAction(rowId, "Cancel", Ban, () => cancelTransaction(rowId, effectiveCompanyId), "Batalkan transaksi draft ini?", "danger"),
         );
-      } else if (status === "posted") {
+      } else if (status === "posted" && !automationOwnedSource) {
         actions.push(commandAction(rowId, "Void Transaction", RotateCcw, () => voidTransaction(rowId, effectiveCompanyId), "Void transaksi akan membalik dampak saldo. Lanjutkan?", "danger"));
       }
     }
@@ -255,7 +262,7 @@ export function FinanceModuleClient({
           commandAction(rowId, "Cancel", Ban, () => cancelInvoice(rowId, effectiveCompanyId), "Batalkan invoice ini?", "danger"),
         );
       } else if (
-        !isSalesOrderSource &&
+        !sourceSpecificInvoice &&
         ["sent", "partially_paid", "overdue"].includes(status)
       ) {
         actions.push(commandAction(rowId, FINANCE_CONFIRM_PAID_LABEL, CircleDollarSign, () => payInvoice(rowId, effectiveCompanyId), "Catat seluruh outstanding invoice sebagai lunas?", "primary"));
@@ -326,11 +333,11 @@ export function FinanceModuleClient({
         isError={isError}
         emptyMessage="Belum ada data finance."
         topContent={canShowCompanyFilter ? <CompanyScopeFilter /> : null}
-        onImportRecords={async (rows) => {
-          for (const payload of rows) {
-            await createMutation.mutateAsync(payload);
-          }
-        }}
+        onImportRecords={(rows) =>
+          runSequentialImport(rows, (payload) =>
+            createMutation.mutateAsync(payload),
+          )
+        }
         onCreateRecord={
           moduleKey === "cashflow" && !canGenerateSnapshots
             ? undefined

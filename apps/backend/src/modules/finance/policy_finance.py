@@ -4,13 +4,14 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.finance.model_finance import (
     BudgetStatus,
     FinanceBudget,
     FinanceBudgetLine,
+    FinanceCashAccount,
     FinanceInvoice,
     FinanceJournalEntry,
     FinanceTaxRecord,
@@ -279,6 +280,21 @@ class FinanceJournalWritePolicy(CRUDWritePolicy):
 
 
 class FinanceCashAccountWritePolicy(CRUDWritePolicy):
+    @staticmethod
+    async def _clear_other_defaults(
+        *,
+        db: AsyncSession,
+        company_id: Any,
+        exclude_id: Any | None = None,
+    ) -> None:
+        statement = update(FinanceCashAccount).where(
+            FinanceCashAccount.company_id == company_id,
+            FinanceCashAccount.is_default.is_(True),
+        )
+        if exclude_id is not None:
+            statement = statement.where(FinanceCashAccount.id != exclude_id)
+        await db.execute(statement.values(is_default=False))
+
     async def before_create(
         self,
         *,
@@ -286,22 +302,33 @@ class FinanceCashAccountWritePolicy(CRUDWritePolicy):
         data: dict[str, Any],
         current_user: CurrentUser,
     ) -> dict[str, Any]:
-        del db, current_user
+        del current_user
         data = dict(data)
         opening = Decimal(str(data.get("opening_balance", ZERO) or ZERO))
         data["current_balance"] = opening
+        if data.get("is_default"):
+            await self._clear_other_defaults(
+                db=db,
+                company_id=data.get("company_id"),
+            )
         return data
 
     async def before_update(
         self,
         *,
         db: AsyncSession,
-        existing: Any,
+        existing: FinanceCashAccount,
         data: dict[str, Any],
         current_user: CurrentUser,
     ) -> dict[str, Any]:
-        del db, existing, current_user
+        del current_user
         _reject_fields(data, {"opening_balance", "current_balance"})
+        if data.get("is_default"):
+            await self._clear_other_defaults(
+                db=db,
+                company_id=existing.company_id,
+                exclude_id=existing.id,
+            )
         return data
 
 

@@ -47,6 +47,10 @@ import {
   getCurrentCompanyId,
   isCurrentUserSuperAdmin,
 } from "@/lib/auth-scope";
+import type {
+  ImportBatchFailure,
+  ImportBatchResult,
+} from "@/lib/import-batch";
 
 type ModulePageProps = ModuleConfig &
   Partial<ModuleData> & {
@@ -58,7 +62,7 @@ type ModulePageProps = ModuleConfig &
     topContent?: ReactNode;
 
     onCreateRecord?: (row: ModuleRow) => Promise<void> | void;
-    onImportRecords?: (rows: ModuleRow[]) => Promise<void> | void;
+    onImportRecords?: (rows: ModuleRow[]) => Promise<ImportBatchResult | void> | ImportBatchResult | void;
     onUpdateRecord?: (id: string, row: ModuleRow) => Promise<void> | void;
     onDeleteRecord?: (id: string) => Promise<void> | void;
     getRowActions?: (row: ModuleRow) => ModuleAction[];
@@ -182,9 +186,10 @@ export function ModulePage({
 }: ModulePageProps) {
   const [localRows, setLocalRows] = useState<ModuleRow[]>([]);
   const [importState, setImportState] = useState<{
-    status: "idle" | "loading" | "success" | "error";
+    status: "idle" | "loading" | "success" | "warning" | "error";
     message: string;
   }>({ status: "idle", message: "" });
+  const [importFailures, setImportFailures] = useState<ImportBatchFailure[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortMode, setSortMode] = useState("updated_desc");
@@ -415,6 +420,7 @@ export function ModulePage({
   function handleImportExcel(file: File | null) {
     if (!file) return;
 
+    setImportFailures([]);
     setImportState({
       status: "loading",
       message: `Membaca ${file.name}...`,
@@ -488,12 +494,32 @@ export function ModulePage({
           );
         }
 
+        let result: ImportBatchResult = {
+          successCount: validRows.length,
+          failures: [],
+        };
+
         if (onImportRecords) {
-          await onImportRecords(validRows);
+          result = (await onImportRecords(validRows)) ?? result;
         } else if (onCreateRecord) {
-          for (const row of validRows) {
-            await onCreateRecord(row);
+          const failures: ImportBatchFailure[] = [];
+          let successCount = 0;
+          for (const [index, row] of validRows.entries()) {
+            try {
+              await onCreateRecord(row);
+              successCount += 1;
+            } catch (error: unknown) {
+              failures.push({
+                rowNumber: index + 2,
+                row,
+                message: getApiErrorMessage(
+                  error,
+                  "Baris gagal diproses oleh backend.",
+                ),
+              });
+            }
           }
+          result = { successCount, failures };
         } else {
           setLocalRows((current) => [
             ...validRows.map((row) => ({
@@ -504,9 +530,13 @@ export function ModulePage({
           ]);
         }
 
+        setImportFailures(result.failures);
         setImportState({
-          status: "success",
-          message: `${validRows.length} baris berhasil diimpor dan diproses melalui workflow module.`,
+          status: result.failures.length > 0 ? "warning" : "success",
+          message:
+            result.failures.length > 0
+              ? `${result.successCount} baris berhasil, ${result.failures.length} baris gagal. Unduh laporan gagal untuk koreksi.`
+              : `${result.successCount} baris berhasil diimpor dan diproses melalui workflow module.`,
         });
       } catch (error) {
         setImportState({
@@ -526,6 +556,20 @@ export function ModulePage({
       });
 
     reader.readAsArrayBuffer(file);
+  }
+
+  function handleExportImportFailures() {
+    if (importFailures.length === 0) return;
+
+    const failureRows = importFailures.map((failure) => ({
+      row_number: failure.rowNumber,
+      error: failure.message,
+      ...failure.row,
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(failureRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Failed Rows");
+    XLSX.writeFile(workbook, `${title} Import Failures.xlsx`);
   }
 
   function handleExportExcel() {
@@ -694,12 +738,25 @@ export function ModulePage({
                   "rounded-2xl border px-4 py-2 text-xs font-bold",
                   importState.status === "success"
                     ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-950 dark:bg-emerald-950/20 dark:text-emerald-300"
-                    : importState.status === "error"
-                      ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-950 dark:bg-rose-950/20 dark:text-rose-300"
-                      : "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-950 dark:bg-blue-950/20 dark:text-blue-300",
+                    : importState.status === "warning"
+                      ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-300"
+                      : importState.status === "error"
+                        ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-950 dark:bg-rose-950/20 dark:text-rose-300"
+                        : "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-950 dark:bg-blue-950/20 dark:text-blue-300",
                 )}
               >
-                {importState.message}
+                <div className="flex flex-wrap items-center gap-3">
+                  <span>{importState.message}</span>
+                  {importFailures.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={handleExportImportFailures}
+                      className="rounded-xl border border-current/20 px-3 py-1 font-black transition hover:bg-white/50 dark:hover:bg-black/20"
+                    >
+                      Download Failed Rows
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ) : null}
 

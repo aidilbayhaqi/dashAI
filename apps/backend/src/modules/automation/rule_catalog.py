@@ -42,6 +42,7 @@ ERP_AUTOMATION_RULES: tuple[AutomationRuleDefinition, ...] = (
             "Create a sent customer invoice",
             "Create a draft income transaction",
             "Accrue invoice tax when tax is greater than zero",
+            "Post balanced invoice and cost-of-goods journals",
         ),
         accounting_effect=(
             "No cash movement at fulfillment. Cash increases only after payment confirmation."
@@ -59,11 +60,14 @@ ERP_AUTOMATION_RULES: tuple[AutomationRuleDefinition, ...] = (
         trigger="finance.invoice.payment_recorded",
         actions=(
             "Increase selected cash account balance",
-            "Create or post the linked income transaction",
+            "Post the linked income transaction",
             "Update invoice paid amount and payment status",
+            "Post a balanced cash and receivable settlement journal",
             "Publish finance and dashboard invalidation events",
         ),
-        accounting_effect="Posted operating cash inflow and recognized revenue.",
+        accounting_effect=(
+            "Posted operating cash inflow. Revenue is recognized when the invoice is issued."
+        ),
         guardrails=(
             "Payment cannot exceed outstanding amount",
             "Cancelled invoices cannot receive payment",
@@ -114,15 +118,18 @@ ERP_AUTOMATION_RULES: tuple[AutomationRuleDefinition, ...] = (
             "Calculate overtime from approved attendance minutes",
             "Calculate KPI performance bonus",
             "Create one payroll slip per active employee",
-            "Create one draft payroll expense transaction",
+            "Create one draft payroll payment transaction",
+            "Post salary expense and payroll liability journals",
         ),
         accounting_effect=(
-            "Draft payroll expense is created after calculation; cash decreases only when posted."
+            "Payroll expense and liabilities are recognized after calculation; cash decreases only through Pay Payroll."
         ),
         guardrails=(
+            "Attendance must be complete for every scheduled workday",
             "One slip per employee and payroll run",
             "Cancelled payroll cannot be recalculated",
             "Finance transaction is idempotent by payroll run",
+            "Generic Finance posting is blocked for payroll records",
         ),
     ),
     AutomationRuleDefinition(
@@ -132,14 +139,15 @@ ERP_AUTOMATION_RULES: tuple[AutomationRuleDefinition, ...] = (
         trigger="crm.deal.won",
         actions=(
             "Recalculate deal value from deal items",
-            "Create one draft income transaction",
+            "Create one sent invoice and one draft income transaction",
+            "Accrue invoice tax and post the invoice journal",
             "Confirm settlement through a dedicated payment command",
         ),
         accounting_effect=(
-            "Winning a deal does not create cash. Cash increases after settlement confirmation."
+            "Winning a deal recognizes an invoiced receivable, not cash. Cash increases after settlement confirmation."
         ),
         guardrails=(
-            "One finance transaction per deal",
+            "One finance transaction and one invoice per deal",
             "Only won deals can be settled",
             "Settlement requires an active company cash account",
         ),
@@ -159,6 +167,8 @@ ERP_AUTOMATION_RULES: tuple[AutomationRuleDefinition, ...] = (
         guardrails=(
             "Uses the same tenant validation as manual create",
             "Rows are not inserted only into browser memory",
+            "One invalid row does not stop subsequent valid rows",
+            "Failed rows can be downloaded for correction",
             "Import does not bypass required fields or permissions",
         ),
     ),

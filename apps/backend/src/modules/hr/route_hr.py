@@ -33,6 +33,7 @@ from src.modules.hr.schema_hr import (
     PayrollRunCreate,
     PayrollRunUpdate,
     PayrollRunResponse,
+    PayrollPaymentRequest,
     KPIIndicatorCreate,
     KPIIndicatorUpdate,
     KPIIndicatorResponse,
@@ -265,6 +266,55 @@ async def create_payroll_finance_transaction(
                 status_code=404,
                 detail="Payroll run not found",
             )
+        return result
+
+    return await execute_idempotent(
+        context=context,
+        operation=operation,
+        response_model=PayrollRunResponse,
+    )
+
+@router.post(
+    "/hr/payroll-runs/{payroll_run_id}/pay",
+    response_model=PayrollRunResponse,
+)
+async def pay_payroll_run(
+    payroll_run_id: UUID,
+    payload: PayrollPaymentRequest,
+    request: Request,
+    idempotency_key: str = Depends(get_idempotency_key),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(
+        require_permission("hr.payroll.manage")
+    ),
+):
+    context = await build_idempotency_context(
+        request=request,
+        current_user=current_user,
+        raw_key=idempotency_key,
+    )
+
+    async def operation():
+        payroll_run = await get_record_or_404(
+            db=db,
+            model_class=PayrollRun,
+            item_id=payroll_run_id,
+            detail="Payroll run not found",
+        )
+        await ensure_item_access(
+            db=db,
+            item=payroll_run,
+            current_user=current_user,
+            detail="Payroll run not found",
+        )
+        service = PayrollRunService(db)
+        result = await service.pay_payroll(
+            payroll_run_id=payroll_run.id,
+            user_id=current_user.user_id,
+            payload=payload,
+        )
+        if result is None:
+            raise HTTPException(status_code=404, detail="Payroll run not found")
         return result
 
     return await execute_idempotent(

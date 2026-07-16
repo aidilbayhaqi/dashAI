@@ -7,7 +7,7 @@ ENV PNPM_HOME="/pnpm" \
     NEXT_TELEMETRY_DISABLED=1
 
 RUN corepack enable \
-    && corepack prepare pnpm@11.5.3 --activate
+    && corepack prepare pnpm@11.9.0 --activate
 
 WORKDIR /app
 

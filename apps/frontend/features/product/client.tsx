@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { runSequentialImport } from "@/lib/import-batch";
 
 import { ModulePage } from "@/components/modules/module-page";
 import { CompanyScopeFilter } from "@/components/modules/company-scope-filter";
@@ -86,11 +87,11 @@ const canShowCompanyFilter = isCurrentUserSuperAdmin() || !currentCompanyId;
       isError={isError}
       emptyMessage="Belum ada data product."
       topContent={canShowCompanyFilter ? <CompanyScopeFilter /> : null}
-      onImportRecords={async (rows) => {
-        for (const payload of rows) {
-          await createMutation.mutateAsync(payload);
-        }
-      }}
+      onImportRecords={(rows) =>
+        runSequentialImport(rows, (payload) =>
+          createMutation.mutateAsync(payload),
+        )
+      }
       onCreateRecord={(payload) => createMutation.mutateAsync(payload)}
       onUpdateRecord={(id, payload) =>
         updateMutation.mutateAsync({

@@ -26,6 +26,7 @@ from src.modules.crm.schema_crm import (
     CRMCampaignResponse
 )
 from src.modules.crm.service_crm import CRMDealItemService, CRMDealService
+from src.modules.crm.policy_crm import CRMDealWritePolicy
 from src.modules.products.model_product import Product
 from src.security.dependencies import CurrentUser, require_permission
 from src.security.idempotency import (
@@ -85,6 +86,7 @@ router.include_router(
 router.include_router(
     create_crud_router(
         prefix="/crm/deals",
+        write_policy=CRMDealWritePolicy(),
         tags=["CRM Deals"],
         permission_prefix="crm.deals",
         model_class=CRMDeal,

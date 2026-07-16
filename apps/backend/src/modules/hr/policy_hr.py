@@ -8,7 +8,7 @@ from src.modules.finance.model_finance import (
     FinanceTransaction,
     TransactionStatus,
 )
-from src.modules.hr.model_hr import PayrollRun
+from src.modules.hr.model_hr import PayrollRun, PayrollStatus
 from src.security.dependencies import CurrentUser
 from src.service.write_policy import CRUDWritePolicy
 
@@ -21,6 +21,58 @@ class PayrollRunWritePolicy(CRUDWritePolicy):
     removed together with its source payroll run. Posted, void, or cancelled
     transactions keep the payroll run immutable for audit purposes.
     """
+
+    protected_fields = {
+        "status",
+        "total_gross",
+        "total_deductions",
+        "total_tax",
+        "total_net",
+        "paid_at",
+        "finance_transaction_id",
+    }
+
+    async def before_create(
+        self,
+        *,
+        db: AsyncSession,
+        data: dict,
+        current_user: CurrentUser,
+    ) -> dict:
+        del db, current_user
+        values = dict(data)
+        values["status"] = PayrollStatus.DRAFT
+        values["total_gross"] = 0
+        values["total_deductions"] = 0
+        values["total_tax"] = 0
+        values["total_net"] = 0
+        values["paid_at"] = None
+        return values
+
+    async def before_update(
+        self,
+        *,
+        db: AsyncSession,
+        existing: PayrollRun,
+        data: dict,
+        current_user: CurrentUser,
+    ) -> dict:
+        del db, current_user
+        attempted = sorted(set(data) & self.protected_fields)
+        if attempted:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "Payroll calculated/payment fields must use payroll commands: "
+                    + ", ".join(attempted)
+                ),
+            )
+        if existing.status != PayrollStatus.DRAFT:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Only draft payroll runs can be edited",
+            )
+        return data
 
     async def before_delete(
         self,

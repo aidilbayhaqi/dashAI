@@ -7,13 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 
 from src.service.base_domain_service import BaseDomainService
+from src.modules.finance.service_accounting_bridge import AccountingBridgeService
 from src.modules.finance.service_finance_automation import record_domain_event
 from src.modules.finance.model_finance import (
     CashflowActivity,
+    FinanceCashAccount,
     FinanceTransaction,
     TransactionStatus,
     TransactionType,
 )
+from src.modules.hr.schema_hr import PayrollPaymentRequest
 from src.modules.hr.model_hr import (
     ApprovalStatus,
     AttendanceRecord,
@@ -164,10 +167,7 @@ class PayrollRunService(BaseDomainService):
 
         if payroll_run.branch_id is not None:
             employee_query = employee_query.where(
-                or_(
-                    Employee.branch_id == payroll_run.branch_id,
-                    Employee.branch_id.is_(None),
-                )
+                Employee.branch_id == payroll_run.branch_id
             )
 
         result = await self.db.execute(employee_query)
@@ -185,6 +185,7 @@ class PayrollRunService(BaseDomainService):
             attendance_result = await self.db.execute(
                 select(
                     AttendanceRecord.employee_id,
+                    func.count(func.distinct(AttendanceRecord.attendance_date)),
                     func.coalesce(
                         func.sum(
                             case(
@@ -215,9 +216,10 @@ class PayrollRunService(BaseDomainService):
             )
             attendance_by_employee = {
                 row[0]: {
-                    "absent_days": int(row[1] or 0),
-                    "late_days": int(row[2] or 0),
-                    "overtime_minutes": int(row[3] or 0),
+                    "recorded_days": int(row[1] or 0),
+                    "absent_days": int(row[2] or 0),
+                    "late_days": int(row[3] or 0),
+                    "overtime_minutes": int(row[4] or 0),
                 }
                 for row in attendance_result.all()
             }
@@ -227,7 +229,9 @@ class PayrollRunService(BaseDomainService):
             kpi_result = await self.db.execute(
                 select(
                     KPIReview.employee_id,
-                    func.max(KPIReview.total_score),
+                    KPIReview.total_score,
+                    KPIReview.period_end,
+                    KPIReview.created_at,
                 )
                 .where(
                     KPIReview.company_id == payroll_run.company_id,
@@ -236,20 +240,36 @@ class PayrollRunService(BaseDomainService):
                     KPIReview.period_start <= payroll_run.period_end,
                     KPIReview.period_end >= payroll_run.period_start,
                 )
-                .group_by(KPIReview.employee_id)
+                .order_by(
+                    KPIReview.employee_id,
+                    KPIReview.period_end.desc(),
+                    KPIReview.created_at.desc(),
+                )
             )
-            kpi_by_employee = {
-                row[0]: Decimal(str(row[1] or 0))
-                for row in kpi_result.all()
-            }
+            for employee_id, total_score, _period_end, _created_at in kpi_result.all():
+                kpi_by_employee.setdefault(
+                    employee_id,
+                    Decimal(str(total_score or 0)),
+                )
 
-        scheduled_workdays = 0
-        cursor = payroll_run.period_start
-        while cursor <= payroll_run.period_end:
-            if cursor.weekday() < 5:
-                scheduled_workdays += 1
-            cursor += timedelta(days=1)
-        scheduled_workdays = max(scheduled_workdays, 1)
+        def scheduled_workdays_for(employee: Employee) -> int:
+            start_date = max(
+                payroll_run.period_start,
+                employee.hire_date or payroll_run.period_start,
+            )
+            end_date = min(
+                payroll_run.period_end,
+                employee.resign_date or payroll_run.period_end,
+            )
+            if end_date < start_date:
+                return 0
+            count = 0
+            cursor = start_date
+            while cursor <= end_date:
+                if cursor.weekday() < 5:
+                    count += 1
+                cursor += timedelta(days=1)
+            return count
 
         total_gross = Decimal("0.00")
         total_deductions = Decimal("0.00")
@@ -262,8 +282,27 @@ class PayrollRunService(BaseDomainService):
 
             attendance = attendance_by_employee.get(
                 employee.id,
-                {"absent_days": 0, "late_days": 0, "overtime_minutes": 0},
+                {
+                    "recorded_days": 0,
+                    "absent_days": 0,
+                    "late_days": 0,
+                    "overtime_minutes": 0,
+                },
             )
+            scheduled_workdays = max(scheduled_workdays_for(employee), 1)
+            recorded_days = min(
+                int(attendance["recorded_days"]),
+                scheduled_workdays,
+            )
+            missing_days = max(scheduled_workdays - recorded_days, 0)
+            if missing_days > 0:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"Attendance is incomplete for employee "
+                        f"{employee.employee_no}: {missing_days} workday(s) missing"
+                    ),
+                )
             absent_days = Decimal(int(attendance["absent_days"]))
             late_days = Decimal(int(attendance["late_days"]))
             overtime_minutes = Decimal(int(attendance["overtime_minutes"]))
@@ -387,6 +426,9 @@ class PayrollRunService(BaseDomainService):
 
         if existing_transaction is not None:
             payroll_run.finance_transaction_id = existing_transaction.id
+            await AccountingBridgeService(self.db).ensure_payroll_accrual_journal(
+                payroll_run=payroll_run,
+            )
             await commit_or_raise(self.db)
             await self.db.refresh(payroll_run)
             return payroll_run
@@ -409,6 +451,9 @@ class PayrollRunService(BaseDomainService):
         self.db.add(transaction)
         await flush_or_raise(self.db)
         payroll_run.finance_transaction_id = transaction.id
+        await AccountingBridgeService(self.db).ensure_payroll_accrual_journal(
+            payroll_run=payroll_run,
+        )
         await record_domain_event(
             self.db,
             company_id=payroll_run.company_id,
@@ -423,6 +468,121 @@ class PayrollRunService(BaseDomainService):
             },
         )
 
+        await commit_or_raise(self.db)
+        await self.db.refresh(payroll_run)
+        return payroll_run
+
+    async def pay_payroll(
+        self,
+        *,
+        payroll_run_id: UUID,
+        user_id: UUID,
+        payload: PayrollPaymentRequest,
+    ):
+        payroll_run = await self._get_locked_payroll_run(payroll_run_id)
+        if payroll_run is None:
+            return None
+        if payroll_run.status == PayrollStatus.PAID:
+            return payroll_run
+        if payroll_run.status not in {
+            PayrollStatus.CALCULATED,
+            PayrollStatus.APPROVED,
+        }:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Payroll must be calculated or approved before payment",
+            )
+
+        if payroll_run.finance_transaction_id is None:
+            await self.create_finance_transaction(payroll_run.id)
+            payroll_run = await self._get_locked_payroll_run(payroll_run.id)
+            assert payroll_run is not None
+
+        transaction_result = await self.db.execute(
+            select(FinanceTransaction)
+            .where(
+                FinanceTransaction.id == payroll_run.finance_transaction_id,
+                FinanceTransaction.company_id == payroll_run.company_id,
+                FinanceTransaction.source_module == "hr_payroll",
+                FinanceTransaction.source_id == payroll_run.id,
+            )
+            .with_for_update()
+        )
+        transaction = transaction_result.scalar_one_or_none()
+        if transaction is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Linked payroll Finance transaction was not found",
+            )
+        if transaction.status == TransactionStatus.POSTED:
+            payroll_run.status = PayrollStatus.PAID
+            payroll_run.paid_at = payroll_run.paid_at or utc_now_naive()
+            await commit_or_raise(self.db)
+            await self.db.refresh(payroll_run)
+            return payroll_run
+        if transaction.status != TransactionStatus.DRAFT:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Payroll Finance transaction is not payable",
+            )
+
+        cash_query = select(FinanceCashAccount).where(
+            FinanceCashAccount.company_id == payroll_run.company_id,
+            FinanceCashAccount.is_active.is_(True),
+        )
+        if payload.cash_account_id is not None:
+            cash_query = cash_query.where(
+                FinanceCashAccount.id == payload.cash_account_id
+            )
+        else:
+            cash_query = cash_query.order_by(
+                FinanceCashAccount.is_default.desc(),
+                FinanceCashAccount.created_at.asc(),
+                FinanceCashAccount.id.asc(),
+            ).limit(1)
+        cash_result = await self.db.execute(cash_query.with_for_update())
+        cash_account = cash_result.scalar_one_or_none()
+        if cash_account is None:
+            raise HTTPException(status_code=404, detail="Cash account not found")
+
+        amount = Decimal(payroll_run.total_net or 0)
+        if amount <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Payroll net amount must be greater than zero",
+            )
+        cash_account.current_balance = Decimal(cash_account.current_balance) - amount
+        transaction.cash_account_id = cash_account.id
+        transaction.transaction_date = payload.payment_date or date.today()
+        transaction.reference_no = payload.reference_no or transaction.reference_no
+        transaction.description = payload.notes or transaction.description
+        transaction.status = TransactionStatus.POSTED
+        transaction.posted_at = utc_now_naive()
+        transaction.created_by = transaction.created_by or user_id
+        payroll_run.status = PayrollStatus.PAID
+        payroll_run.paid_at = utc_now_naive()
+
+        bridge = AccountingBridgeService(self.db)
+        await bridge.ensure_payroll_accrual_journal(payroll_run=payroll_run)
+        await bridge.ensure_payroll_payment_journal(
+            payroll_run=payroll_run,
+            transaction=transaction,
+            cash_account=cash_account,
+        )
+        await record_domain_event(
+            self.db,
+            company_id=payroll_run.company_id,
+            aggregate_type="hr_payroll_run",
+            aggregate_id=payroll_run.id,
+            event_type="hr.payroll.paid",
+            event_key=f"payroll-run:{payroll_run.id}:paid",
+            payload={
+                "payroll_run_id": str(payroll_run.id),
+                "finance_transaction_id": str(transaction.id),
+                "cash_account_id": str(cash_account.id),
+                "amount": str(amount),
+            },
+        )
         await commit_or_raise(self.db)
         await self.db.refresh(payroll_run)
         return payroll_run

@@ -306,7 +306,8 @@ FINANCE_ACCOUNTS = [
 
     ("2000", "Liabilitas", AccountType.LIABILITY, NormalBalance.CREDIT, None, False, False, False),
     ("2100", "Utang Usaha", AccountType.LIABILITY, NormalBalance.CREDIT, "2000", False, False, False),
-    ("2200", "Utang Pajak", AccountType.TAX, NormalBalance.CREDIT, "2000", False, False, True),
+    ("2200", "Utang Pajak", AccountType.LIABILITY, NormalBalance.CREDIT, "2000", False, False, True),
+    ("2300", "Utang Gaji", AccountType.LIABILITY, NormalBalance.CREDIT, "2000", False, False, False),
 
     ("3000", "Ekuitas", AccountType.EQUITY, NormalBalance.CREDIT, None, False, False, False),
     ("3100", "Modal Disetor", AccountType.EQUITY, NormalBalance.CREDIT, "3000", False, False, False),
@@ -320,6 +321,7 @@ FINANCE_ACCOUNTS = [
     ("6000", "Beban Operasional", AccountType.EXPENSE, NormalBalance.DEBIT, None, False, False, False),
     ("6100", "Beban Gaji", AccountType.EXPENSE, NormalBalance.DEBIT, "6000", False, False, False),
     ("6200", "Beban Sewa", AccountType.EXPENSE, NormalBalance.DEBIT, "6000", False, False, False),
+    ("6300", "Beban Pajak", AccountType.TAX, NormalBalance.DEBIT, "6000", False, False, True),
 ]
 
 

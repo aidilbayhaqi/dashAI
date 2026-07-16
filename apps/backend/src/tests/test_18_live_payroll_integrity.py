@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import calendar
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
@@ -26,10 +26,14 @@ async def test_payroll_calculation_and_finance_posting_are_idempotent(
     first_company_id: str,
     first_branch_id: str | None,
 ):
+    del first_branch_id
+
     token = uuid4().hex
+    branch_id: str | None = None
     employee_id: str | None = None
     payroll_run_id: str | None = None
     finance_transaction_id: str | None = None
+    attendance_ids: list[str] = []
 
     today = date.today()
     period_start = today.replace(day=1)
@@ -40,7 +44,7 @@ async def test_payroll_calculation_and_finance_posting_are_idempotent(
 
     employee_payload = {
         "company_id": first_company_id,
-        "branch_id": first_branch_id,
+        "branch_id": None,
         "employee_no": f"EMP-{token[:14].upper()}",
         "full_name": f"Payroll Test Employee {token[:8]}",
         "email": f"payroll-{token[:10]}@example.test",
@@ -54,7 +58,7 @@ async def test_payroll_calculation_and_finance_posting_are_idempotent(
 
     payroll_payload = {
         "company_id": first_company_id,
-        "branch_id": first_branch_id,
+        "branch_id": None,
         "payroll_no": payroll_no,
         "period_start": period_start.isoformat(),
         "period_end": period_end.isoformat(),
@@ -66,6 +70,22 @@ async def test_payroll_calculation_and_finance_posting_are_idempotent(
     }
 
     try:
+        branch_response = await live_client.post(
+            f"/api/v1/companies/{first_company_id}/branches",
+            headers=auth_headers,
+            json={
+                "code": f"PY-{token[:10].upper()}",
+                "name": f"Payroll Test Branch {token[:8]}",
+                "branch_type": "branch",
+                "is_head_office": False,
+                "is_active": True,
+            },
+        )
+        assert branch_response.status_code == 201, branch_response.text
+        branch_id = branch_response.json()["id"]
+        employee_payload["branch_id"] = branch_id
+        payroll_payload["branch_id"] = branch_id
+
         employee_response = await live_client.post(
             "/api/v1/hr/employees",
             headers=idempotency_headers(
@@ -78,6 +98,31 @@ async def test_payroll_calculation_and_finance_posting_are_idempotent(
             employee_response.text
         )
         employee_id = employee_response.json()["id"]
+
+        attendance_day = period_start
+        while attendance_day <= period_end:
+            if attendance_day.weekday() < 5:
+                attendance_response = await live_client.post(
+                    "/api/v1/hr/attendance",
+                    headers=idempotency_headers(
+                        auth_headers,
+                        f"dashai-payroll-attendance-{token}-{attendance_day.isoformat()}",
+                    ),
+                    json={
+                        "company_id": first_company_id,
+                        "branch_id": branch_id,
+                        "employee_id": employee_id,
+                        "attendance_date": attendance_day.isoformat(),
+                        "status": "present",
+                        "work_minutes": 480,
+                        "overtime_minutes": 0,
+                    },
+                )
+                assert attendance_response.status_code == 201, (
+                    attendance_response.text
+                )
+                attendance_ids.append(attendance_response.json()["id"])
+            attendance_day += timedelta(days=1)
 
         payroll_response = await live_client.post(
             "/api/v1/hr/payroll-runs",
@@ -243,6 +288,19 @@ async def test_payroll_calculation_and_finance_posting_are_idempotent(
         ]
         assert len(exact_transactions) == 1
         assert exact_transactions[0]["id"] == finance_transaction_id
+        assert exact_transactions[0]["status"] == "draft"
+
+        generic_post = await live_client.post(
+            f"/api/v1/finance/transactions/{finance_transaction_id}/post",
+            headers=idempotency_headers(
+                auth_headers,
+                f"dashai-payroll-generic-post-{token}",
+            ),
+            params={"company_id": first_company_id},
+        )
+        assert generic_post.status_code == 409, generic_post.text
+        assert "Payroll Pay" in generic_post.text
+
 
     finally:
         await delete_if_exists(
@@ -264,11 +322,26 @@ async def test_payroll_calculation_and_finance_posting_are_idempotent(
             ),
             headers=auth_headers,
         )
+        for attendance_id in attendance_ids:
+            await delete_if_exists(
+                live_client,
+                f"/api/v1/hr/attendance/{attendance_id}",
+                headers=auth_headers,
+            )
         await delete_if_exists(
             live_client,
             (
                 f"/api/v1/hr/employees/{employee_id}"
                 if employee_id
+                else None
+            ),
+            headers=auth_headers,
+        )
+        await delete_if_exists(
+            live_client,
+            (
+                f"/api/v1/companies/branches/{branch_id}"
+                if branch_id
                 else None
             ),
             headers=auth_headers,

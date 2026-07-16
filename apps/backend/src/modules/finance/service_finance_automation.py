@@ -5,6 +5,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.automation.model_automation import DomainEventOutbox
@@ -65,7 +66,7 @@ async def ensure_invoice_tax_record(
     result = await db.execute(
         select(FinanceTaxRecord).where(
             FinanceTaxRecord.company_id == invoice.company_id,
-            FinanceTaxRecord.reference_no == invoice.invoice_no,
+            FinanceTaxRecord.invoice_id == invoice.id,
             FinanceTaxRecord.tax_type == TaxType.PPN,
         )
     )
@@ -93,21 +94,40 @@ async def ensure_invoice_tax_record(
     )
     tax_rate = rate_result.scalar_one_or_none()
 
-    record = FinanceTaxRecord(
-        company_id=invoice.company_id,
-        tax_rate_id=tax_rate.id if tax_rate else None,
-        tax_type=TaxType.PPN,
-        tax_period=f"{invoice.invoice_date:%Y-%m}",
-        taxable_amount=taxable_amount,
-        tax_amount=tax_amount,
-        paid_amount=ZERO,
-        status=TaxRecordStatus.ACCRUED,
-        due_date=invoice.due_date,
-        reference_no=invoice.invoice_no,
-        notes=f"Automatic tax accrual from invoice {invoice.invoice_no}",
+    insert_result = await db.execute(
+        pg_insert(FinanceTaxRecord)
+        .values(
+            company_id=invoice.company_id,
+            invoice_id=invoice.id,
+            tax_rate_id=tax_rate.id if tax_rate else None,
+            tax_type=TaxType.PPN,
+            tax_period=f"{invoice.invoice_date:%Y-%m}",
+            taxable_amount=taxable_amount,
+            tax_amount=tax_amount,
+            paid_amount=ZERO,
+            status=TaxRecordStatus.ACCRUED,
+            due_date=invoice.due_date,
+            reference_no=invoice.invoice_no,
+            notes=f"Automatic tax accrual from invoice {invoice.invoice_no}",
+        )
+        .on_conflict_do_nothing(
+            constraint="uq_finance_tax_record_company_invoice_type"
+        )
+        .returning(FinanceTaxRecord.id)
     )
-    db.add(record)
-    await db.flush()
+    inserted_id = insert_result.scalar_one_or_none()
+    if inserted_id is None:
+        concurrent_result = await db.execute(
+            select(FinanceTaxRecord).where(
+                FinanceTaxRecord.company_id == invoice.company_id,
+                FinanceTaxRecord.invoice_id == invoice.id,
+                FinanceTaxRecord.tax_type == TaxType.PPN,
+            )
+        )
+        return concurrent_result.scalar_one()
+
+    record = await db.get(FinanceTaxRecord, inserted_id)
+    assert record is not None
 
     await record_domain_event(
         db,

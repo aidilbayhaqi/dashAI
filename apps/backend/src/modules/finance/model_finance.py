@@ -97,6 +97,7 @@ class BudgetStatus(str, enum.Enum):
     CLOSED = "closed"
     CANCELLED = "cancelled"
 
+
 class InvoiceStatus(str, enum.Enum):
     DRAFT = "draft"
     SENT = "sent"
@@ -323,6 +324,7 @@ class FinanceCashAccount(Base):
     )
 
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -345,6 +347,12 @@ class FinanceCashAccount(Base):
             "company_id",
             "name",
             name="uq_finance_cash_account_company_name",
+        ),
+        Index(
+            "uq_finance_cash_account_default_company",
+            "company_id",
+            unique=True,
+            postgresql_where=is_default.is_(True),
         ),
     )
 
@@ -496,6 +504,17 @@ class FinanceTransaction(Base):
                 & (source_module == "sales_order")
             ),
         ),
+        Index(
+            "uq_finance_transaction_automation_source",
+            "company_id",
+            "source_module",
+            "source_id",
+            unique=True,
+            postgresql_where=(
+                source_id.is_not(None)
+                & source_module.in_(["crm_deal", "hr_payroll"])
+            ),
+        ),
     )
 
 class FinanceInvoice(Base):
@@ -572,6 +591,17 @@ class FinanceInvoice(Base):
             postgresql_where=(
                 source_id.is_not(None)
                 & (source_module == "sales_order")
+            ),
+        ),
+        Index(
+            "uq_finance_invoice_crm_deal_source",
+            "company_id",
+            "source_module",
+            "source_id",
+            unique=True,
+            postgresql_where=(
+                source_id.is_not(None)
+                & (source_module == "crm_deal")
             ),
         ),
     )
@@ -819,6 +849,13 @@ class FinanceTaxRecord(Base):
         index=True,
     )
 
+    invoice_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("finance_invoices.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     tax_type: Mapped[TaxType] = mapped_column(
         Enum(TaxType, name="finance_tax_record_type_enum"),
         nullable=False,
@@ -867,8 +904,15 @@ class FinanceTaxRecord(Base):
     period = relationship("FinanceAccountingPeriod")
     tax_rate = relationship("FinanceTaxRate")
     transaction = relationship("FinanceTransaction")
+    invoice = relationship("FinanceInvoice")
 
     __table_args__ = (
+        UniqueConstraint(
+            "company_id",
+            "invoice_id",
+            "tax_type",
+            name="uq_finance_tax_record_company_invoice_type",
+        ),
         Index(
             "ix_finance_tax_records_company_period_type",
             "company_id",

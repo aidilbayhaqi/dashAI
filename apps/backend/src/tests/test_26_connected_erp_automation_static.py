@@ -38,8 +38,9 @@ def test_sales_order_cash_only_moves_after_payment():
 def test_invoice_tax_accrual_is_idempotent():
     source = read_backend("src/modules/finance/service_finance_automation.py")
     assert "ensure_invoice_tax_record" in source
-    assert "FinanceTaxRecord.reference_no == invoice.invoice_no" in source
+    assert "FinanceTaxRecord.invoice_id == invoice.id" in source
     assert 'event_key=f"invoice:{invoice.id}:tax-accrued"' in source
+    assert "invoice_id=invoice.id" in source
     assert "if tax_amount <= ZERO" in source
 
 

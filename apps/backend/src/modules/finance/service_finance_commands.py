@@ -22,6 +22,7 @@ from src.modules.finance.model_finance import (
     TransactionStatus,
     TransactionType,
 )
+from src.modules.finance.service_accounting_bridge import AccountingBridgeService
 from src.modules.finance.service_finance_automation import (
     ensure_invoice_tax_record,
     record_domain_event,
@@ -36,6 +37,7 @@ from src.service.domain_integrity import commit_or_raise
 
 
 ZERO = Decimal("0.00")
+AUTOMATION_OWNED_SOURCES = {"sales_order", "crm_deal", "hr_payroll"}
 
 
 def _conflict(detail: str) -> HTTPException:
@@ -46,11 +48,66 @@ class FinanceCommandService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    @staticmethod
+    def _ensure_branch_allowed(
+        *,
+        branch_id: UUID | None,
+        allowed_branch_ids: set[UUID] | None,
+        detail: str,
+    ) -> None:
+        if allowed_branch_ids is None or branch_id is None:
+            return
+        if branch_id not in allowed_branch_ids:
+            raise HTTPException(status_code=404, detail=detail)
+
+    @staticmethod
+    def _ensure_generic_command_allowed(
+        transaction: FinanceTransaction,
+        *,
+        command: str,
+    ) -> None:
+        source_module = (transaction.source_module or "").lower()
+        if source_module in AUTOMATION_OWNED_SOURCES:
+            labels = {
+                "sales_order": "Sales Order Confirm Payment",
+                "crm_deal": "CRM Deal Confirm Payment",
+                "hr_payroll": "Payroll Pay command",
+            }
+            raise _conflict(
+                f"{command} is blocked for {source_module}. "
+                f"Use {labels[source_module]} to keep ERP records synchronized"
+            )
+
+    async def _default_cash_account(
+        self,
+        *,
+        company_id: UUID,
+    ) -> FinanceCashAccount:
+        result = await self.db.execute(
+            select(FinanceCashAccount)
+            .where(
+                FinanceCashAccount.company_id == company_id,
+                FinanceCashAccount.is_active.is_(True),
+            )
+            .order_by(
+                FinanceCashAccount.is_default.desc(),
+                FinanceCashAccount.created_at.asc(),
+                FinanceCashAccount.id.asc(),
+            )
+            .limit(1)
+            .with_for_update()
+        )
+        account = result.scalar_one_or_none()
+        if account is None:
+            raise _conflict("No active cash account is configured")
+        return account
+
     async def _transaction(
         self,
         *,
         transaction_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> FinanceTransaction:
         result = await self.db.execute(
             select(FinanceTransaction)
@@ -63,6 +120,11 @@ class FinanceCommandService:
         item = result.scalar_one_or_none()
         if item is None:
             raise HTTPException(status_code=404, detail="Transaction not found")
+        self._ensure_branch_allowed(
+            branch_id=item.branch_id,
+            allowed_branch_ids=allowed_branch_ids,
+            detail="Transaction not found",
+        )
         return item
 
     async def _invoice(
@@ -70,6 +132,7 @@ class FinanceCommandService:
         *,
         invoice_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> FinanceInvoice:
         result = await self.db.execute(
             select(FinanceInvoice)
@@ -82,6 +145,11 @@ class FinanceCommandService:
         item = result.scalar_one_or_none()
         if item is None:
             raise HTTPException(status_code=404, detail="Invoice not found")
+        self._ensure_branch_allowed(
+            branch_id=item.branch_id,
+            allowed_branch_ids=allowed_branch_ids,
+            detail="Invoice not found",
+        )
         return item
 
     async def _journal(
@@ -89,6 +157,7 @@ class FinanceCommandService:
         *,
         journal_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> FinanceJournalEntry:
         result = await self.db.execute(
             select(FinanceJournalEntry)
@@ -101,6 +170,18 @@ class FinanceCommandService:
         item = result.scalar_one_or_none()
         if item is None:
             raise HTTPException(status_code=404, detail="Journal not found")
+        if item.transaction_id is not None:
+            branch_id = await self.db.scalar(
+                select(FinanceTransaction.branch_id).where(
+                    FinanceTransaction.id == item.transaction_id,
+                    FinanceTransaction.company_id == company_id,
+                )
+            )
+            self._ensure_branch_allowed(
+                branch_id=branch_id,
+                allowed_branch_ids=allowed_branch_ids,
+                detail="Journal not found",
+            )
         return item
 
 
@@ -109,6 +190,7 @@ class FinanceCommandService:
         *,
         tax_record_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> FinanceTaxRecord:
         result = await self.db.execute(
             select(FinanceTaxRecord)
@@ -121,6 +203,26 @@ class FinanceCommandService:
         item = result.scalar_one_or_none()
         if item is None:
             raise HTTPException(status_code=404, detail="Tax record not found")
+        branch_id = None
+        if item.invoice_id is not None:
+            branch_id = await self.db.scalar(
+                select(FinanceInvoice.branch_id).where(
+                    FinanceInvoice.id == item.invoice_id,
+                    FinanceInvoice.company_id == company_id,
+                )
+            )
+        elif item.transaction_id is not None:
+            branch_id = await self.db.scalar(
+                select(FinanceTransaction.branch_id).where(
+                    FinanceTransaction.id == item.transaction_id,
+                    FinanceTransaction.company_id == company_id,
+                )
+            )
+        self._ensure_branch_allowed(
+            branch_id=branch_id,
+            allowed_branch_ids=allowed_branch_ids,
+            detail="Tax record not found",
+        )
         return item
 
     async def _cash_account(
@@ -164,10 +266,12 @@ class FinanceCommandService:
         *,
         transaction_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> FinanceTransaction:
         transaction = await self._transaction(
             transaction_id=transaction_id,
             company_id=company_id,
+            allowed_branch_ids=allowed_branch_ids,
         )
         if transaction.status == TransactionStatus.POSTED:
             return transaction
@@ -175,6 +279,27 @@ class FinanceCommandService:
             raise _conflict("Only draft transactions can be posted")
         if Decimal(transaction.total_amount) <= ZERO:
             raise _conflict("Transaction total must be greater than zero")
+        self._ensure_generic_command_allowed(
+            transaction,
+            command="Generic transaction posting",
+        )
+        if transaction.transaction_type == TransactionType.TAX_PAYMENT:
+            raise _conflict("Use Pay Tax on an accrued tax record")
+        if transaction.transaction_type == TransactionType.ADJUSTMENT:
+            raise _conflict("Use Adjust Cash Balance for controlled adjustments")
+        if transaction.transaction_type == TransactionType.TRANSFER:
+            raise _conflict(
+                "Cash transfer requires a dedicated source and destination workflow"
+            )
+
+        cash_account = None
+        if transaction.transaction_type in {
+            TransactionType.INCOME,
+            TransactionType.EXPENSE,
+            TransactionType.REFUND,
+            TransactionType.TAX_PAYMENT,
+        } and transaction.cash_account_id is None:
+            raise _conflict("A cash account is required before posting this transaction")
 
         if transaction.cash_account_id:
             cash_account = await self._cash_account(
@@ -188,6 +313,11 @@ class FinanceCommandService:
 
         transaction.status = TransactionStatus.POSTED
         transaction.posted_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        if cash_account is not None:
+            await AccountingBridgeService(self.db).ensure_cash_transaction_journal(
+                transaction=transaction,
+                cash_account=cash_account,
+            )
         await record_domain_event(
             self.db,
             company_id=company_id,
@@ -226,15 +356,21 @@ class FinanceCommandService:
         *,
         transaction_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> FinanceTransaction:
         transaction = await self._transaction(
             transaction_id=transaction_id,
             company_id=company_id,
+            allowed_branch_ids=allowed_branch_ids,
         )
         if transaction.status == TransactionStatus.VOID:
             return transaction
         if transaction.status != TransactionStatus.POSTED:
             raise _conflict("Only posted transactions can be voided")
+        self._ensure_generic_command_allowed(
+            transaction,
+            command="Generic transaction void",
+        )
 
         if transaction.cash_account_id:
             cash_account = await self._cash_account(
@@ -246,6 +382,10 @@ class FinanceCommandService:
                 - self._cash_delta(transaction)
             )
 
+        await AccountingBridgeService(self.db).reverse_transaction_journals(
+            transaction=transaction,
+            reason="Transaction void",
+        )
         transaction.status = TransactionStatus.VOID
         await commit_or_raise(self.db)
         await self.db.refresh(transaction)
@@ -266,15 +406,21 @@ class FinanceCommandService:
         *,
         transaction_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> FinanceTransaction:
         transaction = await self._transaction(
             transaction_id=transaction_id,
             company_id=company_id,
+            allowed_branch_ids=allowed_branch_ids,
         )
         if transaction.status == TransactionStatus.CANCELLED:
             return transaction
         if transaction.status != TransactionStatus.DRAFT:
             raise _conflict("Only draft transactions can be cancelled")
+        self._ensure_generic_command_allowed(
+            transaction,
+            command="Generic transaction cancellation",
+        )
         transaction.status = TransactionStatus.CANCELLED
         await commit_or_raise(self.db)
         await self.db.refresh(transaction)
@@ -295,14 +441,22 @@ class FinanceCommandService:
         *,
         invoice_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> FinanceInvoice:
-        invoice = await self._invoice(invoice_id=invoice_id, company_id=company_id)
+        invoice = await self._invoice(
+            invoice_id=invoice_id,
+            company_id=company_id,
+            allowed_branch_ids=allowed_branch_ids,
+        )
         if invoice.status == InvoiceStatus.SENT:
             return invoice
         if invoice.status != InvoiceStatus.DRAFT:
             raise _conflict("Only draft invoices can be sent")
         invoice.status = InvoiceStatus.SENT
         await ensure_invoice_tax_record(self.db, invoice=invoice)
+        await AccountingBridgeService(self.db).ensure_invoice_issue_journal(
+            invoice=invoice,
+        )
         await record_domain_event(
             self.db,
             company_id=company_id,
@@ -335,15 +489,25 @@ class FinanceCommandService:
         *,
         invoice_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
         user_id: UUID,
         payload: FinanceInvoicePaymentRequest,
     ) -> FinanceInvoice:
-        invoice = await self._invoice(invoice_id=invoice_id, company_id=company_id)
+        invoice = await self._invoice(
+            invoice_id=invoice_id,
+            company_id=company_id,
+            allowed_branch_ids=allowed_branch_ids,
+        )
         if invoice.status == InvoiceStatus.CANCELLED:
             raise _conflict("Cancelled invoice cannot receive payment")
-        if invoice.source_module == "sales_order":
+        if invoice.source_module in {"sales_order", "crm_deal"}:
+            labels = {
+                "sales_order": "Sales Order Confirm Payment",
+                "crm_deal": "CRM Deal Confirm Payment",
+            }
             raise _conflict(
-                "Sales-order invoice payment must use the automation confirmation workflow"
+                f"Invoice payment is owned by {invoice.source_module}. "
+                f"Use {labels[invoice.source_module]}"
             )
 
         total = Decimal(invoice.total_amount)
@@ -360,21 +524,22 @@ class FinanceCommandService:
                 detail="Payment amount must be positive and cannot exceed outstanding amount",
             )
 
-        cash_account = None
-        if payload.cash_account_id:
-            cash_account = await self._cash_account(
+        cash_account = (
+            await self._cash_account(
                 cash_account_id=payload.cash_account_id,
                 company_id=company_id,
             )
-            cash_account.current_balance = Decimal(cash_account.current_balance) + amount
+            if payload.cash_account_id
+            else await self._default_cash_account(company_id=company_id)
+        )
+        cash_account.current_balance = Decimal(cash_account.current_balance) + amount
 
-        # A payment always creates a posted finance transaction. The cash
-        # account is optional for externally-settled payments, but the audit
-        # trail and dashboard revenue must never disappear.
+        # Every payment must affect a real cash account so cashflow, ledger,
+        # invoice status, and account balance cannot diverge.
         payment_transaction = FinanceTransaction(
             company_id=company_id,
             branch_id=invoice.branch_id,
-            cash_account_id=cash_account.id if cash_account else None,
+            cash_account_id=cash_account.id,
             transaction_no=(
                 f"PAY-{invoice.invoice_no}-{uuid4().hex[:8].upper()}"
             ),
@@ -394,6 +559,7 @@ class FinanceCommandService:
             created_by=user_id,
         )
         self.db.add(payment_transaction)
+        await self.db.flush()
 
         invoice.paid_amount = paid + amount
         invoice.status = (
@@ -402,6 +568,14 @@ class FinanceCommandService:
             else InvoiceStatus.PARTIALLY_PAID
         )
         await ensure_invoice_tax_record(self.db, invoice=invoice)
+        bridge = AccountingBridgeService(self.db)
+        await bridge.ensure_invoice_issue_journal(invoice=invoice)
+        await bridge.ensure_invoice_payment_journal(
+            invoice=invoice,
+            transaction=payment_transaction,
+            cash_account=cash_account,
+            amount=amount,
+        )
         await record_domain_event(
             self.db,
             company_id=company_id,
@@ -438,14 +612,38 @@ class FinanceCommandService:
         *,
         invoice_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> FinanceInvoice:
-        invoice = await self._invoice(invoice_id=invoice_id, company_id=company_id)
+        invoice = await self._invoice(
+            invoice_id=invoice_id,
+            company_id=company_id,
+            allowed_branch_ids=allowed_branch_ids,
+        )
         if invoice.status == InvoiceStatus.CANCELLED:
             return invoice
+        if invoice.source_module in {"sales_order", "crm_deal"}:
+            raise _conflict(
+                "Automatic invoice cancellation must use its source workflow"
+            )
         if Decimal(invoice.paid_amount) > ZERO:
             raise _conflict("Paid or partially paid invoice cannot be cancelled")
         if invoice.status == InvoiceStatus.PAID:
             raise _conflict("Paid invoice cannot be cancelled")
+        await AccountingBridgeService(self.db).reverse_invoice_issue_journal(
+            invoice=invoice,
+            reason=f"Invoice cancelled: {invoice.invoice_no}",
+        )
+        tax_result = await self.db.execute(
+            select(FinanceTaxRecord).where(
+                FinanceTaxRecord.company_id == company_id,
+                FinanceTaxRecord.invoice_id == invoice.id,
+                FinanceTaxRecord.status.in_(
+                    [TaxRecordStatus.DRAFT, TaxRecordStatus.ACCRUED]
+                ),
+            )
+        )
+        for tax_record in tax_result.scalars().all():
+            tax_record.status = TaxRecordStatus.CANCELLED
         invoice.status = InvoiceStatus.CANCELLED
         await commit_or_raise(self.db)
         await self.db.refresh(invoice)
@@ -466,8 +664,13 @@ class FinanceCommandService:
         *,
         journal_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> FinanceJournalEntry:
-        journal = await self._journal(journal_id=journal_id, company_id=company_id)
+        journal = await self._journal(
+            journal_id=journal_id,
+            company_id=company_id,
+            allowed_branch_ids=allowed_branch_ids,
+        )
         if journal.status == JournalStatus.POSTED:
             return journal
         if journal.status != JournalStatus.DRAFT:
@@ -506,8 +709,13 @@ class FinanceCommandService:
         *,
         journal_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> FinanceJournalEntry:
-        journal = await self._journal(journal_id=journal_id, company_id=company_id)
+        journal = await self._journal(
+            journal_id=journal_id,
+            company_id=company_id,
+            allowed_branch_ids=allowed_branch_ids,
+        )
         if journal.status == JournalStatus.REVERSED:
             return journal
         if journal.status != JournalStatus.POSTED:
@@ -568,6 +776,7 @@ class FinanceCommandService:
         *,
         cash_account_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
         user_id: UUID,
         payload: FinanceCashBalanceAdjustmentRequest,
     ) -> FinanceCashAccount:
@@ -599,6 +808,26 @@ class FinanceCommandService:
             created_by=user_id,
         )
         self.db.add(transaction)
+        await self.db.flush()
+        await AccountingBridgeService(self.db).ensure_cash_adjustment_journal(
+            transaction=transaction,
+            cash_account=cash_account,
+            direction=payload.direction,
+        )
+        await record_domain_event(
+            self.db,
+            company_id=company_id,
+            aggregate_type="finance_cash_account",
+            aggregate_id=cash_account.id,
+            event_type="finance.cash_account.adjusted",
+            event_key=f"cash-account:{cash_account.id}:adjustment:{transaction.id}",
+            payload={
+                "cash_account_id": str(cash_account.id),
+                "transaction_id": str(transaction.id),
+                "direction": payload.direction,
+                "amount": str(amount),
+            },
+        )
         await commit_or_raise(self.db)
         await self.db.refresh(cash_account)
         await publish_realtime_event_safe(
@@ -619,9 +848,12 @@ class FinanceCommandService:
         *,
         tax_record_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> FinanceTaxRecord:
         record = await self._tax_record(
-            tax_record_id=tax_record_id, company_id=company_id
+            tax_record_id=tax_record_id,
+            company_id=company_id,
+            allowed_branch_ids=allowed_branch_ids,
         )
         if record.status == TaxRecordStatus.ACCRUED:
             return record
@@ -645,11 +877,14 @@ class FinanceCommandService:
         *,
         tax_record_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
         user_id: UUID,
         payload: FinanceTaxPaymentRequest,
     ) -> FinanceTaxRecord:
         record = await self._tax_record(
-            tax_record_id=tax_record_id, company_id=company_id
+            tax_record_id=tax_record_id,
+            company_id=company_id,
+            allowed_branch_ids=allowed_branch_ids,
         )
         if record.status == TaxRecordStatus.PAID:
             return record
@@ -659,16 +894,36 @@ class FinanceCommandService:
         if amount <= ZERO:
             raise _conflict("Tax amount must be greater than zero")
 
-        cash_account = None
-        if payload.cash_account_id:
-            cash_account = await self._cash_account(
-                cash_account_id=payload.cash_account_id, company_id=company_id
+        cash_account = (
+            await self._cash_account(
+                cash_account_id=payload.cash_account_id,
+                company_id=company_id,
             )
-            cash_account.current_balance = Decimal(cash_account.current_balance) - amount
+            if payload.cash_account_id
+            else await self._default_cash_account(company_id=company_id)
+        )
+        cash_account.current_balance = Decimal(cash_account.current_balance) - amount
+
+        branch_id = None
+        if record.invoice_id is not None:
+            branch_id = await self.db.scalar(
+                select(FinanceInvoice.branch_id).where(
+                    FinanceInvoice.id == record.invoice_id,
+                    FinanceInvoice.company_id == company_id,
+                )
+            )
+        elif record.transaction_id is not None:
+            branch_id = await self.db.scalar(
+                select(FinanceTransaction.branch_id).where(
+                    FinanceTransaction.id == record.transaction_id,
+                    FinanceTransaction.company_id == company_id,
+                )
+            )
 
         transaction = FinanceTransaction(
             company_id=company_id,
-            cash_account_id=cash_account.id if cash_account else None,
+            branch_id=branch_id,
+            cash_account_id=cash_account.id,
             transaction_no=f"TAX-{date.today():%Y%m%d}-{uuid4().hex[:8].upper()}",
             transaction_date=payload.payment_date or date.today(),
             transaction_type=TransactionType.TAX_PAYMENT,
@@ -685,6 +940,11 @@ class FinanceCommandService:
             created_by=user_id,
         )
         self.db.add(transaction)
+        await self.db.flush()
+        await AccountingBridgeService(self.db).ensure_cash_transaction_journal(
+            transaction=transaction,
+            cash_account=cash_account,
+        )
         record.paid_amount = amount
         record.paid_date = payload.payment_date or date.today()
         record.status = TaxRecordStatus.PAID
@@ -721,9 +981,12 @@ class FinanceCommandService:
         *,
         tax_record_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> FinanceTaxRecord:
         record = await self._tax_record(
-            tax_record_id=tax_record_id, company_id=company_id
+            tax_record_id=tax_record_id,
+            company_id=company_id,
+            allowed_branch_ids=allowed_branch_ids,
         )
         if record.status == TaxRecordStatus.REPORTED:
             return record
@@ -746,9 +1009,12 @@ class FinanceCommandService:
         *,
         tax_record_id: UUID,
         company_id: UUID,
+        allowed_branch_ids: set[UUID] | None = None,
     ) -> FinanceTaxRecord:
         record = await self._tax_record(
-            tax_record_id=tax_record_id, company_id=company_id
+            tax_record_id=tax_record_id,
+            company_id=company_id,
+            allowed_branch_ids=allowed_branch_ids,
         )
         if record.status == TaxRecordStatus.CANCELLED:
             return record

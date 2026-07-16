@@ -249,6 +249,13 @@ class PayrollRunResponse(PayrollRunCreate, ORMBase):
     created_at: datetime
     paid_at: datetime | None = None
 
+
+class PayrollPaymentRequest(BaseModel):
+    cash_account_id: UUID | None = None
+    payment_date: date | None = None
+    reference_no: str | None = None
+    notes: str | None = None
+
 class KPIIndicatorCreate(BaseModel):
     company_id: UUID
     branch_id: UUID | None = None
