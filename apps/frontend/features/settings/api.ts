@@ -28,6 +28,10 @@ export type NotificationSettingsPayload = {
 
 export type AISettingsPayload = {
   ai_enabled: boolean;
+  mode: "ai_agent";
+  agent_read_only: boolean;
+  human_approval_required: boolean;
+  rag_enabled: boolean;
   smart_report_enabled: boolean;
   auto_summary_enabled: boolean;
   response_tone: string;
@@ -66,6 +70,10 @@ export const defaultNotificationSettings: NotificationSettingsPayload = {
 
 export const defaultAISettings: AISettingsPayload = {
   ai_enabled: true,
+  mode: "ai_agent",
+  agent_read_only: true,
+  human_approval_required: true,
+  rag_enabled: false,
   smart_report_enabled: true,
   auto_summary_enabled: true,
   response_tone: "professional",

@@ -125,3 +125,15 @@ class SalesOrderMonitoringResponse(BaseModel):
     payment_status: Literal["unpaid", "partial", "paid"]
     created_at: datetime
     updated_at: datetime
+
+
+class AutomationRuleResponse(BaseModel):
+    key: str
+    name: str
+    domain: str
+    trigger: str
+    actions: list[str]
+    accounting_effect: str
+    guardrails: list[str]
+    enabled_by_default: bool
+    ai_visible: bool

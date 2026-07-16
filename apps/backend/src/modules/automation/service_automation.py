@@ -20,6 +20,7 @@ from src.modules.automation.model_automation import (
     SalesOrderStatus,
 )
 from src.modules.automation.schema_automation import SalesOrderCreate
+from src.modules.finance.service_finance_automation import ensure_invoice_tax_record
 from src.modules.finance.model_finance import (
     CashflowActivity,
     FinanceCashAccount,
@@ -84,6 +85,7 @@ class BusinessAutomationService:
                 FinanceCashAccount.id.asc(),
             )
             .limit(1)
+            .with_for_update()
         )
         cash_account = result.scalar_one_or_none()
 
@@ -379,18 +381,50 @@ class BusinessAutomationService:
                 detail="Linked finance record was not found",
             )
 
+        if (
+            invoice.status == InvoiceStatus.PAID
+            and transaction.status == TransactionStatus.POSTED
+        ):
+            monitoring = await self.get_monitoring_item(
+                order_id=order.id,
+                company_id=company_id,
+            )
+            assert monitoring is not None
+            return monitoring
+
         if transaction.cash_account_id is None:
             cash_account = await self._resolve_active_cash_account(
                 company_id=company_id,
             )
             transaction.cash_account_id = cash_account.id
+        else:
+            cash_result = await self.db.execute(
+                select(FinanceCashAccount)
+                .where(
+                    FinanceCashAccount.id == transaction.cash_account_id,
+                    FinanceCashAccount.company_id == company_id,
+                    FinanceCashAccount.is_active.is_(True),
+                )
+                .with_for_update()
+            )
+            cash_account = cash_result.scalar_one_or_none()
+            if cash_account is None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Linked cash account is missing or inactive",
+                )
 
         now = utc_now_naive()
-        invoice.paid_amount = money(invoice.total_amount)
+        payment_amount = money(invoice.total_amount)
+        cash_account.current_balance = money(
+            Decimal(cash_account.current_balance) + payment_amount
+        )
+        invoice.paid_amount = payment_amount
         invoice.status = InvoiceStatus.PAID
         transaction.status = TransactionStatus.POSTED
         transaction.posted_at = transaction.posted_at or now
         order.updated_at = now
+        await ensure_invoice_tax_record(self.db, invoice=invoice)
 
         await self._record_event(
             company_id=company_id,
@@ -846,7 +880,7 @@ class BusinessAutomationService:
                 transaction_type=TransactionType.INCOME,
                 cashflow_activity=CashflowActivity.OPERATING,
                 cash_account_id=cash_account.id,
-                status=TransactionStatus.POSTED,
+                status=TransactionStatus.DRAFT,
                 counterparty_name=order.customer_name,
                 reference_no=order.order_no,
                 source_module="sales_order",
@@ -857,7 +891,7 @@ class BusinessAutomationService:
                 tax_amount=order.tax_amount,
                 total_amount=order.total_amount,
                 description=f"Automatic sales transaction from {order.order_no}",
-                posted_at=now,
+                posted_at=None,
                 created_by=user_id,
             )
             self.db.add(transaction)
@@ -896,6 +930,8 @@ class BusinessAutomationService:
             )
             self.db.add(invoice)
             await self.db.flush()
+
+        await ensure_invoice_tax_record(self.db, invoice=invoice)
 
         order.transaction_id = transaction.id
         order.invoice_id = invoice.id

@@ -326,6 +326,11 @@ export function FinanceModuleClient({
         isError={isError}
         emptyMessage="Belum ada data finance."
         topContent={canShowCompanyFilter ? <CompanyScopeFilter /> : null}
+        onImportRecords={async (rows) => {
+          for (const payload of rows) {
+            await createMutation.mutateAsync(payload);
+          }
+        }}
         onCreateRecord={
           moduleKey === "cashflow" && !canGenerateSnapshots
             ? undefined

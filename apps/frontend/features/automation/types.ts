@@ -105,3 +105,16 @@ export type AutomationMonitoringRow = {
   created_at: string;
   updated_at: string;
 };
+
+
+export type AutomationRule = {
+  key: string;
+  name: string;
+  domain: string;
+  trigger: string;
+  actions: string[];
+  accounting_effect: string;
+  guardrails: string[];
+  enabled_by_default: boolean;
+  ai_visible: boolean;
+};

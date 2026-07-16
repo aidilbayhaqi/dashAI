@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.database import get_db
@@ -14,6 +14,7 @@ from src.modules.crm.schema_crm import (
     CRMContactResponse,
     CRMDealCreate,
     CRMDealUpdate,
+    CRMDealPaymentRequest,
     CRMDealResponse,
     CRMDealItemCreate,
     CRMDealItemResponse,
@@ -27,6 +28,11 @@ from src.modules.crm.schema_crm import (
 from src.modules.crm.service_crm import CRMDealItemService, CRMDealService
 from src.modules.products.model_product import Product
 from src.security.dependencies import CurrentUser, require_permission
+from src.security.idempotency import (
+    build_idempotency_context,
+    execute_idempotent,
+    get_idempotency_key,
+)
 from src.security.tenant import (
     ensure_item_access,
     get_record_or_404,
@@ -200,6 +206,58 @@ async def close_deal_won(
         )
 
     return result
+
+
+@router.post(
+    "/crm/deals/{deal_id}/confirm-payment",
+    response_model=CRMDealResponse,
+)
+async def confirm_deal_payment(
+    deal_id: UUID,
+    payload: CRMDealPaymentRequest,
+    request: Request,
+    idempotency_key: str = Depends(get_idempotency_key),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(
+        require_permission("finance.transactions.create")
+    ),
+):
+    context = await build_idempotency_context(
+        request=request,
+        current_user=current_user,
+        raw_key=idempotency_key,
+    )
+
+    async def operation():
+        deal = await get_record_or_404(
+            db=db,
+            model_class=CRMDeal,
+            item_id=deal_id,
+            detail="Deal not found",
+        )
+        await ensure_item_access(
+            db=db,
+            item=deal,
+            current_user=current_user,
+            detail="Deal not found",
+        )
+        service = CRMDealService(db)
+        result = await service.confirm_payment(
+            deal_id=deal.id,
+            cash_account_id=payload.cash_account_id,
+            payment_date=payload.payment_date,
+            reference_no=payload.reference_no,
+            notes=payload.notes,
+        )
+        if result is None:
+            raise HTTPException(status_code=404, detail="Deal not found")
+        return result
+
+    return await execute_idempotent(
+        context=context,
+        operation=operation,
+        response_model=CRMDealResponse,
+    )
 
 
 @router.post(

@@ -15,14 +15,6 @@ type PayrollBody = Record<string, unknown>;
 
 const PAYROLL_ENDPOINT = "/api/v1/hr/payroll-runs";
 
-const validStatuses = new Set([
-  "draft",
-  "calculated",
-  "approved",
-  "paid",
-  "cancelled",
-]);
-
 function hasValue(value: unknown): boolean {
   return (
     value !== undefined &&
@@ -35,69 +27,6 @@ function isValidUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value
   );
-}
-
-function parseNumberValue(value: unknown): number | undefined {
-  if (!hasValue(value)) {
-    return undefined;
-  }
-
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : undefined;
-  }
-
-  const raw = String(value)
-    .replace(/Rp/gi, "")
-    .replace(/IDR/gi, "")
-    .replace(/\s/g, "")
-    .trim();
-
-  if (!raw) {
-    return undefined;
-  }
-
-  const cleaned = raw.replace(/[^\d.,-]/g, "");
-
-  if (!cleaned) {
-    return undefined;
-  }
-
-  const hasComma = cleaned.includes(",");
-  const hasDot = cleaned.includes(".");
-
-  let normalized = cleaned;
-
-  if (hasComma && hasDot) {
-    const lastComma = cleaned.lastIndexOf(",");
-    const lastDot = cleaned.lastIndexOf(".");
-
-    normalized =
-      lastComma > lastDot
-        ? cleaned.replace(/\./g, "").replace(",", ".")
-        : cleaned.replace(/,/g, "");
-  } else if (hasComma) {
-    const parts = cleaned.split(",");
-
-    normalized =
-      parts.length === 2 && parts[1].length <= 2
-        ? cleaned.replace(",", ".")
-        : cleaned.replace(/,/g, "");
-  } else if (hasDot) {
-    const parts = cleaned.split(".");
-
-    /*
-     * 58000000.00 = angka decimal backend
-     * 58.000.000 = format ribuan Indonesia
-     */
-    normalized =
-      parts.length === 2 && parts[1].length <= 2
-        ? cleaned
-        : cleaned.replace(/\./g, "");
-  }
-
-  const parsed = Number(normalized);
-
-  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function getPayloadCompanyId(payload: ModuleRow): string | undefined {
@@ -128,42 +57,6 @@ function getPayloadCompanyId(payload: ModuleRow): string | undefined {
   }
 
   return undefined;
-}
-
-function normalizeStatus(value: unknown): string {
-  const normalized = String(value ?? "draft")
-    .trim()
-    .toLowerCase();
-
-  return validStatuses.has(normalized)
-    ? normalized
-    : "draft";
-}
-
-function assignNumber(
-  body: PayrollBody,
-  key: string,
-  value: unknown,
-  options?: {
-    required?: boolean;
-    defaultValue?: number;
-  }
-) {
-  const parsed = parseNumberValue(value);
-
-  if (parsed !== undefined) {
-    body[key] = parsed;
-    return;
-  }
-
-  if (options?.defaultValue !== undefined) {
-    body[key] = options.defaultValue;
-    return;
-  }
-
-  if (options?.required) {
-    throw new Error(`${key} wajib diisi dengan angka yang valid.`);
-  }
 }
 
 function preparePayrollBody(
@@ -207,38 +100,13 @@ function preparePayrollBody(
   }
 
   /*
-   * Database menggunakan total_deductions, plural.
-   * total_deduction hanya diterima sebagai fallback dari kode lama.
+   * Payroll amounts and status are owned by the backend calculation workflow.
+   * The create/edit form only defines scope and period so attendance/KPI rules
+   * cannot be bypassed by sending manual totals from the browser.
    */
-  const deductions =
-    payload.total_deductions ??
-    payload.total_deduction ??
-    payload.deduction;
-
-  assignNumber(body, "total_gross", payload.total_gross, {
-    required: mode === "create",
-  });
-
-  assignNumber(body, "total_deductions", deductions, {
-    defaultValue: mode === "create" ? 0 : undefined,
-  });
-
-  assignNumber(body, "total_tax", payload.total_tax, {
-    defaultValue: mode === "create" ? 0 : undefined,
-  });
-
-  assignNumber(body, "total_net", payload.total_net, {
-    required: mode === "create",
-  });
-
-  if (hasValue(payload.status) || mode === "create") {
-    body.status = normalizeStatus(payload.status);
+  if (mode === "create") {
+    body.status = "draft";
   }
-
-  console.log("[Payroll Payload]", {
-    mode,
-    body,
-  });
 
   return body;
 }
@@ -270,5 +138,18 @@ export async function updatePayrollRun(
     body
   );
 
+  return response.data;
+}
+
+export async function calculatePayrollRun(id: string) {
+  if (!id) {
+    throw new Error("Payroll ID tidak ditemukan.");
+  }
+
+  const endpoint = `${PAYROLL_ENDPOINT}/${id}/calculate`;
+  const operation = `POST:${endpoint}`;
+  const { key, headers } = idempotencyHeaders(operation, {});
+  const response = await api.post(endpoint, {}, { headers });
+  retainIdempotencyKey(operation, {}, key);
   return response.data;
 }

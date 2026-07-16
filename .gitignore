@@ -111,3 +111,5 @@ apps/backend/uploads/*
 
 # Temporary business monitoring backups
 .business-monitoring-backups/
+
+.patch-backups/

@@ -391,7 +391,7 @@ export function SettingsClient() {
       currency: settingsForm.workspace.currency,
       timezone: settingsForm.workspace.timezone,
       language: settingsForm.workspace.language === "id" ? "Indonesia" : "English",
-      aiStatus: settingsForm.ai.ai_enabled ? "Enabled" : "Disabled",
+      aiStatus: settingsForm.ai.ai_enabled ? "AI Agent · Read only" : "Disabled",
     };
   }, [settingsForm]);
 
@@ -424,7 +424,7 @@ export function SettingsClient() {
                   Settings
                 </h1>
                 <p className="mt-1 text-sm font-semibold text-slate-500 dark:text-slate-500">
-                  Kelola akun, workspace, notifikasi, AI assistant, dan keamanan.
+                  Kelola akun, workspace, notifikasi, AI Agent, automation, dan keamanan.
                 </p>
               </div>
             </div>
@@ -442,7 +442,7 @@ export function SettingsClient() {
           <SummaryItem icon={Wallet} label="Currency" value={summary.currency} />
           <SummaryItem icon={Clock3} label="Timezone" value={summary.timezone} />
           <SummaryItem icon={Languages} label="Language" value={summary.language} />
-          <SummaryItem icon={Bot} label="AI Assistant" value={summary.aiStatus} />
+          <SummaryItem icon={Bot} label="AI Agent" value={summary.aiStatus} />
         </div>
       </section>
 
@@ -666,16 +666,51 @@ export function SettingsClient() {
           <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-900 dark:bg-[#050816]">
             <SectionHeader
               icon={Bot}
-              title="AI Assistant"
-              description="Atur behavior AI Smart Reporting."
+              title="AI Agent"
+              description="Atur mode agent, guardrail, reporting, dan kesiapan RAG."
             />
 
             <div className="space-y-3">
               <ToggleField
-                label="Enable AI"
-                description="Aktifkan fitur AI assistant di module ERP."
+                label="Enable AI Agent"
+                description="Aktifkan AI Agent untuk analisis ERP berbasis tools yang terkontrol."
                 checked={settingsForm.ai.ai_enabled}
                 onChange={(value) => updateAIField("ai_enabled", value)}
+              />
+
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-950 dark:bg-blue-950/20">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-blue-700 dark:text-blue-300">
+                  Active mode
+                </p>
+                <p className="mt-2 text-base font-black text-slate-950 dark:text-white">
+                  AI Agent
+                </p>
+                <p className="mt-1 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">
+                  Agent membaca data melalui ERP tools. Write action tetap membutuhkan proposal dan persetujuan manusia.
+                </p>
+              </div>
+
+              <ToggleField
+                label="Read-only Agent"
+                description="Batasi AI agar hanya membaca dan menganalisis data ERP."
+                checked={settingsForm.ai.agent_read_only}
+                onChange={(value) => updateAIField("agent_read_only", value)}
+              />
+
+              <ToggleField
+                label="Human Approval"
+                description="Semua action proposal AI wajib disetujui pengguna sebelum dieksekusi."
+                checked={settingsForm.ai.human_approval_required}
+                onChange={(value) =>
+                  updateAIField("human_approval_required", value)
+                }
+              />
+
+              <ToggleField
+                label="RAG Knowledge Base"
+                description="Siapkan retrieval dokumen perusahaan. Tetap nonaktif sampai ingestion Qdrant selesai."
+                checked={settingsForm.ai.rag_enabled}
+                onChange={(value) => updateAIField("rag_enabled", value)}
               />
 
               <ToggleField

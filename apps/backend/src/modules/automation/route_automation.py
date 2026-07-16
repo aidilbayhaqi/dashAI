@@ -7,12 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.database import get_db
 from src.modules.automation.schema_automation import (
+    AutomationRuleResponse,
     DomainEventResponse,
     SalesOrderCreate,
     SalesOrderMonitoringResponse,
     SalesOrderProcessRequest,
     SalesOrderResponse,
 )
+from src.modules.automation.rule_catalog import list_automation_rules
 from src.modules.automation.service_automation import BusinessAutomationService
 from src.schemas.pagination import PaginatedResponse
 from src.security.dependencies import CurrentUser, require_permission
@@ -49,6 +51,19 @@ def _effective_company_id(
         raise tenant_not_found("Company not found")
 
     return company_id
+
+
+@router.get(
+    "/rules",
+    response_model=list[AutomationRuleResponse],
+)
+async def list_erp_automation_rules(
+    current_user: CurrentUser = Depends(
+        require_permission("finance.transactions.view")
+    ),
+):
+    del current_user
+    return list_automation_rules()
 
 
 @router.post(

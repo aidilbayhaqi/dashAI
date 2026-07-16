@@ -316,60 +316,6 @@ const payrollFormFields: ModuleField[] = [
     type: "date",
     required: true,
   },
-  {
-    key: "total_gross",
-    label: "Gross",
-    type: "number",
-    required: true,
-    placeholder: "Contoh: 58000000",
-  },
-  {
-    key: "total_deductions",
-    label: "Deduction",
-    type: "number",
-    placeholder: "Contoh: 900000",
-  },
-  {
-    key: "total_tax",
-    label: "Tax",
-    type: "number",
-    placeholder: "Contoh: 1500000",
-  },
-  {
-    key: "total_net",
-    label: "Net",
-    type: "number",
-    required: true,
-    placeholder: "Contoh: 55600000",
-  },
-  {
-    key: "status",
-    label: "Status",
-    type: "select",
-    required: true,
-    options: [
-      {
-        label: "Draft",
-        value: "draft",
-      },
-      {
-        label: "Calculated",
-        value: "calculated",
-      },
-      {
-        label: "Approved",
-        value: "approved",
-      },
-      {
-        label: "Paid",
-        value: "paid",
-      },
-      {
-        label: "Cancelled",
-        value: "cancelled",
-      },
-    ],
-  },
 ];
 
 const kpiReviewFormFields: ModuleField[] = [

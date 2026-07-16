@@ -13,6 +13,7 @@ const automationApiMock = vi.hoisted(() => ({
   getSalesOrders: vi.fn(),
   getAutomationEvents: vi.fn(),
   getAutomationMonitoring: vi.fn(),
+  getAutomationRules: vi.fn(),
   createSalesOrder: vi.fn(),
   processSalesOrder: vi.fn(),
   confirmSalesOrderPayment: vi.fn(),
@@ -181,6 +182,7 @@ describe("SalesAutomationClient", () => {
     automationApiMock.getAutomationMonitoring.mockResolvedValue([
       monitoringFixture,
     ]);
+    automationApiMock.getAutomationRules.mockResolvedValue([]);
     automationApiMock.createSalesOrder.mockResolvedValue(
       fulfilledOrderFixture
     );
@@ -218,7 +220,7 @@ describe("SalesAutomationClient", () => {
     renderWithQueryClient(<SalesAutomationClient />);
 
     expect(
-      await screen.findByText("Product to Cash Flow")
+      await screen.findByText("Connected ERP Automation")
     ).toBeInTheDocument();
     expect(
       screen.getByText("1. Product & Stock")
@@ -258,7 +260,7 @@ describe("SalesAutomationClient", () => {
 
     renderWithQueryClient(<SalesAutomationClient />);
 
-    await screen.findByText("Product to Cash Flow");
+    await screen.findByText("Connected ERP Automation");
 
     await user.click(
       screen.getByRole("button", {
@@ -279,7 +281,7 @@ describe("SalesAutomationClient", () => {
 
     renderWithQueryClient(<SalesAutomationClient />);
 
-    await screen.findByText("Product to Cash Flow");
+    await screen.findByText("Connected ERP Automation");
 
     await user.type(
       screen.getByLabelText("Customer name"),

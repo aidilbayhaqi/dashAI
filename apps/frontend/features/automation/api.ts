@@ -4,6 +4,7 @@ import type {
   AutomationContext,
   AutomationMonitoringRow,
   AutomationProduct,
+  AutomationRule,
   AutomationStock,
   DomainEvent,
   SalesOrder,
@@ -165,3 +166,11 @@ export async function confirmSalesOrderPayment(input: {
   return response.data;
 }
 
+
+
+export async function getAutomationRules() {
+  const response = await api.get<AutomationRule[]>(
+    "/api/v1/automation/rules",
+  );
+  return rowsFrom<AutomationRule>(response.data);
+}

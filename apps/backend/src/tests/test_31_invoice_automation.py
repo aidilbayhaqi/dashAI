@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -19,6 +20,17 @@ async def test_sales_order_creates_linked_transaction_and_invoice(
     first_company_id: str,
     first_branch_id: str | None,
 ):
+    """Processing an order creates receivable records, not cash settlement.
+
+    A fulfilled sales order creates:
+    - an automatic Finance income transaction in draft status;
+    - an automatic invoice in sent status;
+    - no paid amount yet.
+
+    Payment posting is tested separately in
+    test_34_automation_payment_monitoring.py.
+    """
+
     if not first_branch_id:
         pytest.skip("No active branch is available")
 
@@ -49,7 +61,10 @@ async def test_sales_order_creates_linked_transaction_and_invoice(
     assert transaction["creation_mode"] == "automatic"
     assert transaction["source_module"] == "sales_order"
     assert transaction["source_id"] == order["id"]
-    assert transaction["status"] == "posted"
+
+    # A sale/fulfilled order is not cash received yet.
+    assert transaction["status"] == "draft"
+    assert transaction["posted_at"] is None
 
     invoice_response = await live_client.get(
         f"/api/v1/finance/invoices/{order['invoice_id']}",
@@ -62,3 +77,4 @@ async def test_sales_order_creates_linked_transaction_and_invoice(
     assert invoice["source_id"] == order["id"]
     assert invoice["status"] == "sent"
     assert invoice["total_amount"] == order["total_amount"]
+    assert Decimal(str(invoice["paid_amount"])) == Decimal("0.00")

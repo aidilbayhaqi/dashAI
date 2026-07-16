@@ -22,6 +22,10 @@ from src.modules.finance.model_finance import (
     TransactionStatus,
     TransactionType,
 )
+from src.modules.finance.service_finance_automation import (
+    ensure_invoice_tax_record,
+    record_domain_event,
+)
 from src.modules.finance.schema_finance import (
     FinanceCashBalanceAdjustmentRequest,
     FinanceInvoicePaymentRequest,
@@ -184,6 +188,25 @@ class FinanceCommandService:
 
         transaction.status = TransactionStatus.POSTED
         transaction.posted_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        await record_domain_event(
+            self.db,
+            company_id=company_id,
+            aggregate_type="finance_transaction",
+            aggregate_id=transaction.id,
+            event_type="finance.transaction.posted",
+            event_key=f"finance-transaction:{transaction.id}:posted",
+            payload={
+                "transaction_id": str(transaction.id),
+                "transaction_type": transaction.transaction_type.value,
+                "cashflow_activity": transaction.cashflow_activity.value,
+                "total_amount": str(transaction.total_amount),
+                "cash_account_id": (
+                    str(transaction.cash_account_id)
+                    if transaction.cash_account_id
+                    else None
+                ),
+            },
+        )
         await commit_or_raise(self.db)
         await self.db.refresh(transaction)
         await publish_realtime_event_safe(
@@ -279,6 +302,20 @@ class FinanceCommandService:
         if invoice.status != InvoiceStatus.DRAFT:
             raise _conflict("Only draft invoices can be sent")
         invoice.status = InvoiceStatus.SENT
+        await ensure_invoice_tax_record(self.db, invoice=invoice)
+        await record_domain_event(
+            self.db,
+            company_id=company_id,
+            aggregate_type="finance_invoice",
+            aggregate_id=invoice.id,
+            event_type="finance.invoice.sent",
+            event_key=f"invoice:{invoice.id}:sent",
+            payload={
+                "invoice_id": str(invoice.id),
+                "invoice_no": invoice.invoice_no,
+                "total_amount": str(invoice.total_amount),
+            },
+        )
         await commit_or_raise(self.db)
         await self.db.refresh(invoice)
         await publish_realtime_event_safe(
@@ -363,6 +400,23 @@ class FinanceCommandService:
             InvoiceStatus.PAID
             if invoice.paid_amount >= total
             else InvoiceStatus.PARTIALLY_PAID
+        )
+        await ensure_invoice_tax_record(self.db, invoice=invoice)
+        await record_domain_event(
+            self.db,
+            company_id=company_id,
+            aggregate_type="finance_invoice",
+            aggregate_id=invoice.id,
+            event_type="finance.invoice.payment_recorded",
+            event_key=f"invoice:{invoice.id}:payment:{payment_transaction.id}",
+            payload={
+                "invoice_id": str(invoice.id),
+                "invoice_no": invoice.invoice_no,
+                "transaction_id": str(payment_transaction.id),
+                "payment_amount": str(amount),
+                "paid_amount": str(invoice.paid_amount),
+                "status": invoice.status.value,
+            },
         )
         await commit_or_raise(self.db)
         await self.db.refresh(invoice)
@@ -634,6 +688,20 @@ class FinanceCommandService:
         record.paid_amount = amount
         record.paid_date = payload.payment_date or date.today()
         record.status = TaxRecordStatus.PAID
+        await record_domain_event(
+            self.db,
+            company_id=company_id,
+            aggregate_type="finance_tax_record",
+            aggregate_id=record.id,
+            event_type="finance.tax.paid",
+            event_key=f"tax-record:{record.id}:paid",
+            payload={
+                "tax_record_id": str(record.id),
+                "transaction_id": str(transaction.id),
+                "tax_period": record.tax_period,
+                "amount": str(amount),
+            },
+        )
         if payload.reference_no:
             record.reference_no = payload.reference_no
         if payload.notes:

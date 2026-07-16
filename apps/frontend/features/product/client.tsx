@@ -86,6 +86,11 @@ const canShowCompanyFilter = isCurrentUserSuperAdmin() || !currentCompanyId;
       isError={isError}
       emptyMessage="Belum ada data product."
       topContent={canShowCompanyFilter ? <CompanyScopeFilter /> : null}
+      onImportRecords={async (rows) => {
+        for (const payload of rows) {
+          await createMutation.mutateAsync(payload);
+        }
+      }}
       onCreateRecord={(payload) => createMutation.mutateAsync(payload)}
       onUpdateRecord={(id, payload) =>
         updateMutation.mutateAsync({

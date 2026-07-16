@@ -1057,3 +1057,29 @@ export async function getCRMModuleData({
     ],
   };
 }
+
+function createCRMCommandKey(prefix: string) {
+  const token =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID().replaceAll("-", "")
+      : `${Date.now()}${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${token}`;
+}
+
+export async function closeCRMDealWon(dealId: string) {
+  const response = await api.post(`/api/v1/crm/deals/${dealId}/close-won`);
+  return toModuleRow(response.data);
+}
+
+export async function confirmCRMDealPayment(dealId: string) {
+  const response = await api.post(
+    `/api/v1/crm/deals/${dealId}/confirm-payment`,
+    {},
+    {
+      headers: {
+        "Idempotency-Key": createCRMCommandKey("crm-deal-payment"),
+      },
+    },
+  );
+  return toModuleRow(response.data);
+}

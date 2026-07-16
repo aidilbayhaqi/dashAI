@@ -58,6 +58,7 @@ type ModulePageProps = ModuleConfig &
     topContent?: ReactNode;
 
     onCreateRecord?: (row: ModuleRow) => Promise<void> | void;
+    onImportRecords?: (rows: ModuleRow[]) => Promise<void> | void;
     onUpdateRecord?: (id: string, row: ModuleRow) => Promise<void> | void;
     onDeleteRecord?: (id: string) => Promise<void> | void;
     getRowActions?: (row: ModuleRow) => ModuleAction[];
@@ -169,6 +170,7 @@ export function ModulePage({
   moduleKey,
   topContent,
   onCreateRecord,
+  onImportRecords,
   onUpdateRecord,
   onDeleteRecord,
   getRowActions,
@@ -179,6 +181,10 @@ export function ModulePage({
   tableDescription = "Kelola data module, import Excel, export Excel/PDF, dan lakukan aksi data secara cepat.",
 }: ModulePageProps) {
   const [localRows, setLocalRows] = useState<ModuleRow[]>([]);
+  const [importState, setImportState] = useState<{
+    status: "idle" | "loading" | "success" | "error";
+    message: string;
+  }>({ status: "idle", message: "" });
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortMode, setSortMode] = useState("updated_desc");
@@ -409,41 +415,115 @@ export function ModulePage({
   function handleImportExcel(file: File | null) {
     if (!file) return;
 
+    setImportState({
+      status: "loading",
+      message: `Membaca ${file.name}...`,
+    });
+
     const reader = new FileReader();
 
-    reader.onload = (event) => {
-      const data = event.target?.result;
+    reader.onload = async (event) => {
+      try {
+        const data = event.target?.result;
+        if (!data) throw new Error("File tidak dapat dibaca.");
 
-      if (!data) return;
+        const workbook = XLSX.read(data, { type: "array" });
+        const firstSheetName = workbook.SheetNames[0];
+        if (!firstSheetName) throw new Error("Worksheet tidak ditemukan.");
 
-      const workbook = XLSX.read(data, { type: "array" });
-      const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
+          worksheet,
+          { defval: "" },
+        );
+        if (jsonRows.length === 0) {
+          throw new Error("File tidak memiliki baris data.");
+        }
 
-      if (!firstSheetName) return;
+        const importFields = [
+          ...(formFields ?? []).map((field) => ({
+            key: field.key,
+            label: field.label,
+          })),
+          ...columns.map((column) => ({
+            key: column.key,
+            label: column.label,
+          })),
+        ].filter(
+          (field, index, all) =>
+            field.key !== "id" &&
+            all.findIndex((candidate) => candidate.key === field.key) === index,
+        );
 
-      const worksheet = workbook.Sheets[firstSheetName];
+        const importedRows: ModuleRow[] = jsonRows.map((item) => {
+          const normalizedHeaders = new Map(
+            Object.entries(item).map(([key, value]) => [
+              key.trim().toLowerCase(),
+              value,
+            ]),
+          );
+          const row: ModuleRow = {};
 
-      const jsonRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
-        worksheet
-      );
+          importFields.forEach((field) => {
+            const value =
+              item[field.key] ??
+              item[field.label] ??
+              normalizedHeaders.get(field.key.trim().toLowerCase()) ??
+              normalizedHeaders.get(field.label.trim().toLowerCase());
 
-      const importedRows: ModuleRow[] = jsonRows.map((item) => {
-        const row: ModuleRow = {};
+            if (value !== undefined && value !== null && value !== "") {
+              row[field.key] = value;
+            }
+          });
 
-        columns.forEach((column) => {
-          const byKey = item[column.key];
-          const byLabel = item[column.label];
-
-          row[column.key] = String(byKey ?? byLabel ?? "");
+          return row;
         });
 
-        row.id = crypto.randomUUID();
+        const validRows = importedRows.filter(
+          (row) => Object.keys(row).length > 0,
+        );
+        if (validRows.length === 0) {
+          throw new Error(
+            "Header Excel tidak cocok dengan field module. Gunakan nama key atau label yang tampil pada form.",
+          );
+        }
 
-        return row;
-      });
+        if (onImportRecords) {
+          await onImportRecords(validRows);
+        } else if (onCreateRecord) {
+          for (const row of validRows) {
+            await onCreateRecord(row);
+          }
+        } else {
+          setLocalRows((current) => [
+            ...validRows.map((row) => ({
+              ...row,
+              id: crypto.randomUUID(),
+            })),
+            ...current,
+          ]);
+        }
 
-      setLocalRows((current) => [...importedRows, ...current]);
+        setImportState({
+          status: "success",
+          message: `${validRows.length} baris berhasil diimpor dan diproses melalui workflow module.`,
+        });
+      } catch (error) {
+        setImportState({
+          status: "error",
+          message: getApiErrorMessage(
+            error,
+            "Import gagal. Periksa header, field wajib, dan format data.",
+          ),
+        });
+      }
     };
+
+    reader.onerror = () =>
+      setImportState({
+        status: "error",
+        message: "File gagal dibaca oleh browser.",
+      });
 
     reader.readAsArrayBuffer(file);
   }
@@ -550,11 +630,16 @@ export function ModulePage({
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-wrap gap-3">
               <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 dark:border-slate-900 dark:bg-[#02040a] dark:text-slate-300 dark:hover:bg-[#0b1120]">
-                <Upload size={16} />
-                Import Excel
+                {importState.status === "loading" ? (
+                  <RotateCcw size={16} className="animate-spin" />
+                ) : (
+                  <Upload size={16} />
+                )}
+                {importState.status === "loading" ? "Importing..." : "Import Excel"}
                 <input
                   type="file"
                   accept=".xlsx,.xls,.csv"
+                  disabled={importState.status === "loading"}
                   className="hidden"
                   onChange={(event) =>
                     handleImportExcel(event.target.files?.[0] ?? null)
@@ -602,6 +687,21 @@ export function ModulePage({
                 </button>
               ) : null}
             </div>
+
+            {importState.message ? (
+              <div
+                className={cn(
+                  "rounded-2xl border px-4 py-2 text-xs font-bold",
+                  importState.status === "success"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-950 dark:bg-emerald-950/20 dark:text-emerald-300"
+                    : importState.status === "error"
+                      ? "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-950 dark:bg-rose-950/20 dark:text-rose-300"
+                      : "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-950 dark:bg-blue-950/20 dark:text-blue-300",
+                )}
+              >
+                {importState.message}
+              </div>
+            ) : null}
 
             {canCreateRecord ? (
               <button

@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   CircleDollarSign,
   FileText,
+  Gauge,
   Loader2,
   PackageCheck,
   Plus,
@@ -41,6 +42,7 @@ import {
   getAutomationContext,
   getAutomationEvents,
   getAutomationMonitoring,
+  getAutomationRules,
   getSalesOrders,
   processSalesOrder,
 } from "./api";
@@ -51,6 +53,7 @@ import {
 import type {
   AutomationContext,
   AutomationMonitoringRow,
+  AutomationRule,
   DomainEvent,
   SalesOrder,
 } from "./types";
@@ -123,6 +126,12 @@ export function SalesAutomationClient() {
     refetchInterval: 10_000,
   });
 
+  const rulesQuery = useQuery({
+    queryKey: ["automation", "rules"],
+    queryFn: getAutomationRules,
+    staleTime: 5 * 60_000,
+  });
+
   const context: AutomationContext = contextQuery.data ?? {
     products: [],
     stocks: [],
@@ -143,6 +152,7 @@ export function SalesAutomationClient() {
   );
   const events = eventsQuery.data ?? [];
   const monitoringRows = monitoringQuery.data ?? [];
+  const automationRules: AutomationRule[] = rulesQuery.data ?? [];
 
   const createMutation = useMutation({
     mutationFn: createSalesOrder,
@@ -419,11 +429,11 @@ export function SalesAutomationClient() {
               <Sparkles size={14} /> Business Automation
             </div>
             <h1 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
-              Product to Cash Flow
+              Connected ERP Automation
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-              Satu Sales Order dapat mengurangi stok, membuat transaksi penjualan,
-              membuat invoice, dan mencatat domain event tanpa input berulang.
+              Product, Finance, Tax, HR, Payroll, CRM, reporting, dan import Excel
+              menggunakan rule yang saling terhubung tanpa menggandakan pencatatan.
             </p>
           </div>
           <button
@@ -433,6 +443,7 @@ export function SalesAutomationClient() {
               void eventsQuery.refetch();
               void contextQuery.refetch();
               void monitoringQuery.refetch();
+              void rulesQuery.refetch();
             }}
             className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-bold transition hover:bg-white/15 sm:w-fit"
           >
@@ -493,16 +504,70 @@ export function SalesAutomationClient() {
         <AutomationFlowNode
           icon={ReceiptText}
           title="3. Transaction"
-          description="Income transaction berstatus posted dibuat dari source order."
+          description="Draft income dibuat lebih dulu. Cashflow bertambah setelah pembayaran."
         />
         <ArrowRight className="hidden shrink-0 text-slate-300 2xl:block" />
         <AutomationFlowNode
           icon={FileText}
           title="4. Invoice"
-          description="Invoice sent dibuat dengan source link dan audit event."
+          description="Invoice dan tax accrual dibuat dengan source link dan audit event."
         />
       </section>
 
+
+      <section className="rounded-[1.6rem] border border-slate-200/80 bg-white p-4 shadow-sm sm:rounded-[2rem] sm:p-6 dark:border-slate-800 dark:bg-slate-900/70">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-300">
+              ERP rule catalog
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
+              Automation rules untuk seluruh module
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-500">
+              Rule ini menjadi kontrak automation sekarang dan knowledge source untuk AI Agent nanti.
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+            <Gauge size={15} /> {automationRules.length} active rules
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {automationRules.map((rule) => (
+            <article
+              key={rule.key}
+              className="rounded-3xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                    {rule.domain}
+                  </span>
+                  <h3 className="mt-3 text-sm font-black text-slate-950 dark:text-white">
+                    {rule.name}
+                  </h3>
+                </div>
+                <CheckCircle2 size={18} className="shrink-0 text-emerald-600" />
+              </div>
+              <p className="mt-3 font-mono text-[11px] font-bold text-slate-500">
+                {rule.trigger}
+              </p>
+              <p className="mt-3 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">
+                {rule.accounting_effect}
+              </p>
+              <ul className="mt-3 space-y-1.5 text-xs font-semibold text-slate-500">
+                {rule.actions.slice(0, 3).map((action) => (
+                  <li key={action} className="flex gap-2">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />
+                    <span>{action}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
+      </section>
 
       {contextQuery.isError ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">

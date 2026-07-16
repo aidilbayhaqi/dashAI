@@ -4,6 +4,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
+import { Calculator, ExternalLink } from "lucide-react";
 
 import { CompanyScopeFilter } from "@/components/modules/company-scope-filter";
 import { ModulePage } from "@/components/modules/module-page";
@@ -16,11 +17,12 @@ import {
   getCurrentCompanyId,
   isCurrentUserSuperAdmin,
 } from "@/lib/auth-scope";
-import type { ModuleRow } from "@/types/modules";
+import type { ModuleAction, ModuleRow } from "@/types/modules";
 
 import { hrModuleConfig } from "./config";
 import { useHRModule } from "./hook";
 import {
+  calculatePayrollRun,
   createPayrollRun,
   updatePayrollRun,
 } from "./payroll-service";
@@ -131,6 +133,45 @@ export function HRModuleClient({
     onSuccess: invalidate,
   });
 
+  const calculatePayrollMutation = useMutation({
+    mutationFn: calculatePayrollRun,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hr"] });
+      queryClient.invalidateQueries({ queryKey: ["finance"] });
+      queryClient.invalidateQueries({ queryKey: ["automation"] });
+    },
+  });
+
+  function getRowActions(row: ModuleRow): ModuleAction[] {
+    if (!isPayrollModule || !row.id) return [];
+
+    const status = String(row.status ?? "").toLowerCase();
+    const actions: ModuleAction[] = [];
+
+    if (status === "draft") {
+      actions.push({
+        label: "Calculate Payroll",
+        icon: Calculator,
+        variant: "primary",
+        disabled: calculatePayrollMutation.isPending,
+        onClick: async () => {
+          await calculatePayrollMutation.mutateAsync(String(row.id));
+        },
+      });
+    }
+
+    if (row.finance_transaction_id) {
+      actions.push({
+        label: "Open Finance",
+        icon: ExternalLink,
+        href: "/finance/transactions",
+        variant: "secondary",
+      });
+    }
+
+    return actions;
+  }
+
   if (!config) {
     return (
       <div className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-sm font-bold text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
@@ -155,6 +196,11 @@ export function HRModuleClient({
           <CompanyScopeFilter />
         ) : null
       }
+      onImportRecords={async (rows) => {
+        for (const payload of rows) {
+          await createMutation.mutateAsync(payload);
+        }
+      }}
       onCreateRecord={(payload) =>
         createMutation.mutateAsync(payload)
       }
@@ -167,6 +213,7 @@ export function HRModuleClient({
       onDeleteRecord={(id) =>
         deleteMutation.mutateAsync(id)
       }
+      getRowActions={getRowActions}
       isCreating={getMutationLoadingState(
         createMutation
       )}

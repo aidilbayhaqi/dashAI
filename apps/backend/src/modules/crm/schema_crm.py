@@ -163,3 +163,9 @@ class CRMCampaignResponse(CRMCampaignCreate, ORMBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+
+class CRMDealPaymentRequest(BaseModel):
+    cash_account_id: UUID | None = None
+    payment_date: date | None = None
+    reference_no: str | None = None
+    notes: str | None = None
