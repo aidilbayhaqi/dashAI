@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.time import utc_now_naive
@@ -88,10 +89,27 @@ async def seed_users_and_access(
         await add_many_if_missing(db, role_objects)
         await db.flush()
 
+        existing_role_permission_result = await db.execute(
+            select(
+                UserRolePermission.role_id,
+                UserRolePermission.permission_id,
+            ).where(
+                UserRolePermission.role_id.in_(
+                    tuple(ctx.role_ids.values())
+                )
+            )
+        )
+        existing_role_permission_pairs = {
+            (role_id, permission_id)
+            for role_id, permission_id
+            in existing_role_permission_result.all()
+        }
+
         role_permission_objects = []
 
         for role in ROLES:
             role_key = role["key"]
+            role_id = ctx.role_ids[role_key]
             allowed_modules = ROLE_ALLOWED_MODULES[role_key]
 
             for module_code, features in PERMISSION_MATRIX.items():
@@ -103,15 +121,25 @@ async def seed_users_and_access(
                         permission_id = sid(
                             f"permission:{module_code}:{feature_code}:{action.value}"
                         )
+                        natural_key = (
+                            role_id,
+                            permission_id,
+                        )
+
+                        if natural_key in existing_role_permission_pairs:
+                            continue
 
                         role_permission_objects.append(
                             UserRolePermission(
                                 id=sid(
                                     f"role-permission:{ctx.code}:{role_key}:{module_code}:{feature_code}:{action.value}"
                                 ),
-                                role_id=ctx.role_ids[role_key],
+                                role_id=role_id,
                                 permission_id=permission_id,
                             )
+                        )
+                        existing_role_permission_pairs.add(
+                            natural_key
                         )
 
         await add_many_if_missing(db, role_permission_objects)

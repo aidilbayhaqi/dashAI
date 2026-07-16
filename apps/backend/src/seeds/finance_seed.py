@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.finance.model_finance import (
@@ -70,6 +71,29 @@ async def seed_finance(
         # 2. CHART OF ACCOUNTS
         # Parent accounts dibuat dulu supaya FK parent_account_id aman.
         # ============================================================
+        canonical_account_codes = {
+            str(account_spec[0])
+            for account_spec in FINANCE_ACCOUNTS
+        }
+        existing_account_result = await db.execute(
+            select(FinanceAccount).where(
+                FinanceAccount.company_id == ctx.company_id,
+                FinanceAccount.code.in_(
+                    tuple(canonical_account_codes)
+                ),
+            )
+        )
+        existing_accounts_by_code = {
+            str(account.code): account
+            for account in existing_account_result.scalars().all()
+        }
+
+        # Migrations can create canonical accounts before the seed runs.
+        # Reuse those database IDs so child accounts and later seed records
+        # always reference the existing natural-key row.
+        for code, account in existing_accounts_by_code.items():
+            ctx.account_ids[code] = account.id
+
         parent_accounts = []
         child_accounts = []
 
@@ -83,10 +107,19 @@ async def seed_finance(
             is_bank,
             is_tax,
         ) in FINANCE_ACCOUNTS:
+            code = str(code)
+
+            if code in existing_accounts_by_code:
+                continue
+
             account = FinanceAccount(
                 id=ctx.account_ids[code],
                 company_id=ctx.company_id,
-                parent_account_id=ctx.account_ids[parent_code] if parent_code else None,
+                parent_account_id=(
+                    ctx.account_ids[str(parent_code)]
+                    if parent_code
+                    else None
+                ),
                 code=code,
                 name=name,
                 account_type=account_type,
@@ -105,6 +138,32 @@ async def seed_finance(
 
         await add_many_if_missing(db, parent_accounts)
         await db.flush()
+
+        # Refresh the natural-key map after parent insertion. This also makes
+        # the seed safe if a database contains legacy canonical account IDs.
+        parent_code_result = await db.execute(
+            select(FinanceAccount).where(
+                FinanceAccount.company_id == ctx.company_id,
+                FinanceAccount.code.in_(
+                    tuple(canonical_account_codes)
+                ),
+            )
+        )
+        for account in parent_code_result.scalars().all():
+            ctx.account_ids[str(account.code)] = account.id
+
+        for account in child_accounts:
+            if account.parent_account_id is not None:
+                parent_code = next(
+                    (
+                        str(account_spec[4])
+                        for account_spec in FINANCE_ACCOUNTS
+                        if str(account_spec[0]) == str(account.code)
+                    ),
+                    None,
+                )
+                if parent_code:
+                    account.parent_account_id = ctx.account_ids[parent_code]
 
         await add_many_if_missing(db, child_accounts)
         await db.flush()

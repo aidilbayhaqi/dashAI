@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
+from src.seeds.data import FINANCE_ACCOUNTS
 from src.seeds.utils import sid
 
 
@@ -57,27 +58,10 @@ def build_context(company_code: str, branch_keys: list[str]) -> CompanySeedConte
             ]
         },
         account_ids={
-            key: sid(f"finance-account:{company_code}:{key}")
-            for key in [
-                "1000",
-                "1100",
-                "1110",
-                "1120",
-                "1200",
-                "1300",
-                "2000",
-                "2100",
-                "2200",
-                "3000",
-                "3100",
-                "4000",
-                "4100",
-                "5000",
-                "5100",
-                "6000",
-                "6100",
-                "6200",
-            ]
+            str(account_spec[0]): sid(
+                f"finance-account:{company_code}:{account_spec[0]}"
+            )
+            for account_spec in FINANCE_ACCOUNTS
         },
         period_ids={
             month: sid(f"finance-period:{company_code}:2026:{month:02d}")
