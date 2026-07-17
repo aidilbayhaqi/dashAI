@@ -168,3 +168,8 @@ DashAI saat ini cocok dikembangkan sebagai:
 - AI-assisted reporting;
 - workflow-driven business system;
 - automation-first business platform.
+
+
+## AI Agent Demo
+
+DashAI menyediakan analyst read-only, AI-assisted invoice draft, dan AI-assisted financial report dengan human confirmation serta rule fallback. Panduan konfigurasi dan flow ada di [`docs/AI_AGENT_DEMO.md`](docs/AI_AGENT_DEMO.md).

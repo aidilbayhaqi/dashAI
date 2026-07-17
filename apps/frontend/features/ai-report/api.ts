@@ -1,8 +1,19 @@
 import { api } from "@/lib/api";
+import {
+  clearIdempotencyKey,
+  idempotencyHeaders,
+  retainIdempotencyKey,
+} from "@/lib/idempotency";
 
 import type {
   AIAgentResponse,
   AIAnalyticsSummary,
+  AIInvoiceDraft,
+  AIInvoiceDraftResponse,
+  AIReportDraftResponse,
+  AIFinancialReportDraft,
+  AIReportExecutionResponse,
+  CreatedInvoice,
 } from "./types";
 
 type AIScope = {
@@ -80,3 +91,91 @@ export async function askAIAgent({
  */
 export const getAIAnalyticsSummary =
   fetchAIReportSummary;
+
+export async function draftInvoiceWithAI({
+  companyId,
+  branchId,
+  instruction,
+}: AIScope & {
+  instruction: string;
+}): Promise<AIInvoiceDraftResponse> {
+  const response = await api.post<AIInvoiceDraftResponse>(
+    "/api/v1/ai/analytics/agent/invoice/draft",
+    {
+      instruction,
+      ...buildScopeParams({ companyId, branchId }),
+    },
+  );
+  return response.data;
+}
+
+export async function confirmAIInvoice({
+  actionToken,
+  draft,
+}: {
+  actionToken: string;
+  draft: AIInvoiceDraft;
+}): Promise<CreatedInvoice> {
+  const body = {
+    action_token: actionToken,
+    draft,
+  };
+  const operation = "ai-invoice-confirm";
+  const idempotency = idempotencyHeaders(operation, body);
+  try {
+    const response = await api.post<CreatedInvoice>(
+      "/api/v1/ai/analytics/agent/invoice/confirm",
+      body,
+      { headers: idempotency.headers },
+    );
+    retainIdempotencyKey(operation, body, idempotency.key);
+    return response.data;
+  } catch (error) {
+    clearIdempotencyKey(operation, body, idempotency.key);
+    throw error;
+  }
+}
+
+export async function draftFinancialReportWithAI({
+  companyId,
+  branchId,
+  instruction,
+}: AIScope & {
+  instruction: string;
+}): Promise<AIReportDraftResponse> {
+  const response = await api.post<AIReportDraftResponse>(
+    "/api/v1/ai/analytics/agent/report/draft",
+    {
+      instruction,
+      ...buildScopeParams({ companyId, branchId }),
+    },
+  );
+  return response.data;
+}
+
+export async function confirmAIReport({
+  actionToken,
+  draft,
+}: {
+  actionToken: string;
+  draft: AIFinancialReportDraft;
+}): Promise<AIReportExecutionResponse> {
+  const body = {
+    action_token: actionToken,
+    draft,
+  };
+  const operation = "ai-report-confirm";
+  const idempotency = idempotencyHeaders(operation, body);
+  try {
+    const response = await api.post<AIReportExecutionResponse>(
+      "/api/v1/ai/analytics/agent/report/confirm",
+      body,
+      { headers: idempotency.headers },
+    );
+    retainIdempotencyKey(operation, body, idempotency.key);
+    return response.data;
+  } catch (error) {
+    clearIdempotencyKey(operation, body, idempotency.key);
+    throw error;
+  }
+}

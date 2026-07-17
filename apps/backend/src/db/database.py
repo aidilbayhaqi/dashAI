@@ -10,10 +10,11 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from src.core.config import settings
+from src.core.database_url import normalize_async_database_url
 
 
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    normalize_async_database_url(settings.DATABASE_URL),
     echo=settings.DB_ECHO,
     future=True,
     pool_pre_ping=True,

@@ -19,9 +19,10 @@ export type AIAgentRequest = {
 
 export type AIAgentResponse = {
   generated_at: string;
+  request_id: string;
 
   mode: "read_only_agent";
-  provider: "gemini";
+  provider: "gemini" | "rules";
   model: string;
 
   company_id: string;
@@ -35,6 +36,8 @@ export type AIAgentResponse = {
   tools_used: string[];
   evidence: string[];
   suggested_links: string[];
+  warnings: string[];
+  degraded: boolean;
 
   needs_human_review: boolean;
 };
@@ -97,4 +100,71 @@ export type AIAnalyticsAnswer = {
   answer: string;
   evidence: string[];
   suggested_links: string[];
+};
+
+
+export type AIActionProvider = "gemini" | "rules";
+
+export type AIInvoiceDraft = {
+  invoice_no: string;
+  client_name: string;
+  invoice_date: string;
+  due_date: string | null;
+  subtotal_amount: string;
+  tax_rate_percent: string;
+  tax_amount: string;
+  total_amount: string;
+  notes: string | null;
+};
+
+export type AIInvoiceDraftResponse = {
+  draft_id: string;
+  action_token: string;
+  expires_at: string;
+  provider: AIActionProvider;
+  draft: AIInvoiceDraft;
+  warnings: string[];
+  requires_confirmation: true;
+};
+
+export type CreatedInvoice = AIInvoiceDraft & {
+  id: string;
+  company_id: string;
+  branch_id: string | null;
+  paid_amount: string;
+  status: string;
+  creation_mode: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FinancialReportType =
+  | "profit_loss"
+  | "cashflow"
+  | "balance_sheet";
+
+export type AIFinancialReportDraft = {
+  report_type: FinancialReportType;
+  start_date: string;
+  end_date: string;
+  report_date: string;
+  beginning_cash_balance: string;
+  title: string;
+};
+
+export type AIReportDraftResponse = {
+  draft_id: string;
+  action_token: string;
+  expires_at: string;
+  provider: AIActionProvider;
+  draft: AIFinancialReportDraft;
+  warnings: string[];
+  requires_confirmation: true;
+};
+
+export type AIReportExecutionResponse = {
+  report_type: FinancialReportType;
+  snapshot_id: string;
+  message: string;
+  result: Record<string, unknown>;
 };

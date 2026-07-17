@@ -1,6 +1,7 @@
 from src.security.dependencies.dependencies import (
     CurrentUser,
     get_current_user,
+    require_all_permissions,
     require_any_permission,
     require_permission,
     revoke_access_token_if_present,
@@ -11,6 +12,7 @@ from src.security.dependencies.dependencies import (
 __all__ = [
     "CurrentUser",
     "get_current_user",
+    "require_all_permissions",
     "require_any_permission",
     "require_permission",
     "revoke_access_token_if_present",

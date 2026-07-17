@@ -31,6 +31,7 @@ import {
 
 import { getApiErrorMessage } from "@/lib/api-error";
 
+import { AIAgentActions } from "./ai-agent-actions";
 import { useAIReportModule } from "./hook";
 import type {
   AIAgentResponse,
@@ -57,6 +58,8 @@ type AIChatMessage = {
   evidence?: string[];
   suggestedLinks?: string[];
   toolsUsed?: string[];
+  warnings?: string[];
+  degraded?: boolean;
 };
 
 const severityClass: Record<
@@ -318,6 +321,10 @@ export function AIReportModuleClient() {
             response.suggested_links,
           toolsUsed:
             response.tools_used,
+          warnings:
+            response.warnings,
+          degraded:
+            response.degraded,
         };
 
       setMessages((current) => [
@@ -624,6 +631,8 @@ export function AIReportModuleClient() {
         </div>
       </section>
 
+      <AIAgentActions />
+
       {/* GEMINI AGENT CHAT */}
       <section className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-sm dark:border-slate-900 dark:bg-[#050816]">
         <header className="border-b border-slate-200 p-5 sm:p-6 dark:border-slate-800">
@@ -647,7 +656,7 @@ export function AIReportModuleClient() {
                 <p className="mt-1 text-sm text-slate-500">
                   Analisis Finance, Product,
                   HR, CRM, dan Automation
-                  menggunakan Gemini.
+                  menggunakan Gemini dengan fallback lokal.
                 </p>
               </div>
             </div>
@@ -797,6 +806,20 @@ export function AIReportModuleClient() {
                             </div>
                           ) : null}
 
+                          {message.warnings &&
+                          message.warnings.length > 0 ? (
+                            <div className="mt-4 space-y-2">
+                              {message.warnings.map((warning) => (
+                                <p
+                                  key={warning}
+                                  className="rounded-xl border border-amber-200 bg-amber-50 p-2 text-xs font-bold text-amber-700 dark:border-amber-950 dark:bg-amber-950/20 dark:text-amber-300"
+                                >
+                                  {warning}
+                                </p>
+                              ))}
+                            </div>
+                          ) : null}
+
                           {message.toolsUsed &&
                           message.toolsUsed.length > 0 ? (
                             <div className="mt-4 flex items-center gap-2 border-t border-slate-200 pt-3 text-xs font-bold text-emerald-700 dark:border-slate-800 dark:text-emerald-300">
@@ -911,7 +934,7 @@ export function AIReportModuleClient() {
                             className="animate-spin text-blue-600"
                           />
 
-                          Gemini sedang
+                          DashAI sedang
                           menganalisis data
                           ERP...
                         </div>

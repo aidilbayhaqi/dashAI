@@ -268,6 +268,39 @@ def require_permission(permission: str):
     return dependency
 
 
+def require_all_permissions(*permissions: str):
+    """Require every permission while preserving the superuser shortcut."""
+
+    required = tuple(
+        dict.fromkeys(permission for permission in permissions if permission)
+    )
+
+    async def dependency(
+        current_user: CurrentUser = Depends(get_current_user),
+    ) -> CurrentUser:
+        if current_user.is_superuser:
+            return current_user
+
+        missing = [
+            permission
+            for permission in required
+            if permission not in current_user.permissions
+        ]
+
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Permission denied. Requires all of: "
+                    + ", ".join(required)
+                ),
+            )
+
+        return current_user
+
+    return dependency
+
+
 async def revoke_current_access_token(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> bool:

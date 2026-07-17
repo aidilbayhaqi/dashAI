@@ -5,6 +5,8 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from src.core.database_url import normalize_sync_database_url
+
 from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
@@ -110,6 +112,7 @@ class Settings(BaseSettings):
     # REDIS
     # =========================================================
 
+    REDIS_URL: str | None = None
     REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str | None = None
@@ -185,6 +188,8 @@ class Settings(BaseSettings):
     # =========================================================
 
     AI_AGENT_ENABLED: bool = False
+    AI_AGENT_ALLOW_RULE_FALLBACK: bool = True
+    AI_AGENT_ACTIONS_ENABLED: bool = True
     AI_PROVIDER: str = "gemini"
 
     GEMINI_API_KEY: str | None = None
@@ -193,12 +198,15 @@ class Settings(BaseSettings):
     GEMINI_AGENT_TIMEOUT_SECONDS: float = 30.0
     GEMINI_AGENT_MAX_OUTPUT_TOKENS: int = 1200
     GEMINI_AGENT_TEMPERATURE: float = 0.1
+    AI_ACTION_TOKEN_TTL_SECONDS: int = 900
+    AI_INVOICE_DEFAULT_DUE_DAYS: int = 14
 
     # =========================================================
     # FIELD VALIDATORS
     # =========================================================
 
     @field_validator(
+        "REDIS_URL",
         "REDIS_PASSWORD",
         "COOKIE_DOMAIN",
         "OPENAI_API_KEY",
@@ -282,6 +290,8 @@ class Settings(BaseSettings):
         "OUTBOX_MAX_ATTEMPTS",
         "AI_MAX_QUESTION_LENGTH",
         "AI_RATE_LIMIT_PER_MINUTE",
+        "AI_ACTION_TOKEN_TTL_SECONDS",
+        "AI_INVOICE_DEFAULT_DUE_DAYS",
     )
     @classmethod
     def validate_positive_limits(cls, value: int) -> int:
@@ -423,16 +433,18 @@ class Settings(BaseSettings):
                     "AI_PROVIDER must be gemini when using Gemini Agent"
                 )
 
-            if not self.GEMINI_API_KEY:
-                raise ValueError(
-                    "GEMINI_API_KEY is required "
-                    "when AI_AGENT_ENABLED=true"
-                )
-
             if not self.GEMINI_MODEL:
                 raise ValueError(
                     "GEMINI_MODEL is required "
                     "when AI_AGENT_ENABLED=true"
+                )
+
+            if (
+                not self.GEMINI_API_KEY
+                and not self.AI_AGENT_ALLOW_RULE_FALLBACK
+            ):
+                raise ValueError(
+                    "GEMINI_API_KEY is required when rule fallback is disabled"
                 )
 
         return self
@@ -495,10 +507,7 @@ class Settings(BaseSettings):
     def sync_database_url(
         self,
     ) -> str:
-        return self.DATABASE_URL.replace(
-            "postgresql+asyncpg",
-            "postgresql+psycopg2",
-        )
+        return normalize_sync_database_url(self.DATABASE_URL)
 
     @property
     def SYNC_DATABASE_URL(

@@ -6,6 +6,7 @@ from sqlalchemy import case, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 
+from src.core.time import utc_now_naive
 from src.service.base_domain_service import BaseDomainService
 from src.modules.finance.service_accounting_bridge import AccountingBridgeService
 from src.modules.finance.service_finance_automation import record_domain_event
@@ -496,7 +497,11 @@ class PayrollRunService(BaseDomainService):
         if payroll_run.finance_transaction_id is None:
             await self.create_finance_transaction(payroll_run.id)
             payroll_run = await self._get_locked_payroll_run(payroll_run.id)
-            assert payroll_run is not None
+            if payroll_run is None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Payroll run disappeared during payment processing",
+                )
 
         transaction_result = await self.db.execute(
             select(FinanceTransaction)

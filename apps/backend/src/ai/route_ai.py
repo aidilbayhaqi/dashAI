@@ -1,10 +1,25 @@
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ai.rate_limit import enforce_ai_rate_limit
+from src.ai.agent_action_schema import (
+    AIFinancialReportExecutionResponse,
+    AIInvoiceConfirmRequest,
+    AIInvoiceDraftRequest,
+    AIInvoiceDraftResponse,
+    AIReportConfirmRequest,
+    AIReportDraftRequest,
+    AIReportDraftResponse,
+)
+from src.ai.agent_action_service import (
+    build_invoice_draft,
+    build_report_draft,
+    confirm_invoice_draft,
+    confirm_report_draft,
+)
 from src.ai.schema_ai import (
     AIAnalyticsAnswerResponse,
     AIAnalyticsQuestionRequest,
@@ -17,6 +32,12 @@ from src.ai.service_ai import (
 )
 from src.core.config import settings
 from src.db.database import get_db
+from src.modules.finance.schema_finance import FinanceInvoiceResponse
+from src.security.idempotency import (
+    build_idempotency_context,
+    execute_idempotent,
+    get_idempotency_key,
+)
 from src.modules.dashboard.cache_dashboard import (
     build_dashboard_cache_key,
     get_cached_dashboard,
@@ -27,7 +48,11 @@ from src.modules.dashboard.service_dashboard import (
     filter_dashboard_summary_for_permissions,
     resolve_dashboard_period,
 )
-from src.security.dependencies import CurrentUser, require_permission
+from src.security.dependencies import (
+    CurrentUser,
+    require_all_permissions,
+    require_permission,
+)
 from src.security.permissions import AI_ANALYTICS_VIEW
 from src.security.tenant import (
     ensure_branch_belongs_to_company,
@@ -223,4 +248,137 @@ async def chat_with_gemini_agent(
         allowed_branch_ids=allowed_branch_ids,
         period=period,
         question=payload.question.strip(),
+    )
+
+
+
+def _ensure_ai_actions_enabled() -> None:
+    if not settings.AI_AGENT_ACTIONS_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI assisted actions belum diaktifkan.",
+        )
+
+
+@router.post(
+    "/agent/invoice/draft",
+    response_model=AIInvoiceDraftResponse,
+)
+async def draft_invoice_with_ai(
+    payload: AIInvoiceDraftRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(
+        require_all_permissions(
+            AI_ANALYTICS_VIEW,
+            "finance.invoices.create",
+        )
+    ),
+):
+    _ensure_ai_actions_enabled()
+    await enforce_ai_rate_limit(current_user.user_id)
+    return await build_invoice_draft(
+        db=db,
+        current_user=current_user,
+        payload=payload,
+    )
+
+
+@router.post(
+    "/agent/invoice/confirm",
+    response_model=FinanceInvoiceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def confirm_ai_invoice(
+    payload: AIInvoiceConfirmRequest,
+    request: Request,
+    idempotency_key: str = Depends(get_idempotency_key),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(
+        require_all_permissions(
+            AI_ANALYTICS_VIEW,
+            "finance.invoices.create",
+        )
+    ),
+):
+    _ensure_ai_actions_enabled()
+    context = await build_idempotency_context(
+        request=request,
+        current_user=current_user,
+        raw_key=idempotency_key,
+    )
+
+    async def operation():
+        return await confirm_invoice_draft(
+            db=db,
+            current_user=current_user,
+            payload=payload,
+        )
+
+    return await execute_idempotent(
+        context=context,
+        operation=operation,
+        response_model=FinanceInvoiceResponse,
+        success_status_code=status.HTTP_201_CREATED,
+    )
+
+
+@router.post(
+    "/agent/report/draft",
+    response_model=AIReportDraftResponse,
+)
+async def draft_financial_report_with_ai(
+    payload: AIReportDraftRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(
+        require_all_permissions(
+            AI_ANALYTICS_VIEW,
+            "finance.snapshots.approve",
+        )
+    ),
+):
+    _ensure_ai_actions_enabled()
+    await enforce_ai_rate_limit(current_user.user_id)
+    return await build_report_draft(
+        db=db,
+        current_user=current_user,
+        payload=payload,
+    )
+
+
+@router.post(
+    "/agent/report/confirm",
+    response_model=AIFinancialReportExecutionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def confirm_ai_financial_report(
+    payload: AIReportConfirmRequest,
+    request: Request,
+    idempotency_key: str = Depends(get_idempotency_key),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(
+        require_all_permissions(
+            AI_ANALYTICS_VIEW,
+            "finance.snapshots.approve",
+        )
+    ),
+):
+    _ensure_ai_actions_enabled()
+    context = await build_idempotency_context(
+        request=request,
+        current_user=current_user,
+        raw_key=idempotency_key,
+    )
+
+    async def operation():
+        return await confirm_report_draft(
+            db=db,
+            current_user=current_user,
+            payload=payload,
+        )
+
+    return await execute_idempotent(
+        context=context,
+        operation=operation,
+        response_model=AIFinancialReportExecutionResponse,
+        success_status_code=status.HTTP_201_CREATED,
     )

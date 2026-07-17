@@ -19,6 +19,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 
 from src.core.config import settings  # noqa: E402
+from src.core.database_url import normalize_async_database_url  # noqa: E402
 from src.db.base import Base  # noqa: E402
 import src.db.model_registry  # noqa: F401,E402
 
@@ -33,7 +34,7 @@ if config.config_file_name is not None:
 
 config.set_main_option(
     "sqlalchemy.url",
-    settings.DATABASE_URL,
+    normalize_async_database_url(settings.DATABASE_URL),
 )
 
 target_metadata = Base.metadata
@@ -125,7 +126,7 @@ def configure_context(
 
 def run_migrations_offline() -> None:
     configure_context(
-        url=settings.DATABASE_URL,
+        url=normalize_async_database_url(settings.DATABASE_URL),
         literal_binds=True,
         dialect_opts={
             "paramstyle": "named",
@@ -146,33 +147,6 @@ def do_run_migrations(
     with context.begin_transaction():
         context.run_migrations()
 
-
-def normalize_async_database_url(
-    url: str,
-) -> str:
-    """
-    Memastikan Alembic async selalu memakai asyncpg.
-    """
-
-    if url.startswith(
-        "postgresql://"
-    ):
-        return url.replace(
-            "postgresql://",
-            "postgresql+asyncpg://",
-            1,
-        )
-
-    if url.startswith(
-        "postgresql+psycopg2://"
-    ):
-        return url.replace(
-            "postgresql+psycopg2://",
-            "postgresql+asyncpg://",
-            1,
-        )
-
-    return url
 
 
 async def run_async_migrations() -> None:
