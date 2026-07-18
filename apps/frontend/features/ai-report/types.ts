@@ -7,8 +7,14 @@ export type AIAgentConfidence =
   | "medium"
   | "high";
 
+export type AIAgentConversationMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export type AIAgentRequest = {
   question: string;
+  history?: AIAgentConversationMessage[];
 
   company_id?: string;
   branch_id?: string;
@@ -49,10 +55,14 @@ export type AIChatMessage = {
   content: string;
   createdAt: string;
 
+  provider?: AIAgentResponse["provider"];
+  model?: string;
   confidence?: AIAgentConfidence;
   evidence?: string[];
   suggestedLinks?: string[];
   toolsUsed?: string[];
+  warnings?: string[];
+  degraded?: boolean;
 };
 
 

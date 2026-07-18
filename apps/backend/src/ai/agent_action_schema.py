@@ -56,6 +56,7 @@ class AIInvoiceDraftResponse(BaseModel):
 
 
 class AIInvoiceConfirmRequest(BaseModel):
+    draft_id: UUID
     action_token: str = Field(min_length=20)
     draft: AIInvoiceDraft
 
@@ -96,6 +97,7 @@ class AIReportDraftResponse(BaseModel):
 
 
 class AIReportConfirmRequest(BaseModel):
+    draft_id: UUID
     action_token: str = Field(min_length=20)
     draft: AIFinancialReportDraft
 

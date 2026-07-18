@@ -6,6 +6,7 @@ import {
 } from "@/lib/idempotency";
 
 import type {
+  AIAgentConversationMessage,
   AIAgentResponse,
   AIAnalyticsSummary,
   AIInvoiceDraft,
@@ -64,14 +65,17 @@ export async function askAIAgent({
   companyId,
   branchId,
   question,
+  history = [],
 }: AIScope & {
   question: string;
+  history?: AIAgentConversationMessage[];
 }): Promise<AIAgentResponse> {
   const response =
     await api.post<AIAgentResponse>(
       "/api/v1/ai/analytics/agent/chat",
       {
         question,
+        history: history.slice(-8),
 
         ...buildScopeParams({
           companyId,
@@ -110,13 +114,16 @@ export async function draftInvoiceWithAI({
 }
 
 export async function confirmAIInvoice({
+  draftId,
   actionToken,
   draft,
 }: {
+  draftId: string;
   actionToken: string;
   draft: AIInvoiceDraft;
 }): Promise<CreatedInvoice> {
   const body = {
+    draft_id: draftId,
     action_token: actionToken,
     draft,
   };
@@ -154,13 +161,16 @@ export async function draftFinancialReportWithAI({
 }
 
 export async function confirmAIReport({
+  draftId,
   actionToken,
   draft,
 }: {
+  draftId: string;
   actionToken: string;
   draft: AIFinancialReportDraft;
 }): Promise<AIReportExecutionResponse> {
   const body = {
+    draft_id: draftId,
     action_token: actionToken,
     draft,
   };

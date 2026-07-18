@@ -30,6 +30,7 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "DashAI ERP"
     APP_VERSION: str = "1.0.0"
+    APP_TIMEZONE: str = "Asia/Jakarta"
 
     ENVIRONMENT: Literal[
         "development",

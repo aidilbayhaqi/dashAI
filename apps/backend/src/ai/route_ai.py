@@ -248,6 +248,7 @@ async def chat_with_gemini_agent(
         allowed_branch_ids=allowed_branch_ids,
         period=period,
         question=payload.question.strip(),
+        history=payload.history,
     )
 
 

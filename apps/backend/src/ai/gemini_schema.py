@@ -12,6 +12,11 @@ AgentConfidence = Literal[
 ]
 
 
+class GeminiAgentConversationMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=2000)
+
+
 class GeminiAgentQuestionRequest(BaseModel):
     question: str = Field(
         ...,
@@ -22,6 +27,10 @@ class GeminiAgentQuestionRequest(BaseModel):
     branch_id: UUID | None = None
     period_start: date | None = None
     period_end: date | None = None
+    history: list[GeminiAgentConversationMessage] = Field(
+        default_factory=list,
+        max_length=8,
+    )
 
 
 class GeminiAgentChatResponse(BaseModel):
