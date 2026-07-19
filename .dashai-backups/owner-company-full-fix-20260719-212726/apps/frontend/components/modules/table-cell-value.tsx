@@ -78,12 +78,23 @@ export function TableCellValue({ value, column }: TableCellValueProps) {
     const imageUrl = normalizeFileUrl(stringValue);
 
     return (
-      <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
-        <AuthenticatedFilePreview
-          src={imageUrl}
-          alt={column?.label ?? "Image"}
-          className="h-12 w-12 object-cover"
-        />
+      <div className="flex items-center gap-3">
+        <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
+          <AuthenticatedFilePreview
+            src={imageUrl}
+            alt={column?.label ?? "Image"}
+            className="h-12 w-12 object-cover"
+          />
+        </div>
+
+        <a
+          href={imageUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="max-w-[160px] truncate text-xs font-bold text-blue-700 hover:underline dark:text-blue-400"
+        >
+          View
+        </a>
       </div>
     );
   }

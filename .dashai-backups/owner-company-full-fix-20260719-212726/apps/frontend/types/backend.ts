@@ -22,7 +22,6 @@ export type AuthUser = {
   full_name: string;
   email: string;
   is_superuser: boolean;
-  is_owner: boolean;
   company_id: string | null;
   role_id: string | null;
   permissions: string[];

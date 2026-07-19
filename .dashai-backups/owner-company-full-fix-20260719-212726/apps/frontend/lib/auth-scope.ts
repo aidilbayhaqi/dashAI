@@ -19,7 +19,6 @@ export type AuthUserScope = {
 
   is_superuser?: boolean;
   is_super_admin?: boolean;
-  is_owner?: boolean;
   is_staff?: boolean;
 
   company?: {
@@ -153,7 +152,7 @@ export function getCurrentCompanyId(): string | null {
 export function hasCurrentUserPermission(permission: string): boolean {
   const user = getCurrentUserScope();
   if (!user) return false;
-  if (isCurrentUserSuperAdmin() || user.is_owner === true) return true;
+  if (isCurrentUserSuperAdmin()) return true;
   const values = Array.isArray(user.permissions) ? user.permissions : [];
   return values.some((value) => String(value) === permission);
 }

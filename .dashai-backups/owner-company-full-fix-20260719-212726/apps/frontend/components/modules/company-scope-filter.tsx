@@ -87,8 +87,8 @@ export function CompanyScopeFilter() {
      * Jadi jangan pakai selected company yang mungkin nyangkut dari akun superadmin.
      */
     if (companyId && !isCurrentUserSuperAdmin()) {
-      setSelectedCompany(companyId);
-      setSelectedCompanyId(companyId);
+      setSelectedCompany("all");
+      setSelectedCompanyId("all");
       return;
     }
 

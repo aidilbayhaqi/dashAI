@@ -170,18 +170,88 @@ export function getEffectiveCompanyId() {
 }
 
 export async function getCurrentUserProfile() {
-  const response = await api.get("/api/v1/auth/me");
-  return normalizeObject(response.data);
+  return requestFirst<CompanyProfileRow | null>(
+    [
+      async () => normalizeObject((await api.get("/api/v1/auth/me")).data),
+      async () => normalizeObject((await api.get("/api/v1/users/me")).data),
+      async () => normalizeObject((await api.get("/api/v1/me")).data),
+      async () => normalizeObject((await api.get("/api/v1/profile")).data),
+    ],
+    null
+  );
 }
 
 export async function getCompanyById(companyId: string) {
-  const response = await api.get(`/api/v1/companies/${companyId}`);
-  return normalizeObject(response.data);
+  return requestFirst<CompanyProfileRow | null>(
+    [
+      async () =>
+        normalizeObject((await api.get(`/api/v1/companies/${companyId}`)).data),
+      async () =>
+        normalizeObject(
+          (
+            await api.get("/api/v1/company", {
+              params: {
+                company_id: companyId,
+              },
+            })
+          ).data
+        ),
+      async () =>
+        normalizeObject(
+          (
+            await api.get("/api/v1/company/profile", {
+              params: {
+                company_id: companyId,
+              },
+            })
+          ).data
+        ),
+    ],
+    null
+  );
 }
 
 export async function getCompanyBranches(companyId: string) {
-  const response = await api.get(`/api/v1/companies/${companyId}/branches`);
-  return normalizeRows(response.data);
+  return requestFirst<CompanyProfileRow[]>(
+    [
+      async () =>
+        normalizeRows((await api.get(`/api/v1/companies/${companyId}/branches`)).data),
+      async () =>
+        normalizeRows(
+          (
+            await api.get("/api/v1/branches", {
+              params: {
+                company_id: companyId,
+                limit: 100,
+              },
+            })
+          ).data
+        ),
+      async () =>
+        normalizeRows(
+          (
+            await api.get("/api/v1/company/branches", {
+              params: {
+                company_id: companyId,
+                limit: 100,
+              },
+            })
+          ).data
+        ),
+      async () =>
+        normalizeRows(
+          (
+            await api.get("/api/v1/admin/branches", {
+              params: {
+                company_id: companyId,
+                limit: 100,
+              },
+            })
+          ).data
+        ),
+    ],
+    []
+  );
 }
 
 export async function getCompanyProfileData(): Promise<CompanyProfileData> {
@@ -229,8 +299,36 @@ export async function updateCompanyProfile(
   payload: CompanyProfilePayload
 ) {
   const body = cleanPayload(payload);
-  const response = await api.patch(`/api/v1/companies/${companyId}`, body);
-  return normalizeObject(response.data);
+
+  return requestFirst<CompanyProfileRow | null>(
+    [
+      async () =>
+        normalizeObject((await api.patch(`/api/v1/companies/${companyId}`, body)).data),
+      async () =>
+        normalizeObject((await api.put(`/api/v1/companies/${companyId}`, body)).data),
+      async () =>
+        normalizeObject(
+          (
+            await api.patch("/api/v1/company", body, {
+              params: {
+                company_id: companyId,
+              },
+            })
+          ).data
+        ),
+      async () =>
+        normalizeObject(
+          (
+            await api.patch("/api/v1/company/profile", body, {
+              params: {
+                company_id: companyId,
+              },
+            })
+          ).data
+        ),
+    ],
+    null
+  );
 }
 
 export async function createCompanyBranch(
@@ -242,11 +340,20 @@ export async function createCompanyBranch(
     company_id: companyId,
   });
 
-  const response = await api.post(
-    `/api/v1/companies/${companyId}/branches`,
-    body
+  return requestFirst<CompanyProfileRow | null>(
+    [
+      async () =>
+        normalizeObject(
+          (await api.post(`/api/v1/companies/${companyId}/branches`, body)).data
+        ),
+      async () => normalizeObject((await api.post("/api/v1/branches", body)).data),
+      async () =>
+        normalizeObject((await api.post("/api/v1/company/branches", body)).data),
+      async () =>
+        normalizeObject((await api.post("/api/v1/admin/branches", body)).data),
+    ],
+    null
   );
-  return normalizeObject(response.data);
 }
 
 export function getProfileDisplayValue(

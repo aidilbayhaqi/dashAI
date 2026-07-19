@@ -52,21 +52,52 @@ function pick(row: Row | null, keys: string[], fallback = "-") {
 }
 
 async function fetchCurrentUser() {
-  try {
-    const response = await api.get("/api/v1/auth/me");
-    return normalizeObject(response.data);
-  } catch {
-    return null;
+  const endpoints = [
+    "/api/v1/auth/me",
+    "/api/v1/users/me",
+    "/api/v1/me",
+    "/api/v1/profile",
+  ];
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await api.get(endpoint);
+      return normalizeObject(response.data);
+    } catch {
+      // coba endpoint berikutnya
+    }
   }
+
+  return null;
 }
 
 async function fetchCurrentCompany(companyId: string) {
-  try {
-    const response = await api.get(`/api/v1/companies/${companyId}`);
-    return normalizeObject(response.data);
-  } catch {
-    return null;
+  const requests = [
+    () => api.get(`/api/v1/companies/${companyId}`),
+    () =>
+      api.get("/api/v1/company", {
+        params: {
+          company_id: companyId,
+        },
+      }),
+    () =>
+      api.get("/api/v1/company/profile", {
+        params: {
+          company_id: companyId,
+        },
+      }),
+  ];
+
+  for (const request of requests) {
+    try {
+      const response = await request();
+      return normalizeObject(response.data);
+    } catch {
+      // coba endpoint berikutnya
+    }
   }
+
+  return null;
 }
 
 export function CurrentCompanyCard() {

@@ -140,18 +140,6 @@ function DetailValue({
   };
   const column = field.column ?? fallbackColumn;
 
-  if (isRecordImageField(field) && rawText) {
-    return (
-      <div className="relative mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-[#050816]">
-        <AuthenticatedFilePreview
-          src={rawText}
-          alt={field.label}
-          className="max-h-[28rem] min-h-48 w-full object-contain"
-        />
-      </div>
-    );
-  }
-
   if (isRecordFileField(field) && rawText) {
     return (
       <div className="relative mt-3 flex min-h-32 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-[#050816]">

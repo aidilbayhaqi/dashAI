@@ -76,7 +76,6 @@ class AuthUserResponse(BaseModel):
     full_name: str
     email: str
     is_superuser: bool
-    is_owner: bool = False
 
     company_id: UUID | None = None
     role_id: UUID | None = None

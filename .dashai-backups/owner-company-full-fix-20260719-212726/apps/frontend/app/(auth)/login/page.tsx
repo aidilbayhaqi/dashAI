@@ -14,7 +14,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import { getAuthApiError, login } from "@/features/auth/api";
+import { login } from "@/features/auth/api";
 import Link from "next/link";
 
 const highlights = [
@@ -52,21 +52,11 @@ export default function LoginPage() {
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!normalizedEmail || !password) {
-      return;
-    }
-
     loginMutation.mutate({
-      email: normalizedEmail,
+      email,
       password,
     });
   }
-
-  const loginError = loginMutation.isError
-    ? getAuthApiError(loginMutation.error)
-    : null;
 
   return (
     <main className="safe-area-top safe-area-bottom min-h-screen overflow-x-hidden bg-[#02040a] text-white">
@@ -165,9 +155,9 @@ export default function LoginPage() {
               </div>
               </div>
 
-              {loginError ? (
+              {loginMutation.isError ? (
                 <div className="mb-5 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">
-                  {loginError}
+                  Login gagal. Pastikan backend aktif dan akun benar.
                 </div>
               ) : null}
 
@@ -233,7 +223,7 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={loginMutation.isPending || !email.trim() || !password}
+                  disabled={loginMutation.isPending}
                   className="group mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-700 text-sm font-black text-white shadow-xl shadow-blue-950/30 transition hover:-translate-y-0.5 hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loginMutation.isPending ? "Signing in..." : "Sign in"}

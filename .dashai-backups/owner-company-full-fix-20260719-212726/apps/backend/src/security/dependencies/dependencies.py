@@ -22,10 +22,6 @@ from src.security.authentication.token_store import (
     blacklist_access_token,
     is_access_token_blacklisted,
 )
-from src.security.permission_catalog import (
-    ALL_PERMISSION_KEYS,
-    is_owner_company_access,
-)
 
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -48,7 +44,6 @@ class CurrentUser:
 
     token_payload: dict
     raw_token: str
-    is_owner: bool = False
 
     @property
     def has_selected_branch_scope(self) -> bool:
@@ -150,7 +145,6 @@ async def get_current_user(
             email=user.email,
             full_name=user.full_name,
             is_superuser=True,
-            is_owner=False,
             company_id=token_company_id,
             role_id=None,
             default_branch_id=None,
@@ -200,20 +194,13 @@ async def get_current_user(
             detail="Role is not active",
         )
 
-    is_owner = is_owner_company_access(access)
+    permissions: list[str] = []
 
-    if is_owner:
-        # Owner has full feature permission, but all CRUD/query operations
-        # remain tenant-scoped to access.company_id.
-        permissions = list(ALL_PERMISSION_KEYS)
-    else:
-        permissions: list[str] = []
+    for role_permission in access.role.permissions:
+        permission_key = _build_permission_key(role_permission)
 
-        for role_permission in access.role.permissions:
-            permission_key = _build_permission_key(role_permission)
-
-            if permission_key:
-                permissions.append(permission_key)
+        if permission_key:
+            permissions.append(permission_key)
 
     branch_ids = [
         str(branch_access.branch_id)
@@ -231,7 +218,6 @@ async def get_current_user(
         email=user.email,
         full_name=user.full_name,
         is_superuser=False,
-        is_owner=is_owner,
         company_id=access.company_id,
         role_id=access.role_id,
         default_branch_id=access.default_branch_id,

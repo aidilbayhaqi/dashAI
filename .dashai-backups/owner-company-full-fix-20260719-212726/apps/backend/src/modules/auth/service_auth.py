@@ -62,11 +62,6 @@ from src.security.redis.rate_limit import (
     increase_login_attempt,
     reset_login_attempt,
 )
-from src.security.permission_catalog import (
-    ALL_PERMISSION_KEYS,
-    ensure_permission_catalog,
-    is_owner_company_access,
-)
 
 
 logger = logging.getLogger(__name__)
@@ -223,13 +218,7 @@ class AuthService:
                 branch_ids,
             )
 
-        if is_owner_company_access(access):
-            # Owner selalu mendapat seluruh permission runtime. Akses data
-            # tetap dibatasi oleh company_id pada tenant guard. Dengan ini
-            # akun owner production tidak bergantung pada demo seed.
-            permissions.extend(ALL_PERMISSION_KEYS)
-
-        elif access.role:
+        if access.role:
             for role_permission in (
                 access.role.permissions
             ):
@@ -773,11 +762,9 @@ class AuthService:
             company_name
         )
 
-        # Production registration must be self-contained. Alembic also
-        # backfills existing roles, while this runtime sync protects fresh
-        # databases and newly added permissions.
-        all_permissions = await ensure_permission_catalog(
-            self.db
+        all_permissions = (
+            await self
+            ._get_active_permissions()
         )
 
         if not all_permissions:
@@ -1494,16 +1481,8 @@ class AuthService:
                 )
 
         elif active_accesses:
-            # Owner registration/login otomatis memilih company miliknya.
-            # Untuk user multi-company, owner access diprioritaskan lalu
-            # fallback ke akses aktif pertama.
-            selected_access = next(
-                (
-                    access
-                    for access in active_accesses
-                    if is_owner_company_access(access)
-                ),
-                active_accesses[0],
+            selected_access = (
+                active_accesses[0]
             )
 
         response_user_id = user.id
@@ -1582,11 +1561,6 @@ class AuthService:
                 email=response_email,
                 is_superuser=(
                     response_is_superuser
-                ),
-                is_owner=(
-                    is_owner_company_access(
-                        selected_access
-                    )
                 ),
                 company_id=(
                     response_company_id

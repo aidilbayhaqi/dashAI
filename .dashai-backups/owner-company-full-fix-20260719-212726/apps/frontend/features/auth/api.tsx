@@ -7,11 +7,6 @@ import {
   setAuthSession,
 } from "@/lib/auth";
 
-import {
-  resetSelectedCompanyId,
-  setSelectedCompanyId,
-} from "@/lib/company-scope";
-
 import type {
   AuthUser,
   LoginPayload,
@@ -182,12 +177,6 @@ export async function login(
     response.data.user
   );
 
-  if (response.data.user.company_id) {
-    setSelectedCompanyId(response.data.user.company_id);
-  } else {
-    resetSelectedCompanyId();
-  }
-
   return response.data;
 }
 
@@ -241,12 +230,6 @@ export async function register(
     response.data.user
   );
 
-  if (response.data.user.company_id) {
-    setSelectedCompanyId(response.data.user.company_id);
-  } else {
-    resetSelectedCompanyId();
-  }
-
   return response.data;
 }
 
@@ -271,7 +254,6 @@ export async function logout():
     );
   } finally {
     clearAuthSession();
-    resetSelectedCompanyId();
   }
 }
 
@@ -303,20 +285,6 @@ export function getAuthApiError(
     typeof detail
     === "string"
   ) {
-    const normalized = detail.toLowerCase();
-
-    if (normalized.includes("invalid email or password")) {
-      return "Email atau password tidak valid.";
-    }
-
-    if (normalized.includes("user has no access to this company")) {
-      return "Akun tidak memiliki akses ke perusahaan yang dipilih.";
-    }
-
-    if (normalized.includes("permission denied")) {
-      return "Akun tidak memiliki izin untuk menjalankan fitur ini.";
-    }
-
     return detail;
   }
 
@@ -377,18 +345,6 @@ export function getAuthApiError(
     candidate
       .response
       ?.status
-    === 403
-  ) {
-    return (
-      "Akun tidak memiliki akses " +
-      "ke company atau fitur ini."
-    );
-  }
-
-  if (
-    candidate
-      .response
-      ?.status
     === 404
   ) {
     return (
@@ -434,18 +390,9 @@ export function getAuthApiError(
     );
   }
 
-  const statusCode = candidate.response?.status;
-
-  if (statusCode && statusCode >= 500) {
-    return "Server sedang bermasalah. Silakan coba lagi beberapa saat.";
-  }
-
-  if (!candidate.response) {
-    return "Tidak dapat terhubung ke server. Periksa koneksi dan URL backend.";
-  }
-
   return (
     candidate.message
-    ?? "Request autentikasi gagal diproses."
+    ?? "Request autentikasi " +
+      "gagal diproses."
   );
 }

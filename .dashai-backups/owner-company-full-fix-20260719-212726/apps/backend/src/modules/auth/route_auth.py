@@ -369,11 +369,6 @@ async def me(
             .is_superuser
         ),
 
-        is_owner=(
-            current_user
-            .is_owner
-        ),
-
         company_id=(
             current_user
             .company_id

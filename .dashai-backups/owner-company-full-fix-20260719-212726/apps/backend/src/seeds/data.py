@@ -2,7 +2,6 @@ from src.modules.company.model_company import BranchType
 from src.modules.finance.model_finance import AccountType, NormalBalance
 from src.modules.products.model_product import ProductType
 from src.modules.users.model_user import AccessScope
-from src.security.permission_catalog import PERMISSION_MATRIX
 
 
 COMPANIES = [
@@ -226,6 +225,65 @@ USERS = [
     },
 ]
 
+
+PERMISSION_MATRIX = {
+    "company": [
+        "profile",
+        "branches",
+    ],
+    "users": [
+        "users",
+        "roles",
+        "permissions",
+        "access",
+    ],
+    "finance": [
+        "accounts",
+        "transactions",
+        "journals",
+        "reports",
+        "tax-rates",
+        "cash-accounts",
+        "budgets",
+        "snapshots",
+        "invoices",
+    ],
+    "products": [
+        "categories",
+        "products",
+        "stock",
+        "movements",
+        "suppliers",
+    ],
+    "hr": [
+        "employees",
+        "attendance",
+        "leave",
+        "tasks",
+        "kpi",
+        "payroll",
+    ],
+    "crm": [
+        "leads",
+        "contacts",
+        "deals",
+        "activities",
+        "campaigns",
+    ],
+    "admin": [
+        "settings",
+    ],
+    "dashboard": [
+        "summary",
+    ],
+    "realtime": [
+        "events",
+    ],
+    "ai": [
+        "reports",
+        "analytics",
+    ],
+}
 
 
 ROLE_ALLOWED_MODULES = {

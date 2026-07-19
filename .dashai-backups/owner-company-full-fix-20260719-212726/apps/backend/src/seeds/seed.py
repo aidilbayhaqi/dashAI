@@ -27,9 +27,6 @@ from src.seeds.product_seed import (
 from src.seeds.user_seed import (
     seed_users_and_access,
 )
-from src.seeds.analysis_demo_seed import (
-    seed_analysis_demo_data,
-)
 
 
 async def ensure_schema_is_migrated() -> None:
@@ -87,12 +84,6 @@ async def run_all_seeds() -> None:
                 contexts,
             )
 
-            await seed_analysis_demo_data(
-                db,
-                contexts,
-                system_user_ids,
-            )
-
             await db.commit()
 
             print(
@@ -109,22 +100,22 @@ async def run_all_seeds() -> None:
             )
 
             print(
-                "  owner@nrt.test "
+                "  owner@nud.test "
                 "/ admin123"
             )
 
             print(
-                "  admin@gkm.test "
+                "  admin@bkm.test "
                 "/ admin123"
             )
 
             print(
-                "  finance@nrt.test "
+                "  finance@nud.test "
                 "/ admin123"
             )
 
             print(
-                "  sales@gkm.test "
+                "  sales@bkm.test "
                 "/ admin123"
             )
 
