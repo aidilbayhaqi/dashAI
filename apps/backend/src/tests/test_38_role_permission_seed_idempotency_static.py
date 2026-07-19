@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.modules.users.model_user import PermissionAction
+from src.security.permission_catalog import PERMISSION_MATRIX
 from src.seeds.context import build_context
 from src.seeds.data import (
-    PERMISSION_MATRIX,
     ROLE_ALLOWED_MODULES,
     ROLES,
 )

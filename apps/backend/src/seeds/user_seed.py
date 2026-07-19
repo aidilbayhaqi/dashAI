@@ -16,10 +16,10 @@ from src.modules.users.model_user import (
     UserRolePermission,
     UserStatus,
 )
+from src.security.permission_catalog import PERMISSION_MATRIX
 from src.seeds.context import CompanySeedContext
 from src.seeds.data import (
     COMPANY_LABELS,
-    PERMISSION_MATRIX,
     ROLE_ALLOWED_MODULES,
     ROLES,
     USERS,
