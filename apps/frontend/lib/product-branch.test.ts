@@ -42,9 +42,20 @@ describe("product branch availability", () => {
       .toBe(false);
   });
 
-  it("uses configured stock branches for a company-wide physical product", () => {
+  it("keeps a company-wide physical product visible in every company branch", () => {
     expect(getAvailableBranchIdsForProduct(products[1], stocks, branches))
-      .toEqual(["branch-a", "branch-b"]);
+      .toEqual(branches);
+  });
+
+  it("does not hide a new product just because stock rows do not exist yet", () => {
+    const newProduct = {
+      id: "product-new",
+      branch_id: null,
+      track_stock: true,
+      product_type: "physical",
+    };
+    expect(getAvailableBranchIdsForProduct(newProduct, stocks, branches))
+      .toEqual(branches);
   });
 
   it("allows a non-stock service in every company branch", () => {

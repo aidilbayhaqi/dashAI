@@ -1,6 +1,7 @@
 "use client";
 
 import { AuthenticatedFilePreview } from "@/components/files/authenticated-file-preview";
+import { normalizeRuntimeFileUrl } from "@/lib/runtime-url";
 import { formatModuleValue } from "@/lib/value-format";
 import type { ModuleColumn } from "@/types/modules";
 
@@ -13,33 +14,9 @@ function hasValue(value: unknown) {
   return value !== undefined && value !== null && String(value).trim() !== "";
 }
 
-function getApiBaseUrl() {
-  const fromEnv =
-    process.env.NEXT_PUBLIC_API_URL ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    "";
-
-  if (fromEnv) return fromEnv.replace(/\/$/, "");
-
-  return "http://localhost:8000";
-}
 
 function normalizeFileUrl(value: unknown) {
-  if (!hasValue(value)) return "";
-
-  const url = String(value).trim();
-
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-
-  if (url.startsWith("/uploads")) {
-    return `${getApiBaseUrl()}${url}`;
-  }
-
-  if (url.startsWith("uploads/")) {
-    return `${getApiBaseUrl()}/${url}`;
-  }
-
-  return url;
+  return normalizeRuntimeFileUrl(value);
 }
 
 function isImageKey(key: string) {

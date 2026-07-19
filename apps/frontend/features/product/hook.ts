@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { useCompanyScope } from "@/hooks/use-company-scope";
 import { api } from "@/lib/api";
+import { normalizeRuntimeFileUrl } from "@/lib/runtime-url";
 import { getScopedQueryParams } from "@/lib/module-crud";
 import type { ModuleData, ModuleMetric, ModuleRow } from "@/types/modules";
 import type { ProductModuleKey } from "./types";
@@ -35,34 +36,9 @@ function isUuid(value: string) {
   );
 }
 
-function getApiBaseUrl() {
-  const fromEnv =
-    process.env.NEXT_PUBLIC_API_URL ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    "";
-
-  if (fromEnv) return fromEnv.replace(/\/$/, "");
-
-  return "http://localhost:8000";
-}
 
 function normalizeFileUrl(value: unknown) {
-  if (!hasValue(value)) return "";
-
-  const url = String(value).trim();
-
-  if (!url) return "";
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-
-  if (url.startsWith("/uploads")) {
-    return `${getApiBaseUrl()}${url}`;
-  }
-
-  if (url.startsWith("uploads/")) {
-    return `${getApiBaseUrl()}/${url}`;
-  }
-
-  return url;
+  return normalizeRuntimeFileUrl(value);
 }
 
 function pick(row: ModuleRow, keys: string[]) {

@@ -192,8 +192,8 @@ export function CompanyScopeFilter() {
           <p className="text-sm font-bold text-slate-500 dark:text-slate-500">
             Data otomatis mengikuti company akun ini.
             {currentCompanyId ? (
-              <span className="ml-2 rounded-full bg-slate-100 px-2 py-1 text-xs font-black text-slate-500 dark:bg-slate-900">
-                {currentCompanyId.slice(0, 8)}...
+              <span className="ml-2 rounded-full bg-emerald-50 px-2 py-1 text-xs font-black text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                terkunci ke company akun
               </span>
             ) : (
               <span className="ml-2 rounded-full bg-amber-50 px-2 py-1 text-xs font-black text-amber-600 dark:bg-amber-500/10 dark:text-amber-300">

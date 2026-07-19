@@ -23,12 +23,14 @@ const authScopeState = vi.hoisted(() => ({
   companyId: "company-1" as string | null,
   superAdmin: false,
   selectedCompanyId: "company-1",
+  defaultBranchId: "branch-1" as string | null,
 }));
 
 vi.mock("./api", () => automationApiMock);
 
 vi.mock("@/lib/auth-scope", () => ({
   getCurrentCompanyId: () => authScopeState.companyId,
+  getCurrentDefaultBranchId: () => authScopeState.defaultBranchId,
   isCurrentUserSuperAdmin: () => authScopeState.superAdmin,
 }));
 
@@ -169,6 +171,7 @@ describe("SalesAutomationClient", () => {
     authScopeState.companyId = "company-1";
     authScopeState.superAdmin = false;
     authScopeState.selectedCompanyId = "company-1";
+    authScopeState.defaultBranchId = "branch-1";
 
     automationApiMock.getAutomationContext.mockResolvedValue(
       contextFixture

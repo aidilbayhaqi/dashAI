@@ -25,6 +25,7 @@ export type AuthUser = {
   is_owner: boolean;
   company_id: string | null;
   role_id: string | null;
+  default_branch_id: string | null;
   permissions: string[];
   branch_ids: string[];
 };

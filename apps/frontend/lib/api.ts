@@ -9,16 +9,14 @@ import {
   getAccessToken,
   setAccessToken,
 } from "@/lib/auth";
+import { getApiBaseUrl } from "@/lib/runtime-url";
 
 import type {
   TokenResponse,
 } from "@/types/backend";
 
 
-const API_BASE_URL =
-  process.env
-    .NEXT_PUBLIC_API_URL
-  || "http://localhost:8000";
+const API_BASE_URL = getApiBaseUrl();
 
 
 type RetryableRequestConfig =

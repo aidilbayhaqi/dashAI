@@ -1,3 +1,4 @@
+import { normalizeRuntimeFileUrl } from "@/lib/runtime-url";
 import type { ModuleMetric, ModuleRow } from "@/types/modules";
 
 export type FinanceBundle = {
@@ -111,34 +112,9 @@ function formatBoolean(value: unknown) {
   return statusText(value);
 }
 
-function getApiBaseUrl() {
-  const fromEnv =
-    process.env.NEXT_PUBLIC_API_URL ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    "";
-
-  if (fromEnv) return fromEnv.replace(/\/$/, "");
-
-  return "http://localhost:8000";
-}
 
 function normalizeFileUrl(value: unknown) {
-  if (!hasValue(value)) return "";
-
-  const url = String(value).trim();
-
-  if (!url) return "";
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-
-  if (url.startsWith("/uploads")) {
-    return `${getApiBaseUrl()}${url}`;
-  }
-
-  if (url.startsWith("uploads/")) {
-    return `${getApiBaseUrl()}/${url}`;
-  }
-
-  return url;
+  return normalizeRuntimeFileUrl(value);
 }
 
 function buildIndex(rows: ModuleRow[]) {

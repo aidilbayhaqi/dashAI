@@ -14,10 +14,6 @@ function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
-function isStockTrackedPhysical(product: BranchAwareProduct) {
-  return product.track_stock !== false
-    && String(product.product_type ?? "physical").toLowerCase() === "physical";
-}
 
 export function getAvailableBranchIdsForProduct(
   product: BranchAwareProduct,
@@ -25,23 +21,24 @@ export function getAvailableBranchIdsForProduct(
   allBranchIds: string[],
 ): string[] {
   const explicitBranchId = String(product.branch_id ?? "").trim();
+  const companyBranchIds = unique(allBranchIds);
   const stockBranchIds = unique(
     stocks
       .filter((stock) => stock.product_id === product.id)
       .map((stock) => stock.branch_id),
   );
 
-  if (isStockTrackedPhysical(product)) {
-    if (explicitBranchId) {
-      return stockBranchIds.includes(explicitBranchId)
-        ? [explicitBranchId]
-        : [];
-    }
-    return stockBranchIds;
+  // Product assignment membatasi catalog ke satu branch. Ketiadaan row stock
+  // tidak boleh menghilangkan product dari dropdown; stok 0 ditangani saat proses.
+  if (explicitBranchId) {
+    return companyBranchIds.length === 0 || companyBranchIds.includes(explicitBranchId)
+      ? [explicitBranchId]
+      : [];
   }
 
-  if (explicitBranchId) return [explicitBranchId];
-  return unique(allBranchIds);
+  // Product company-wide tersedia di seluruh branch aktif. Stock record hanya
+  // menentukan quantity, bukan menentukan apakah product terlihat.
+  return companyBranchIds.length ? companyBranchIds : stockBranchIds;
 }
 
 export function isProductAvailableInBranch(

@@ -35,7 +35,7 @@ configure_logging(level=settings.LOG_LEVEL, log_format=settings.LOG_FORMAT)
 
 logger = logging.getLogger(__name__)
 
-
+ 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     realtime_task: asyncio.Task | None = None

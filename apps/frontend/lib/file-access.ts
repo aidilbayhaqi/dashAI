@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { getApiBaseUrl, normalizeRuntimeFileUrl } from "@/lib/runtime-url";
 
 export type UploadContext =
   | "product-photo"
@@ -37,14 +38,7 @@ function hasValue(value: unknown): boolean {
   return value !== undefined && value !== null && String(value).trim() !== "";
 }
 
-export function getApiBaseUrl(): string {
-  const configuredUrl =
-    process.env.NEXT_PUBLIC_API_URL ||
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    "http://localhost:8000";
-
-  return configuredUrl.replace(/\/$/, "");
-}
+export { getApiBaseUrl };
 
 function getUrlPath(value: string): string {
   try {
@@ -55,28 +49,7 @@ function getUrlPath(value: string): string {
 }
 
 export function normalizeFileUrl(value: unknown): string {
-  if (!hasValue(value)) return "";
-
-  const url = String(value).trim();
-
-  if (!url) return "";
-
-  if (/^https?:\/\//i.test(url)) {
-    return url;
-  }
-
-  if (url.startsWith("/")) {
-    return `${getApiBaseUrl()}${url}`;
-  }
-
-  if (
-    url.startsWith("uploads/") ||
-    url.startsWith("api/")
-  ) {
-    return `${getApiBaseUrl()}/${url}`;
-  }
-
-  return url;
+  return normalizeRuntimeFileUrl(value);
 }
 
 export function isPrivateFileUrl(value: unknown): boolean {

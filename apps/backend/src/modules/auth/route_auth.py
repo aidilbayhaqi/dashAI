@@ -383,6 +383,10 @@ async def me(
             current_user.role_id
         ),
 
+        default_branch_id=(
+            current_user.default_branch_id
+        ),
+
         permissions=(
             current_user
             .permissions

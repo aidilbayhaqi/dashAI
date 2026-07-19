@@ -1527,6 +1527,12 @@ class AuthService:
             else None
         )
 
+        response_default_branch_id = (
+            selected_access.default_branch_id
+            if selected_access
+            else None
+        )
+
         (
             token,
             permissions,
@@ -1592,6 +1598,7 @@ class AuthService:
                     response_company_id
                 ),
                 role_id=response_role_id,
+                default_branch_id=response_default_branch_id,
                 permissions=permissions,
                 branch_ids=branch_ids,
             ),

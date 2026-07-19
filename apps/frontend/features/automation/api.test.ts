@@ -72,6 +72,10 @@ describe("automation API client", () => {
       {
         params: {
           company_id: "company-1",
+          is_active: true,
+          sort_by: "name",
+          sort_order: "asc",
+          page: 1,
           limit: 100,
         },
       }
@@ -82,6 +86,9 @@ describe("automation API client", () => {
       {
         params: {
           company_id: "company-1",
+          sort_by: "updated_at",
+          sort_order: "desc",
+          page: 1,
           limit: 100,
         },
       }

@@ -579,67 +579,39 @@ function buildMetrics(moduleKey: HRModuleKey, rows: ModuleRow[]): ModuleMetric[]
 }
 
 function removeSortParams(params: Record<string, unknown>) {
-  const clone = {
-    ...params,
-  };
-
+  const clone = { ...params };
   delete clone.sort_by;
   delete clone.sort_order;
-
   return clone;
 }
 
-function removeCompanyParams(params: Record<string, unknown>) {
-  const clone = {
-    ...params,
-  };
-
-  delete clone.company_id;
-
-  return clone;
-}
-
-async function tryGetRows(
-  endpoint: string,
-  params: Record<string, unknown>
-): Promise<ModuleRow[]> {
-  try {
-    const response = await api.get(endpoint, {
-      params,
-    });
-
-    return normalizeRows(response.data);
-  } catch (error) {
-    if (!isEndpointFallbackError(error)) {
-      throw error;
-    }
-    return [];
-  }
-}
-
-async function safeGetFromCandidates(
+async function fetchRowsFromCandidates(
   endpoints: string[],
-  params: Record<string, unknown>
-) {
-  const paramCandidates: Record<string, unknown>[] = [
-    params,
-    removeSortParams(params),
-    removeCompanyParams(params),
-    removeSortParams(removeCompanyParams(params)),
-    {
-      limit: 100,
-    },
-    {},
-  ];
+  params: Record<string, unknown>,
+): Promise<ModuleRow[]> {
+  let lastError: unknown;
 
   for (const endpoint of endpoints) {
-    for (const paramCandidate of paramCandidates) {
-      const rows = await tryGetRows(endpoint, paramCandidate);
+    try {
+      const response = await api.get(endpoint, { params });
+      // Response kosong adalah hasil valid. Jangan spam endpoint/parameter fallback.
+      return normalizeRows(response.data);
+    } catch (error) {
+      if (!isEndpointFallbackError(error)) throw error;
+      lastError = error;
 
-      if (rows.length > 0) return rows;
+      // Beberapa backend lama menolak sort field, coba sekali tanpa sort.
+      try {
+        const response = await api.get(endpoint, { params: removeSortParams(params) });
+        return normalizeRows(response.data);
+      } catch (fallbackError) {
+        if (!isEndpointFallbackError(fallbackError)) throw fallbackError;
+        lastError = fallbackError;
+      }
     }
   }
 
+  void lastError;
   return [];
 }
 
@@ -664,17 +636,32 @@ export async function getHRModuleData(input: GetHRModuleDataParams) {
     sort_order: "desc",
   });
 
-  const [rawRows, employeeRows, leaveTypeRows] = await Promise.all([
-    safeGetFromCandidates(endpointMap[moduleKey], params),
-    safeGetFromCandidates(endpointMap.employees, {
-      ...params,
-      sort_by: "full_name",
-    }),
-    safeGetFromCandidates(endpointMap["leave-types"], {
-      ...params,
-      sort_by: "name",
-    }),
+  const needsEmployees = [
+    "attendance",
+    "leave-requests",
+    "tasks",
+    "kpi-reviews",
+  ].includes(moduleKey);
+  const needsLeaveTypes = moduleKey === "leave-requests";
+
+  const [rawRows, relatedEmployees, relatedLeaveTypes] = await Promise.all([
+    fetchRowsFromCandidates(endpointMap[moduleKey], params),
+    needsEmployees
+      ? fetchRowsFromCandidates(endpointMap.employees, {
+          ...params,
+          sort_by: "full_name",
+        })
+      : Promise.resolve([]),
+    needsLeaveTypes
+      ? fetchRowsFromCandidates(endpointMap["leave-types"], {
+          ...params,
+          sort_by: "name",
+        })
+      : Promise.resolve([]),
   ]);
+
+  const employeeRows = moduleKey === "employees" ? rawRows : relatedEmployees;
+  const leaveTypeRows = moduleKey === "leave-types" ? rawRows : relatedLeaveTypes;
 
   const employeeIndex = buildIndex(employeeRows);
   const leaveTypeIndex = buildIndex(leaveTypeRows);

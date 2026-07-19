@@ -40,6 +40,28 @@ function rowsFrom<T>(value: unknown): T[] {
   return [];
 }
 
+
+async function getAllPaginatedRows<T>(
+  endpoint: string,
+  params: Record<string, unknown>,
+): Promise<T[]> {
+  const first = await api.get<PaginatedResponse<T>>(endpoint, {
+    params: { ...params, page: 1, limit: 100 },
+  });
+  const firstRows = rowsFrom<T>(first.data);
+  const totalPages = Math.max(Number(first.data.meta?.total_pages ?? 1), 1);
+  if (totalPages <= 1) return firstRows;
+
+  const remaining = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) =>
+      api.get<PaginatedResponse<T>>(endpoint, {
+        params: { ...params, page: index + 2, limit: 100 },
+      }),
+    ),
+  );
+  return [firstRows, ...remaining.map((response) => rowsFrom<T>(response.data))].flat();
+}
+
 function createIdempotencyKey(prefix: string) {
   const random =
     typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -52,24 +74,25 @@ function createIdempotencyKey(prefix: string) {
 export async function getAutomationContext(
   companyId: string
 ): Promise<AutomationContext> {
-  const [productsResponse, stocksResponse, branchesResponse] = await Promise.all([
-    api.get<PaginatedResponse<AutomationProduct>>(
+  const [products, stocks, branchesResponse] = await Promise.all([
+    getAllPaginatedRows<AutomationProduct>(
       "/api/v1/products/items",
-      { params: { company_id: companyId, limit: 100 } }
+      { company_id: companyId, is_active: true, sort_by: "name", sort_order: "asc" },
     ),
-    api.get<PaginatedResponse<AutomationStock>>(
+    getAllPaginatedRows<AutomationStock>(
       "/api/v1/products/stocks",
-      { params: { company_id: companyId, limit: 100 } }
+      { company_id: companyId, sort_by: "updated_at", sort_order: "desc" },
     ),
     api.get<AutomationBranch[] | PaginatedResponse<AutomationBranch>>(
-      `/api/v1/companies/${companyId}/branches`
+      `/api/v1/companies/${companyId}/branches`,
     ),
   ]);
 
   return {
-    products: rowsFrom<AutomationProduct>(productsResponse.data),
-    stocks: rowsFrom<AutomationStock>(stocksResponse.data),
-    branches: rowsFrom<AutomationBranch>(branchesResponse.data),
+    products: [...products].sort((a, b) => a.name.localeCompare(b.name, "id")),
+    stocks,
+    branches: rowsFrom<AutomationBranch>(branchesResponse.data)
+      .sort((a, b) => a.name.localeCompare(b.name, "id")),
   };
 }
 

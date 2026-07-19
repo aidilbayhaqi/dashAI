@@ -6,7 +6,11 @@ import type { FormEvent } from "react";
 import { AlertCircle, Loader2, X } from "lucide-react";
 
 import { getApiErrorMessage } from "@/lib/api-error";
-import { getCurrentCompanyId, isCurrentUserSuperAdmin } from "@/lib/auth-scope";
+import {
+  getCurrentCompanyId,
+  getCurrentDefaultBranchId,
+  isCurrentUserSuperAdmin,
+} from "@/lib/auth-scope";
 import type {
   ModuleColumn,
   ModuleField,
@@ -131,13 +135,15 @@ export function RecordModal({
           if (!cancelled) {
             setOptionsByKey((current) => ({ ...current, [field.key]: options }));
 
-            if (field.key === "branch_id" && productId) {
+            if (field.key === "branch_id") {
               setValues((current) => {
                 const currentBranchId = String(current.branch_id ?? "");
                 const availableIds = new Set(options.map((option) => option.value));
+                const preferredBranchId = getCurrentDefaultBranchId();
 
-                if (currentBranchId && availableIds.has(currentBranchId)) {
-                  return current;
+                if (currentBranchId && availableIds.has(currentBranchId)) return current;
+                if (preferredBranchId && availableIds.has(preferredBranchId)) {
+                  return { ...current, branch_id: preferredBranchId };
                 }
                 if (options.length === 1) {
                   return { ...current, branch_id: options[0].value };
@@ -197,6 +203,7 @@ export function RecordModal({
     if (busy || loadingByKey[field.key]) return true;
     if (field.key === "company_id" && !canChooseCompany) return true;
     if (field.key === "branch_id" && !companyId) return true;
+    if (field.key === "branch_id" && getOptions(field).length === 1) return true;
     return field.key === "branch_id" && moduleKey === "stock" && !productId;
   }
 

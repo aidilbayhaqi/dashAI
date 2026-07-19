@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { api, bootstrapAccessToken } from "@/lib/api";
+import { getApiBaseUrl, getWebSocketBaseUrl } from "@/lib/runtime-url";
 
 import type {
   DashboardRealtimeEvent,
@@ -32,9 +33,9 @@ const moduleQueryKeys: Record<string, string[]> = {
 
 function buildRealtimeUrl(ticket: string, companyId: string): string {
   const configuredWebSocketUrl = process.env.NEXT_PUBLIC_WS_URL;
-  const configuredApiUrl =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-  const sourceUrl = configuredWebSocketUrl || configuredApiUrl;
+  const sourceUrl = configuredWebSocketUrl
+    ? getWebSocketBaseUrl()
+    : getApiBaseUrl();
   const url = new URL(sourceUrl, window.location.origin);
 
   if (!configuredWebSocketUrl || url.pathname === "/") {

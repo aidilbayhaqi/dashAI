@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getCurrentCompanyId, isCurrentUserSuperAdmin } from "@/lib/auth-scope";
 import {
   getSelectedCompanyId,
   subscribeCompanyScope,
@@ -9,11 +10,20 @@ import {
 
 export function useCompanyScope() {
   const [selectedCompanyId, setSelectedCompanyIdState] =
-    useState<CompanyScopeValue>("all");
+    useState<CompanyScopeValue>(() => {
+      const fixedCompanyId = getCurrentCompanyId();
+      if (fixedCompanyId && !isCurrentUserSuperAdmin()) return fixedCompanyId;
+      return getSelectedCompanyId();
+    });
 
   useEffect(() => {
     function syncCompanyScope() {
-      setSelectedCompanyIdState(getSelectedCompanyId());
+      const fixedCompanyId = getCurrentCompanyId();
+      setSelectedCompanyIdState(
+        fixedCompanyId && !isCurrentUserSuperAdmin()
+          ? fixedCompanyId
+          : getSelectedCompanyId(),
+      );
     }
 
     syncCompanyScope();

@@ -80,6 +80,7 @@ class AuthUserResponse(BaseModel):
 
     company_id: UUID | None = None
     role_id: UUID | None = None
+    default_branch_id: UUID | None = None
 
     permissions: list[str] = Field(
         default_factory=list

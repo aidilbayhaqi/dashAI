@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/feedback-toast";
 import {
   getCurrentCompanyId,
+  getCurrentDefaultBranchId,
   isCurrentUserSuperAdmin,
 } from "@/lib/auth-scope";
 import {
@@ -76,6 +77,7 @@ export function SalesAutomationClient() {
   const { selectedCompanyId } = useCompanyScope();
   const currentCompanyId = getCurrentCompanyId();
   const isSuperAdmin = isCurrentUserSuperAdmin();
+  const preferredBranchId = getCurrentDefaultBranchId();
   const companyId =
     currentCompanyId ||
     (selectedCompanyId !== ALL_COMPANIES_VALUE ? selectedCompanyId : null);
@@ -306,6 +308,16 @@ export function SalesAutomationClient() {
   }, [allBranchIds, branchId, context.products, context.stocks]);
 
   useEffect(() => {
+    if (!branchId && preferredBranchId) {
+      const preferredExists = compatibleBranches.some(
+        (branch) => branch.id === preferredBranchId,
+      );
+      if (preferredExists) {
+        setBranchId(preferredBranchId);
+        return;
+      }
+    }
+
     if (compatibleBranches.length === 1 && !branchId) {
       setBranchId(compatibleBranches[0].id);
       return;
@@ -314,7 +326,12 @@ export function SalesAutomationClient() {
     if (branchId && !compatibleBranchIds.includes(branchId)) {
       setBranchId("");
     }
-  }, [branchId, compatibleBranchIds, compatibleBranches]);
+  }, [
+    branchId,
+    compatibleBranchIds,
+    compatibleBranches,
+    preferredBranchId,
+  ]);
 
   const estimatedTotal = useMemo(() => {
     return lines.reduce((sum, line) => {
@@ -649,9 +666,16 @@ export function SalesAutomationClient() {
                     setFormError("");
                   }
                 }}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-950"
+                disabled={contextQuery.isPending || context.branches.length === 0}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-indigo-500 disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-700 dark:bg-slate-950"
               >
-                <option value="">Select compatible branch</option>
+                <option value="">
+                  {contextQuery.isPending
+                    ? "Loading branch..."
+                    : context.branches.length === 0
+                      ? "Branch belum tersedia"
+                      : "Select branch"}
+                </option>
                 {compatibleBranches.map((branch) => (
                   <option key={branch.id} value={branch.id}>
                     {branch.name}{branch.code ? ` (${branch.code})` : ""}
@@ -659,7 +683,7 @@ export function SalesAutomationClient() {
                 ))}
               </select>
               <p className="text-xs font-semibold text-slate-400">
-                {compatibleBranches.length} branch mendukung produk yang dipilih.
+                {context.branches.length} branch company tersedia.
               </p>
             </label>
 
@@ -780,9 +804,16 @@ export function SalesAutomationClient() {
                         }
                         setFormError("");
                       }}
-                      className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm sm:col-span-2 xl:col-span-2 dark:border-slate-700 dark:bg-slate-900"
+                      disabled={contextQuery.isPending || context.products.length === 0}
+                      className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-70 sm:col-span-2 xl:col-span-2 dark:border-slate-700 dark:bg-slate-900"
                     >
-                      <option value="">Select product</option>
+                      <option value="">
+                        {contextQuery.isPending
+                          ? "Loading product..."
+                          : context.products.length === 0
+                            ? "Product belum tersedia"
+                            : "Select product"}
+                      </option>
                       {productsForSelectedBranch.map((product) => {
                         const selectedElsewhere = lines.some(
                           (candidate) => candidate.localId !== line.localId && candidate.product_id === product.id,

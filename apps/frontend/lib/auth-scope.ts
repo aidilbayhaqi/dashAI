@@ -13,6 +13,7 @@ export type AuthUserScope = {
   company_id?: string | null;
   tenant_id?: string | null;
   role_id?: string | null;
+  default_branch_id?: string | null;
 
   permissions?: unknown;
   branch_ids?: unknown;
@@ -160,4 +161,28 @@ export function hasCurrentUserPermission(permission: string): boolean {
 
 export function hasAnyCurrentUserPermission(permissions: string[]): boolean {
   return permissions.some(hasCurrentUserPermission);
+}
+
+
+export function getCurrentDefaultBranchId(): string | null {
+  const user = getCurrentUserScope();
+  const record = user as Record<string, unknown> | null;
+  const candidates: unknown[] = [
+    user?.default_branch_id,
+    record?.defaultBranchId,
+    record?.branch_id,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && isValidUuid(candidate)) return candidate;
+  }
+  return null;
+}
+
+export function getCurrentAllowedBranchIds(): string[] {
+  const user = getCurrentUserScope();
+  const values = Array.isArray(user?.branch_ids) ? user.branch_ids : [];
+  return values
+    .map((value) => String(value))
+    .filter(isValidUuid);
 }

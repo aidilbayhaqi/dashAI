@@ -168,8 +168,7 @@ async function fetchRows(
   for (const endpoint of endpoints) {
     try {
       const response = await api.get(endpoint, { params });
-      const rows = normalizeRows(response.data);
-      if (rows.length) return rows;
+      return normalizeRows(response.data);
     } catch (error: unknown) {
       if (!isEndpointFallbackError(error)) throw error;
       lastFallbackError = error;
@@ -218,17 +217,6 @@ export async function fetchOptionsForField(
   if (companyId && key !== "company_id") params.company_id = companyId;
 
   let rows = await fetchRows(endpoints, params);
-  if (
-    rows.length === 0
-    && (employeeLookupKeys.has(key) || key === "leave_type_id")
-    && companyId
-  ) {
-    rows = await fetchRows(endpoints, {
-      limit: 100,
-      sort_by: getSortBy(key),
-      sort_order: "asc",
-    });
-  }
 
   return rowsToOptions(rows, key);
 }

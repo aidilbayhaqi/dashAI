@@ -160,3 +160,51 @@ textarea {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* Stable form surfaces: prevent white flashes/autofill and keep disabled fields on-theme. */
+input,
+select,
+textarea {
+  background-color: var(--app-surface);
+  color: inherit;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled,
+input[readonly],
+textarea[readonly] {
+  cursor: not-allowed;
+  background-color: var(--app-surface) !important;
+  color: #64748b !important;
+  opacity: 0.68;
+}
+
+.dark input:disabled,
+.dark select:disabled,
+.dark textarea:disabled,
+.dark input[readonly],
+.dark textarea[readonly] {
+  color: #94a3b8 !important;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: #0f172a;
+  box-shadow: 0 0 0 1000px var(--app-surface) inset;
+  caret-color: #0f172a;
+  transition: background-color 9999s ease-out 0s;
+}
+
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark textarea:-webkit-autofill,
+.dark select:-webkit-autofill {
+  -webkit-text-fill-color: #e2e8f0;
+  caret-color: #e2e8f0;
+}
