@@ -7,6 +7,7 @@ import {
   FileText,
   ImageIcon,
   Loader2,
+  RefreshCw,
   TriangleAlert,
 } from "lucide-react";
 
@@ -56,6 +57,7 @@ export function AuthenticatedFilePreview({
   const [resolvedSource, setResolvedSource] = useState("");
   const [status, setStatus] = useState<PreviewStatus>("idle");
   const [downloadPending, setDownloadPending] = useState(false);
+  const [retryVersion, setRetryVersion] = useState(0);
 
   const previewableImage = isPreviewableImage(normalizedSource);
 
@@ -107,7 +109,7 @@ export function AuthenticatedFilePreview({
         revokeAuthenticatedFileObjectUrl(objectUrl);
       }
     };
-  }, [normalizedSource, onError, previewableImage]);
+  }, [normalizedSource, onError, previewableImage, retryVersion]);
 
   async function handleDownload() {
     if (!normalizedSource || downloadPending) return;
@@ -144,11 +146,24 @@ export function AuthenticatedFilePreview({
 
   if (status === "error") {
     return (
-      <TriangleAlert
-        size={28}
-        className="text-amber-500"
-        aria-label="File gagal dimuat"
-      />
+      <div className="flex h-full min-h-24 w-full flex-col items-center justify-center gap-2 px-3 text-center">
+        <TriangleAlert
+          size={28}
+          className="text-amber-500"
+          aria-label="File gagal dimuat"
+        />
+        <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+          Gambar belum tersedia di penyimpanan production.
+        </p>
+        <button
+          type="button"
+          onClick={() => setRetryVersion((value) => value + 1)}
+          className="inline-flex h-8 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          <RefreshCw size={13} />
+          Coba Lagi
+        </button>
+      </div>
     );
   }
 

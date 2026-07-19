@@ -61,6 +61,12 @@ const navigationSearchAliases: Record<string, string[]> = {
     "keuangan",
     "ringkasan keuangan",
   ],
+  "/finance/cash-accounts": [
+    "cash account",
+    "akun kas",
+    "rekening bank",
+    "petty cash",
+  ],
   "/finance/transactions": [
     "transaksi",
     "transaksi keuangan",

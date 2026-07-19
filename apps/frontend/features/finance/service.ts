@@ -26,6 +26,7 @@ type FinanceBundle = {
 
 const moduleSortBy: Record<FinanceModuleKey, string> = {
   overview: "updated_at",
+  "cash-accounts": "updated_at",
   transactions: "updated_at",
   invoices: "updated_at",
   cashflow: "updated_at",
@@ -414,6 +415,21 @@ function getCashAccountName(
   if (name) return name;
 
   return "-";
+}
+
+function buildCashAccountRows(rows: ModuleRow[]) {
+  return rows.map((row) => ({
+    ...row,
+    name: pick(row, ["name", "cash_account_name", "account_name"]) || "Cash Account",
+    bank_name: pick(row, ["bank_name", "bank"]) || "Cash",
+    account_number: pick(row, ["account_number", "number"]) || "-",
+    account_holder_name: pick(row, ["account_holder_name", "holder_name"]) || "-",
+    currency: pick(row, ["currency"]) || "IDR",
+    opening_balance_display: formatMoney(row.opening_balance),
+    current_balance_display: formatMoney(row.current_balance),
+    default_label: String(row.is_default).toLowerCase() === "true" ? "Default" : "Secondary",
+    status_label: String(row.is_active).toLowerCase() === "false" ? "Inactive" : "Active",
+  }));
 }
 
 function buildTransactionRows(rows: ModuleRow[], cashAccounts: ModuleRow[]) {
@@ -825,6 +841,10 @@ function buildFinanceMetrics(bundle: FinanceBundle): ModuleMetric[] {
 }
 
 function getFinanceRows(moduleKey: FinanceModuleKey, bundle: FinanceBundle) {
+  if (moduleKey === "cash-accounts") {
+    return buildCashAccountRows(bundle.cashAccounts);
+  }
+
   if (moduleKey === "overview" || moduleKey === "transactions") {
     return buildTransactionRows(bundle.transactions, bundle.cashAccounts);
   }
@@ -850,6 +870,13 @@ function getFinanceRows(moduleKey: FinanceModuleKey, bundle: FinanceBundle) {
 
 async function getCurrentRows(moduleKey: FinanceModuleKey, params: Record<string, unknown>) {
   const sortBy = moduleSortBy[moduleKey];
+
+  if (moduleKey === "cash-accounts") {
+    return safeGetFromCandidates("cashAccounts", ["/api/v1/finance/cash-accounts"], {
+      ...params,
+      sort_by: sortBy,
+    });
+  }
 
   if (moduleKey === "overview" || moduleKey === "transactions") {
     return safeGetFromCandidates("transactions", ["/api/v1/finance/transactions"], {
@@ -995,7 +1022,7 @@ export async function getFinanceModuleData(
 
     ledger: moduleKey === "ledger" ? currentRows : ledger,
 
-    cashAccounts,
+    cashAccounts: moduleKey === "cash-accounts" ? currentRows : cashAccounts,
   };
 
   const rows = getFinanceRows(moduleKey, bundle);

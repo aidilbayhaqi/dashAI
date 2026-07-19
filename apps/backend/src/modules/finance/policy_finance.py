@@ -8,7 +8,9 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.finance.model_finance import (
+    AccountType,
     BudgetStatus,
+    FinanceAccount,
     FinanceBudget,
     FinanceCashAccount,
     FinanceInvoice,
@@ -16,6 +18,7 @@ from src.modules.finance.model_finance import (
     FinanceTransaction,
     InvoiceStatus,
     JournalStatus,
+    NormalBalance,
     TaxRecordStatus,
     TransactionStatus,
 )
@@ -279,6 +282,61 @@ class FinanceJournalWritePolicy(CRUDWritePolicy):
 
 class FinanceCashAccountWritePolicy(CRUDWritePolicy):
     @staticmethod
+    async def _next_account_code(
+        *,
+        db: AsyncSession,
+        company_id: Any,
+    ) -> str:
+        result = await db.execute(
+            select(FinanceAccount.code).where(
+                FinanceAccount.company_id == company_id,
+            )
+        )
+        existing_codes = {str(code) for code in result.scalars().all()}
+
+        for number in range(1001, 1100):
+            candidate = str(number)
+            if candidate not in existing_codes:
+                return candidate
+
+        raise _conflict(
+            "Rentang kode akun kas 1001-1099 sudah penuh. "
+            "Buat akun ledger secara manual terlebih dahulu."
+        )
+
+    @classmethod
+    async def _create_linked_finance_account(
+        cls,
+        *,
+        db: AsyncSession,
+        company_id: Any,
+        name: str,
+        bank_name: str | None,
+    ) -> FinanceAccount:
+        code = await cls._next_account_code(
+            db=db,
+            company_id=company_id,
+        )
+        finance_account = FinanceAccount(
+            company_id=company_id,
+            code=code,
+            name=name,
+            account_type=AccountType.ASSET,
+            normal_balance=NormalBalance.DEBIT,
+            description=(
+                f"Cash account {name}"
+                + (f" - {bank_name}" if bank_name else "")
+            ),
+            is_cash_account=True,
+            is_bank_account=bool(bank_name),
+            is_tax_account=False,
+            is_active=True,
+        )
+        db.add(finance_account)
+        await db.flush()
+        return finance_account
+
+    @staticmethod
     async def _clear_other_defaults(
         *,
         db: AsyncSession,
@@ -302,12 +360,39 @@ class FinanceCashAccountWritePolicy(CRUDWritePolicy):
     ) -> dict[str, Any]:
         del current_user
         data = dict(data)
+        company_id = data.get("company_id")
+
+        if company_id is None:
+            raise _unprocessable("company_id is required")
+
+        if not data.get("account_id"):
+            linked_account = await self._create_linked_finance_account(
+                db=db,
+                company_id=company_id,
+                name=str(data.get("name") or "Cash Account").strip(),
+                bank_name=(
+                    str(data.get("bank_name")).strip()
+                    if data.get("bank_name")
+                    else None
+                ),
+            )
+            data["account_id"] = linked_account.id
+
         opening = Decimal(str(data.get("opening_balance", ZERO) or ZERO))
         data["current_balance"] = opening
+
+        existing_result = await db.execute(
+            select(FinanceCashAccount.id)
+            .where(FinanceCashAccount.company_id == company_id)
+            .limit(1)
+        )
+        if existing_result.scalar_one_or_none() is None:
+            data["is_default"] = True
+
         if data.get("is_default"):
             await self._clear_other_defaults(
                 db=db,
-                company_id=data.get("company_id"),
+                company_id=company_id,
             )
         return data
 
@@ -320,7 +405,21 @@ class FinanceCashAccountWritePolicy(CRUDWritePolicy):
         current_user: CurrentUser,
     ) -> dict[str, Any]:
         del current_user
-        _reject_fields(data, {"opening_balance", "current_balance"})
+        _reject_fields(data, {"opening_balance", "current_balance", "account_id"})
+
+        if "name" in data or "bank_name" in data:
+            result = await db.execute(
+                select(FinanceAccount).where(
+                    FinanceAccount.id == existing.account_id,
+                    FinanceAccount.company_id == existing.company_id,
+                )
+            )
+            linked_account = result.scalar_one_or_none()
+            if linked_account is not None:
+                linked_account.name = str(data.get("name") or existing.name).strip()
+                if "bank_name" in data:
+                    linked_account.is_bank_account = bool(data.get("bank_name"))
+
         if data.get("is_default"):
             await self._clear_other_defaults(
                 db=db,

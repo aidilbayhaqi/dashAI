@@ -47,6 +47,20 @@ export function getWebSocketBaseUrl(): string {
   );
 }
 
+const MANAGED_FILE_PREFIXES = [
+  "/uploads/",
+  "/api/v1/files/private/",
+];
+
+function isManagedDashAiFilePath(pathname: string): boolean {
+  return MANAGED_FILE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
+function joinRuntimeFilePath(pathname: string, search = "", hash = ""): string {
+  const normalizedPath = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  return `${getApiBaseUrl()}${normalizedPath}${search}${hash}`;
+}
+
 export function normalizeRuntimeFileUrl(value: unknown): string {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
@@ -54,11 +68,24 @@ export function normalizeRuntimeFileUrl(value: unknown): string {
   if (/^https?:\/\//i.test(raw)) {
     try {
       const url = new URL(raw);
+
+      // Product/company/employee images may have been stored with an older
+      // Railway origin. Uploaded DashAI files are always served by the active
+      // API service, so rebase only managed file paths to the current API URL.
+      if (isManagedDashAiFilePath(url.pathname)) {
+        return joinRuntimeFilePath(url.pathname, url.search, url.hash);
+      }
+
       if (shouldForceHttps(url)) url.protocol = "https:";
       return url.toString();
     } catch {
       return raw;
     }
+  }
+
+  const normalizedPath = raw.startsWith("/") ? raw : `/${raw}`;
+  if (isManagedDashAiFilePath(normalizedPath)) {
+    return joinRuntimeFilePath(normalizedPath);
   }
 
   const base = getApiBaseUrl();

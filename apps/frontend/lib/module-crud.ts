@@ -45,6 +45,7 @@ const endpointMap: Record<FeatureKey, EndpointMap> = {
 
   finance: {
     overview: "/api/v1/finance/transactions",
+    "cash-accounts": "/api/v1/finance/cash-accounts",
     transactions: "/api/v1/finance/transactions",
     invoices: "/api/v1/finance/invoices",
     cashflow: "/api/v1/finance/cashflow-snapshots",
@@ -72,6 +73,8 @@ const numericKeys = new Set([
   "tax_amount",
   "total_amount",
   "paid_amount",
+  "opening_balance",
+  "current_balance",
   "amount",
   "score",
   "salary",
@@ -124,6 +127,7 @@ const uuidKeys = new Set([
   "transaction_id",
   "period_id",
   "cash_account_id",
+  "account_id",
   "tax_rate_id",
   "supplier_id",
   "customer_id",

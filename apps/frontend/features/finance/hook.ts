@@ -13,6 +13,10 @@ function normalizeFinanceModuleKey(value: string): FinanceModuleKey {
   const map: Record<string, FinanceModuleKey> = {
     overview: "overview",
 
+    "cash-accounts": "cash-accounts",
+    cashaccounts: "cash-accounts",
+    accounts: "cash-accounts",
+
     transactions: "transactions",
     transaction: "transactions",
 

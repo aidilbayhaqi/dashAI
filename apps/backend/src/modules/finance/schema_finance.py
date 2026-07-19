@@ -135,7 +135,7 @@ class FinanceTaxRateResponse(FinanceTaxRateCreate, ORMBase):
 
 class FinanceCashAccountCreate(BaseModel):
     company_id: UUID
-    account_id: UUID
+    account_id: UUID | None = None
     name: str
     bank_name: str | None = None
     account_number: str | None = None

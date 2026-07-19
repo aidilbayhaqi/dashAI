@@ -82,6 +82,11 @@ export const dashboardNavigation = [
         icon: Wallet,
       },
       {
+        title: "Cash Accounts",
+        href: "/finance/cash-accounts",
+        icon: Landmark,
+      },
+      {
         title: "Transactions",
         href: "/finance/transactions",
         icon: ReceiptText,

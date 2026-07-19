@@ -5,6 +5,7 @@ import {
   Landmark,
   NotebookTabs,
   ReceiptText,
+  WalletCards,
 } from "lucide-react";
 
 import type { ModuleConfig, ModuleField } from "@/types/modules";
@@ -16,6 +17,63 @@ const companyFields: ModuleField[] = [
     label: "Company",
     type: "select",
     required: true,
+  },
+];
+
+const cashAccountFormFields: ModuleField[] = [
+  ...companyFields,
+  {
+    key: "name",
+    label: "Cash Account Name",
+    placeholder: "Kas Utama / Bank BCA / Petty Cash",
+    required: true,
+  },
+  {
+    key: "bank_name",
+    label: "Bank Name",
+    placeholder: "Kosongkan untuk kas tunai",
+  },
+  {
+    key: "account_number",
+    label: "Account Number",
+  },
+  {
+    key: "account_holder_name",
+    label: "Account Holder",
+  },
+  {
+    key: "currency",
+    label: "Currency",
+    type: "select",
+    required: true,
+    options: [
+      { label: "IDR", value: "IDR" },
+      { label: "USD", value: "USD" },
+      { label: "SGD", value: "SGD" },
+    ],
+  },
+  {
+    key: "opening_balance",
+    label: "Opening Balance",
+    type: "number",
+  },
+  {
+    key: "is_default",
+    label: "Default Account",
+    type: "select",
+    options: [
+      { label: "Yes", value: "true" },
+      { label: "No", value: "false" },
+    ],
+  },
+  {
+    key: "is_active",
+    label: "Active",
+    type: "select",
+    options: [
+      { label: "Yes", value: "true" },
+      { label: "No", value: "false" },
+    ],
   },
 ];
 
@@ -256,6 +314,29 @@ export const financeModuleConfig: Record<FinanceModuleKey, ModuleConfig> = {
       { key: "status_label", label: "Status" },
     ],
     formFields: financeTransactionFormFields,
+  },
+
+  "cash-accounts": {
+    badge: "Finance / Cash Accounts",
+    title: "Cash Accounts",
+    description:
+      "Kelola rekening kas, rekening bank, saldo awal, dan akun default untuk transaksi serta Sales Automation.",
+    icon: WalletCards,
+    tableTitle: "Cash & Bank Accounts",
+    tableDescription:
+      "Akun default digunakan otomatis ketika transaksi atau automation membutuhkan sumber kas.",
+    columns: [
+      { key: "name", label: "Account", className: "min-w-[170px]" },
+      { key: "bank_name", label: "Bank", className: "min-w-[140px]" },
+      { key: "account_number", label: "Account Number", className: "min-w-[150px]" },
+      { key: "currency", label: "Currency", className: "min-w-[90px]" },
+      { key: "opening_balance_display", label: "Opening", format: "currency", className: "min-w-[130px]" },
+      { key: "current_balance_display", label: "Current", format: "currency", className: "min-w-[130px]" },
+      { key: "default_label", label: "Default", className: "min-w-[100px]" },
+      { key: "status_label", label: "Status", className: "min-w-[100px]" },
+    ],
+    formFields: cashAccountFormFields,
+    detailFields: cashAccountFormFields,
   },
 
   transactions: {
