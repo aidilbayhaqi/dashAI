@@ -59,3 +59,17 @@ def test_auth_runtime_does_not_depend_on_demo_seed_for_owner_permissions():
     assert "ensure_permission_catalog" in auth_service
     assert "permissions.extend(ALL_PERMISSION_KEYS)" in auth_service
     assert "permissions = list(ALL_PERMISSION_KEYS)" in dependencies
+
+
+def test_latest_production_migration_resyncs_existing_owner_rows():
+    migration = (
+        ROOT
+        / "migrations/versions/d14e5f6a7b89_resync_owner_permissions.py"
+    )
+    source = migration.read_text(encoding="utf-8")
+
+    assert 'down_revision: Union[str, Sequence[str], None] = "c03d4e5f6a78"' in source
+    assert "SET is_owner_role = TRUE" in source
+    assert "ON CONFLICT (role_id, permission_id) DO NOTHING" in source
+    assert "access.company_id = role.company_id" in source
+    assert "access_scope = 'ALL_BRANCHES'" in source

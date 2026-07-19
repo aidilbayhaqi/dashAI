@@ -5,30 +5,26 @@ from pathlib import Path
 from src.modules.users.model_user import PermissionAction
 from src.security.permission_catalog import PERMISSION_MATRIX
 from src.seeds.context import build_context
-from src.seeds.data import (
-    ROLE_ALLOWED_MODULES,
-    ROLES,
-)
-from src.seeds.utils import sid
+from src.seeds.data import ROLE_ALLOWED_MODULES, ROLES
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 
 def read_user_seed() -> str:
-    return (
-        BACKEND_ROOT / "src/seeds/user_seed.py"
-    ).read_text(encoding="utf-8")
+    return (BACKEND_ROOT / "src/seeds/user_seed.py").read_text(
+        encoding="utf-8"
+    )
 
 
-def expected_role_permission_pairs(
+def expected_role_permission_specs(
     company_code: str,
-) -> set[tuple[object, object]]:
+) -> set[tuple[object, str, str, str]]:
     context = build_context(
         company_code,
         ["hq"],
     )
-    pairs: set[tuple[object, object]] = set()
+    specs: set[tuple[object, str, str, str]] = set()
 
     for role in ROLES:
         role_key = role["key"]
@@ -41,12 +37,25 @@ def expected_role_permission_pairs(
 
             for feature_code in features:
                 for action in PermissionAction:
-                    permission_id = sid(
-                        f"permission:{module_code}:{feature_code}:{action.value}"
+                    specs.add(
+                        (
+                            role_id,
+                            module_code,
+                            feature_code,
+                            action.value,
+                        )
                     )
-                    pairs.add((role_id, permission_id))
 
-    return pairs
+    return specs
+
+
+def test_permission_seed_resolves_existing_rows_by_natural_key():
+    source = read_user_seed()
+
+    assert "ensure_permission_catalog(db)" in source
+    assert "permissions_by_key" in source
+    assert "permission_id = permission.id" in source
+    assert 'sid(f"permission:' not in source
 
 
 def test_role_permission_seed_checks_natural_unique_key():
@@ -59,8 +68,8 @@ def test_role_permission_seed_checks_natural_unique_key():
     assert "existing_role_permission_pairs.add(" in source
 
 
-def test_generated_role_permission_pairs_are_unique():
-    pairs = expected_role_permission_pairs(
+def test_generated_role_permission_specs_are_unique():
+    specs = expected_role_permission_specs(
         "role-permission-seed-contract"
     )
 
@@ -73,22 +82,16 @@ def test_generated_role_permission_pairs_are_unique():
             if module_code not in allowed_modules:
                 continue
 
-            expected_count += (
-                len(features) * len(PermissionAction)
-            )
+            expected_count += len(features) * len(PermissionAction)
 
-    assert len(pairs) == expected_count
+    assert len(specs) == expected_count
 
 
 def test_existing_natural_keys_can_be_skipped_idempotently():
-    expected = expected_role_permission_pairs(
+    expected = expected_role_permission_specs(
         "role-permission-seed-contract"
     )
     existing = set(expected)
-    pending = [
-        pair
-        for pair in expected
-        if pair not in existing
-    ]
+    pending = [spec for spec in expected if spec not in existing]
 
     assert pending == []

@@ -11,12 +11,14 @@ from src.modules.users.model_user import (
     User,
     UserBranchAccess,
     UserCompanyAccess,
-    UserPermission,
     UserRole,
     UserRolePermission,
     UserStatus,
 )
-from src.security.permission_catalog import PERMISSION_MATRIX
+from src.security.permission_catalog import (
+    PERMISSION_MATRIX,
+    ensure_permission_catalog,
+)
 from src.seeds.context import CompanySeedContext
 from src.seeds.data import (
     COMPANY_LABELS,
@@ -48,25 +50,18 @@ async def seed_users_and_access(
         ),
     )
 
-    permissions = []
-
-    for module_code, features in PERMISSION_MATRIX.items():
-        for feature_code in features:
-            for action in PermissionAction:
-                permissions.append(
-                    UserPermission(
-                        id=sid(f"permission:{module_code}:{feature_code}:{action.value}"),
-                        module_code=module_code,
-                        feature_code=feature_code,
-                        action=action,
-                        name=f"{module_code}.{feature_code}.{action.value}",
-                        description=f"{action.value} permission untuk {module_code}.{feature_code}",
-                        is_active=True,
-                    )
-                )
-
-    await add_many_if_missing(db, permissions)
-    await db.flush()
+    # Permission rows may already exist because production Alembic migrations
+    # upsert them with database-generated UUIDs. Always resolve permissions by
+    # their natural key instead of assuming the deterministic seed UUID.
+    permissions = await ensure_permission_catalog(db)
+    permissions_by_key = {
+        (
+            permission.module_code,
+            permission.feature_code,
+            getattr(permission.action, "value", permission.action),
+        ): permission
+        for permission in permissions
+    }
 
     for ctx in contexts.values():
         role_objects = []
@@ -117,9 +112,17 @@ async def seed_users_and_access(
 
                 for feature_code in features:
                     for action in PermissionAction:
-                        permission_id = sid(
-                            f"permission:{module_code}:{feature_code}:{action.value}"
+                        permission = permissions_by_key.get(
+                            (module_code, feature_code, action.value)
                         )
+
+                        if permission is None:
+                            raise RuntimeError(
+                                "Permission catalog tidak lengkap: "
+                                f"{module_code}.{feature_code}.{action.value}"
+                            )
+
+                        permission_id = permission.id
                         natural_key = (
                             role_id,
                             permission_id,
@@ -131,7 +134,10 @@ async def seed_users_and_access(
                         role_permission_objects.append(
                             UserRolePermission(
                                 id=sid(
-                                    f"role-permission:{ctx.code}:{role_key}:{module_code}:{feature_code}:{action.value}"
+                                    "role-permission:"
+                                    f"{ctx.code}:{role_key}:"
+                                    f"{module_code}:{feature_code}:"
+                                    f"{action.value}"
                                 ),
                                 role_id=role_id,
                                 permission_id=permission_id,
