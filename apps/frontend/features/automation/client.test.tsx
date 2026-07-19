@@ -448,11 +448,11 @@ describe("SalesAutomationClient", () => {
       screen.getByRole("button", { name: "Create & automate flow" }),
     );
 
-    expect(
-      screen.getByText(
-        /Stok Laptop Test di Gudang Utama hanya 8, sedangkan kebutuhan 9\./,
-      ),
-    ).toBeInTheDocument();
+    const stockAlert = await screen.findByRole("alert");
+    expect(stockAlert).toHaveTextContent("Stok Laptop Test");
+    expect(stockAlert).toHaveTextContent("Gudang Utama");
+    expect(stockAlert).toHaveTextContent("hanya 8");
+    expect(stockAlert).toHaveTextContent("kebutuhan 9");
     expect(automationApiMock.createSalesOrder).not.toHaveBeenCalled();
   });
 

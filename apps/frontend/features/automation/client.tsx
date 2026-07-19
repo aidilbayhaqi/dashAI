@@ -290,18 +290,12 @@ export function SalesAutomationClient() {
     [compatibleBranchIds, context.products, lines, stockIndex],
   );
 
-  const selectableBranches = useMemo(() => {
-    const allowedIds = autoProcess && selectedProductIds.length
-      ? stockReadyBranchIds
-      : compatibleBranchIds;
-    return context.branches.filter((branch) => allowedIds.includes(branch.id));
-  }, [
-    autoProcess,
-    compatibleBranchIds,
-    context.branches,
-    selectedProductIds.length,
-    stockReadyBranchIds,
-  ]);
+  const selectableBranches = useMemo(
+    () => context.branches.filter((branch) =>
+      compatibleBranchIds.includes(branch.id)
+    ),
+    [compatibleBranchIds, context.branches],
+  );
 
   const productsForSelectedBranch = useMemo(() => {
     if (!branchId) {
@@ -710,7 +704,7 @@ export function SalesAutomationClient() {
               </select>
               <p className="text-xs font-semibold text-slate-400">
                 {autoProcess && selectedProductIds.length
-                  ? `${selectableBranches.length} branch memiliki stok yang cukup untuk item terpilih.`
+                  ? `${stockReadyBranchIds.length} dari ${selectableBranches.length} branch memiliki stok yang cukup untuk item terpilih.`
                   : `${context.branches.length} branch company tersedia.`}
               </p>
             </label>
@@ -955,7 +949,10 @@ export function SalesAutomationClient() {
           </label>
 
           {formError ? (
-            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+            <div
+              role="alert"
+              className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300"
+            >
               {formError}
             </div>
           ) : null}
