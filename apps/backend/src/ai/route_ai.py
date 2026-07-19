@@ -66,7 +66,9 @@ from src.ai.gemini_agent_service import (
 from src.ai.gemini_schema import (
     GeminiAgentChatResponse,
     GeminiAgentQuestionRequest,
+    GeminiProviderStatusResponse,
 )
+from src.ai.gemini_provider import gemini_provider
 
 router = APIRouter(prefix="/ai/analytics", tags=["AI Analytics"])
 
@@ -175,6 +177,34 @@ async def ask_ai_analytics(
     )
     response = build_rule_based_answer(question, dashboard)
     return await maybe_enhance_answer_with_provider(response, dashboard)
+
+@router.get(
+    "/provider/status",
+    response_model=GeminiProviderStatusResponse,
+)
+async def gemini_provider_status(
+    probe: bool = Query(default=False),
+    current_user: CurrentUser = Depends(
+        require_permission(AI_ANALYTICS_VIEW)
+    ),
+):
+    del current_user
+    if probe:
+        return await gemini_provider.probe()
+
+    provider_status = gemini_provider.configuration_status()
+    return {
+        **provider_status,
+        "probe_status": "not_run",
+        "error_code": None,
+        "message": (
+            "Konfigurasi runtime terdeteksi. Tambahkan ?probe=true untuk "
+            "menguji koneksi Gemini secara langsung."
+            if provider_status["configured"]
+            else "API key Gemini belum terdeteksi di runtime."
+        ),
+    }
+
 
 @router.post(
     "/agent/chat",

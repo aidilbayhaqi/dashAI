@@ -197,6 +197,7 @@ class Settings(BaseSettings):
     AI_PROVIDER: str = "gemini"
 
     GEMINI_API_KEY: str | None = None
+    GOOGLE_API_KEY: str | None = None
     GEMINI_MODEL: str = "gemini-3.1-flash-lite"
 
     GEMINI_AGENT_TIMEOUT_SECONDS: float = 30.0
@@ -216,6 +217,7 @@ class Settings(BaseSettings):
         "OPENAI_API_KEY",
         "AI_MODEL",
         "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
         mode="before",
     )
     @classmethod
@@ -227,8 +229,49 @@ class Settings(BaseSettings):
             return None
 
         normalized = str(value).strip()
+        if (
+            len(normalized) >= 2
+            and normalized[0] == normalized[-1]
+            and normalized[0] in {"'", '"'}
+        ):
+            normalized = normalized[1:-1].strip()
+
+        for prefix in ("GEMINI_API_KEY=", "GOOGLE_API_KEY="):
+            if normalized.upper().startswith(prefix):
+                normalized = normalized.split("=", 1)[1].strip()
+                break
+
+        if (
+            len(normalized) >= 2
+            and normalized[0] == normalized[-1]
+            and normalized[0] in {"'", '"'}
+        ):
+            normalized = normalized[1:-1].strip()
 
         return normalized or None
+
+    @field_validator("GEMINI_API_KEY", "GOOGLE_API_KEY")
+    @classmethod
+    def normalize_gemini_api_key_whitespace(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+        normalized = "".join(value.split())
+        return normalized or None
+
+    @field_validator("GEMINI_MODEL", mode="before")
+    @classmethod
+    def normalize_gemini_model(cls, value: str | None) -> str:
+        normalized = str(value or "").strip().strip("'\"")
+        if normalized.startswith("models/"):
+            normalized = normalized.removeprefix("models/")
+        deprecated_aliases = {
+            "gemini-3.1-flash-lite-preview": "gemini-3.1-flash-lite",
+            "gemini-2.0-flash-lite": "gemini-3.1-flash-lite",
+        }
+        return deprecated_aliases.get(normalized, normalized)
     
     @field_validator("GEMINI_AGENT_TIMEOUT_SECONDS")
     @classmethod
@@ -481,7 +524,7 @@ class Settings(BaseSettings):
                 )
 
             if (
-                not self.GEMINI_API_KEY
+                not self.effective_gemini_api_key
                 and not self.AI_AGENT_ALLOW_RULE_FALLBACK
             ):
                 raise ValueError(
@@ -493,6 +536,18 @@ class Settings(BaseSettings):
     # =========================================================
     # PROPERTIES
     # =========================================================
+
+    @property
+    def effective_gemini_api_key(self) -> str | None:
+        return self.GEMINI_API_KEY or self.GOOGLE_API_KEY
+
+    @property
+    def gemini_key_source(self) -> str | None:
+        if self.GEMINI_API_KEY:
+            return "GEMINI_API_KEY"
+        if self.GOOGLE_API_KEY:
+            return "GOOGLE_API_KEY"
+        return None
 
     @property
     def is_production(self) -> bool:

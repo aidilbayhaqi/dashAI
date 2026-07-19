@@ -50,3 +50,16 @@ class GeminiAgentChatResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     degraded: bool = False
     needs_human_review: bool = True
+
+
+class GeminiProviderStatusResponse(BaseModel):
+    enabled: bool
+    configured: bool
+    provider: str
+    model: str
+    key_source: str | None = None
+    key_fingerprint: str | None = None
+    fallback_enabled: bool
+    probe_status: Literal["not_run", "disabled", "ok", "failed"]
+    error_code: str | None = None
+    message: str

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 from dataclasses import dataclass
@@ -27,34 +28,111 @@ class AIProviderFailure(Exception):
         return self.public_message
 
 
+def _provider_error_text(exc: Exception) -> str:
+    parts = [f"{type(exc).__name__}: {exc}"]
+    for attribute in ("code", "status_code", "message", "details", "response"):
+        value = getattr(exc, attribute, None)
+        if value is not None:
+            parts.append(f"{attribute}={value}")
+    return " | ".join(parts).lower()
+
+
 def _classify_provider_error(exc: Exception) -> AIProviderFailure:
-    raw = f"{type(exc).__name__}: {exc}".lower()
+    raw = _provider_error_text(exc)
 
     if "429" in raw or "resource_exhausted" in raw or "quota" in raw:
         return AIProviderFailure(
             code="quota_exceeded",
             public_message=(
                 "Kuota Gemini sedang habis. DashAI memakai analisis lokal "
-                "agar demo tetap dapat berjalan."
+                "agar aplikasi tetap dapat berjalan."
             ),
             retryable=True,
         )
 
-    if "401" in raw or "403" in raw or "api key" in raw or "permission_denied" in raw:
+    invalid_key_markers = (
+        "api_key_invalid",
+        "api key not valid",
+        "invalid api key",
+        "api key expired",
+        "invalid credentials",
+        "unauthenticated",
+    )
+    if "401" in raw or any(marker in raw for marker in invalid_key_markers):
         return AIProviderFailure(
             code="invalid_credentials",
             public_message=(
-                "Konfigurasi Gemini belum valid. DashAI memakai analisis lokal."
+                "API key Gemini ditolak. Pastikan Railway menyimpan key dari "
+                "Google AI Studio tanpa kutip, spasi, atau prefix nama variable."
             ),
         )
 
-    if "404" in raw or "not_found" in raw or "model" in raw and "available" in raw:
+    if "403" in raw and (
+        "service_disabled" in raw
+        or "api has not been used" in raw
+        or "generativelanguage.googleapis.com" in raw and "disabled" in raw
+    ):
+        return AIProviderFailure(
+            code="api_not_enabled",
+            public_message=(
+                "Gemini API belum aktif pada project Google dari API key ini. "
+                "Aktifkan Generative Language API atau buat key baru di Google AI Studio."
+            ),
+        )
+
+    if "403" in raw and (
+        "referer" in raw
+        or "referrer" in raw
+        or "ip address" in raw
+        or "api key restrictions" in raw
+        or "requests from" in raw
+    ):
+        return AIProviderFailure(
+            code="key_restricted",
+            public_message=(
+                "Pembatasan API key menolak request dari Railway. Gunakan key "
+                "server-side tanpa HTTP referrer restriction, atau izinkan API Gemini."
+            ),
+        )
+
+    if "403" in raw or "permission_denied" in raw:
+        return AIProviderFailure(
+            code="permission_denied",
+            public_message=(
+                "Gemini menolak izin API key. Periksa project, pembatasan key, "
+                "billing/quota, dan akses Gemini API."
+            ),
+        )
+
+    if "404" in raw or "not_found" in raw or (
+        "model" in raw and "available" in raw
+    ):
         return AIProviderFailure(
             code="model_unavailable",
             public_message=(
-                "Model Gemini tidak tersedia untuk API key ini. "
-                "DashAI memakai analisis lokal."
+                f"Model Gemini '{settings.GEMINI_MODEL}' tidak tersedia untuk "
+                "API key ini. Gunakan gemini-3.1-flash-lite."
             ),
+        )
+
+    network_markers = (
+        "connectionerror",
+        "connecterror",
+        "connection refused",
+        "name or service not known",
+        "temporary failure in name resolution",
+        "network is unreachable",
+        "sslerror",
+        "certificate verify failed",
+    )
+    if any(marker in raw for marker in network_markers):
+        return AIProviderFailure(
+            code="network_error",
+            public_message=(
+                "Server Railway belum dapat menjangkau Gemini API. Periksa "
+                "akses outbound Railway dan coba lagi."
+            ),
+            retryable=True,
         )
 
     if "503" in raw or "unavailable" in raw or "overloaded" in raw:
@@ -71,7 +149,7 @@ def _classify_provider_error(exc: Exception) -> AIProviderFailure:
         code="provider_error",
         public_message=(
             "Gemini belum dapat memproses permintaan. "
-            "DashAI memakai analisis lokal."
+            "Periksa status provider untuk detail konfigurasi."
         ),
     )
 
@@ -183,12 +261,13 @@ class GeminiProvider:
     def is_configured(self) -> bool:
         return bool(
             settings.AI_AGENT_ENABLED
-            and settings.GEMINI_API_KEY
+            and settings.effective_gemini_api_key
             and settings.GEMINI_MODEL
         )
 
     def _client(self) -> genai.Client:
-        if not settings.GEMINI_API_KEY:
+        api_key = settings.effective_gemini_api_key
+        if not api_key:
             raise AIProviderFailure(
                 code="not_configured",
                 public_message=(
@@ -196,7 +275,88 @@ class GeminiProvider:
                 ),
             )
 
-        return genai.Client(api_key=settings.GEMINI_API_KEY)
+        return genai.Client(api_key=api_key)
+
+    def configuration_status(self) -> dict[str, Any]:
+        api_key = settings.effective_gemini_api_key
+        fingerprint = None
+        if api_key:
+            fingerprint = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:10]
+        return {
+            "enabled": settings.AI_AGENT_ENABLED,
+            "configured": self.is_configured,
+            "provider": settings.AI_PROVIDER,
+            "model": settings.GEMINI_MODEL,
+            "key_source": settings.gemini_key_source,
+            "key_fingerprint": fingerprint,
+            "fallback_enabled": settings.AI_AGENT_ALLOW_RULE_FALLBACK,
+        }
+
+    async def probe(self) -> dict[str, Any]:
+        status = self.configuration_status()
+        if not status["enabled"]:
+            return {
+                **status,
+                "probe_status": "disabled",
+                "error_code": "agent_disabled",
+                "message": "AI Agent belum diaktifkan.",
+            }
+        if not status["configured"]:
+            return {
+                **status,
+                "probe_status": "failed",
+                "error_code": "not_configured",
+                "message": (
+                    "GEMINI_API_KEY atau GOOGLE_API_KEY belum tersedia di runtime."
+                ),
+            }
+
+        client = self._client()
+        try:
+            response = await asyncio.wait_for(
+                client.aio.models.generate_content(
+                    model=settings.GEMINI_MODEL,
+                    contents="Balas hanya dengan kata OK.",
+                    config=types.GenerateContentConfig(
+                        temperature=0.0,
+                        max_output_tokens=32,
+                    ),
+                ),
+                timeout=min(settings.GEMINI_AGENT_TIMEOUT_SECONDS, 15.0),
+            )
+            if not (response.text or "").strip():
+                raise AIProviderFailure(
+                    code="empty_response",
+                    public_message="Gemini terhubung tetapi menghasilkan response kosong.",
+                )
+        except AIProviderFailure as exc:
+            return {
+                **status,
+                "probe_status": "failed",
+                "error_code": exc.code,
+                "message": exc.public_message,
+            }
+        except Exception as exc:
+            failure = _classify_provider_error(exc)
+            logger.warning(
+                "Gemini provider probe failed code=%s model=%s",
+                failure.code,
+                settings.GEMINI_MODEL,
+                exc_info=True,
+            )
+            return {
+                **status,
+                "probe_status": "failed",
+                "error_code": failure.code,
+                "message": failure.public_message,
+            }
+
+        return {
+            **status,
+            "probe_status": "ok",
+            "error_code": None,
+            "message": "Gemini API terhubung dan model dapat merespons.",
+        }
 
     async def generate_with_tools(
         self,
