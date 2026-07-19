@@ -3,10 +3,12 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 from decimal import Decimal
+from time import perf_counter
 from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ai.action_token import issue_ai_action_token, verify_ai_action_token
@@ -21,6 +23,8 @@ from src.ai.agent_action_schema import (
     AIInvoiceDraftRequest,
     AIInvoiceDraftResponse,
 )
+from src.ai.audit_service import build_success_audit, record_failure_audit_safe
+from src.ai.errors import ai_validation_http_exception
 from src.ai.gemini_provider import AIProviderFailure, gemini_provider
 from src.ai.invoice_parser import (
     INVOICE_EXTRACTION_INSTRUCTION,
@@ -32,12 +36,29 @@ from src.core.config import settings
 from src.core.time import local_today
 from src.modules.finance.model_finance import FinanceInvoice
 from src.modules.finance.policy_finance import FinanceInvoiceWritePolicy
-from src.modules.finance.schema_finance import FinanceInvoiceCreate
+from src.modules.finance.schema_finance import (
+    FinanceInvoiceCreate,
+    FinanceInvoiceResponse,
+)
+from src.realtime.events import publish_realtime_event_safe
 from src.security.dependencies import CurrentUser
-from src.service.crud_service import CRUDService
+from src.service.domain_integrity import commit_or_raise, flush_or_raise
 
 
 logger = logging.getLogger(__name__)
+
+
+def _local_invoice_extraction(instruction: str) -> InvoiceExtraction:
+    try:
+        return fallback_invoice_extraction(instruction)
+    except ValidationError as exc:
+        raise ai_validation_http_exception(
+            exc,
+            message=(
+                "Instruksi invoice berisi nilai yang tidak valid. "
+                "Pastikan PPN 0-100% dan tempo maksimal 180 hari."
+            ),
+        ) from exc
 
 
 async def build_invoice_draft(
@@ -66,17 +87,17 @@ async def build_invoice_draft(
             )
             provider = "gemini"
         except AIProviderFailure as exc:
-            extraction = fallback_invoice_extraction(payload.instruction)
+            extraction = _local_invoice_extraction(payload.instruction)
             warnings.append(exc.public_message)
     else:
-        extraction = fallback_invoice_extraction(payload.instruction)
+        extraction = _local_invoice_extraction(payload.instruction)
         warnings.append(
             "Gemini belum dikonfigurasi; draft dibuat dengan parser lokal."
         )
 
     if not extraction.client_name or extraction.subtotal_amount is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 "Instruksi invoice harus menyebut client dan nominal. "
                 "Contoh: 'Buat invoice untuk PT Maju senilai 5 juta, "
@@ -98,18 +119,24 @@ async def build_invoice_draft(
     tax_amount = money(subtotal * tax_rate / Decimal("100"))
     total = subtotal + tax_amount
 
-    draft = AIInvoiceDraft(
-        invoice_no=f"AI-{invoice_date:%Y%m%d}-{uuid4().hex[:8].upper()}",
-        client_name=extraction.client_name.strip(),
-        invoice_date=invoice_date,
-        due_date=invoice_date + timedelta(days=due_days),
-        subtotal_amount=subtotal,
-        tax_rate_percent=tax_rate,
-        tax_amount=tax_amount,
-        total_amount=total,
-        # Never persist the raw prompt automatically.
-        notes=SAFE_AI_INVOICE_NOTE,
-    )
+    try:
+        draft = AIInvoiceDraft(
+            invoice_no=f"AI-{invoice_date:%Y%m%d}-{uuid4().hex[:8].upper()}",
+            client_name=extraction.client_name.strip(),
+            invoice_date=invoice_date,
+            due_date=invoice_date + timedelta(days=due_days),
+            subtotal_amount=subtotal,
+            tax_rate_percent=tax_rate,
+            tax_amount=tax_amount,
+            total_amount=total,
+            notes=SAFE_AI_INVOICE_NOTE,
+        )
+    except ValidationError as exc:
+        raise ai_validation_http_exception(
+            exc,
+            message="Draft invoice belum valid dan tidak dapat dikonfirmasi.",
+        ) from exc
+
     draft_id = uuid4()
     action_token, expires_at = issue_ai_action_token(
         action="create_invoice",
@@ -117,6 +144,7 @@ async def build_invoice_draft(
         user_id=current_user.user_id,
         company_id=company_id,
         branch_id=branch_id,
+        provider=provider,
     )
 
     return AIInvoiceDraftResponse(
@@ -135,6 +163,7 @@ async def confirm_invoice_draft(
     current_user: CurrentUser,
     payload: AIInvoiceConfirmRequest,
 ):
+    started_at = perf_counter()
     token = verify_ai_action_token(
         token=payload.action_token,
         expected_action="create_invoice",
@@ -169,7 +198,7 @@ async def confirm_invoice_draft(
         paid_amount=Decimal("0.00"),
         status="draft",
         creation_mode="ai_assisted",
-        notes=payload.draft.notes,
+        notes=SAFE_AI_INVOICE_NOTE,
     )
     data = await FinanceInvoiceWritePolicy().before_create(
         db=db,
@@ -177,19 +206,55 @@ async def confirm_invoice_draft(
         current_user=current_user,
     )
     data["creation_mode"] = "ai_assisted"
+    data["notes"] = SAFE_AI_INVOICE_NOTE
 
     claim_key = await claim_ai_action_token(token)
+    committed = False
     try:
-        service = CRUDService(
-            db,
-            FinanceInvoice,
-            event_module="finance",
-            event_entity="finance_invoices",
+        invoice = FinanceInvoice(**data)
+        db.add(invoice)
+        await flush_or_raise(db)
+        # Validate the API response before commit. A serialization regression
+        # must rollback the financial action rather than fail after commit.
+        response = FinanceInvoiceResponse.model_validate(invoice)
+
+        audit = build_success_audit(
+            action_type="create_invoice",
+            token_payload=token,
+            user_id=current_user.user_id,
+            request_payload=payload.draft,
+            target_type="finance_invoice",
+            target_id=invoice.id,
+            duration_ms=int((perf_counter() - started_at) * 1000),
+            details={"creation_mode": "ai_assisted"},
         )
-        invoice = await service.create(data, event_company_id=resolved_company_id)
-    except Exception:
-        await release_ai_action_token_claim(claim_key)
+        db.add(audit)
+        await commit_or_raise(db)
+        committed = True
+    except Exception as exc:
+        if not committed:
+            await db.rollback()
+            await release_ai_action_token_claim(claim_key)
+        await record_failure_audit_safe(
+            action_type="create_invoice",
+            token_payload=token,
+            user_id=current_user.user_id,
+            request_payload=payload.draft,
+            duration_ms=int((perf_counter() - started_at) * 1000),
+            error=exc,
+        )
         raise
+
+    await publish_realtime_event_safe(
+        "finance.finance_invoices.created",
+        {
+            "id": str(invoice.id),
+            "action": "created",
+            "branch_id": str(invoice.branch_id) if invoice.branch_id else None,
+        },
+        company_id=resolved_company_id,
+        module="finance",
+    )
 
     logger.info(
         "AI assisted invoice created",
@@ -198,6 +263,8 @@ async def confirm_invoice_draft(
             "draft_id": str(payload.draft_id),
             "company_id": str(resolved_company_id),
             "user_id": str(current_user.user_id),
+            "provider": token.get("provider"),
+            "duration_ms": int((perf_counter() - started_at) * 1000),
         },
     )
-    return invoice
+    return response

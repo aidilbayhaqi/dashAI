@@ -1,9 +1,8 @@
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import case, delete, func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 
 from src.core.time import utc_now_naive

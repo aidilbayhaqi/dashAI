@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -127,7 +127,11 @@ async def ensure_invoice_tax_record(
         return concurrent_result.scalar_one()
 
     record = await db.get(FinanceTaxRecord, inserted_id)
-    assert record is not None
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Automatic tax record could not be reloaded",
+        )
 
     await record_domain_event(
         db,

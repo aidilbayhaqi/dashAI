@@ -20,6 +20,7 @@ def issue_ai_action_token(
     user_id: UUID,
     company_id: UUID,
     branch_id: UUID | None,
+    provider: str | None = None,
 ) -> tuple[str, datetime]:
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(seconds=settings.AI_ACTION_TOKEN_TTL_SECONDS)
@@ -30,6 +31,7 @@ def issue_ai_action_token(
         "sub": str(user_id),
         "company_id": str(company_id),
         "branch_id": str(branch_id) if branch_id else None,
+        "provider": provider,
         "jti": str(uuid4()),
         "iat": now,
         "exp": expires_at,

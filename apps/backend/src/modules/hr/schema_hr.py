@@ -11,8 +11,6 @@ from src.modules.hr.model_hr import (
     EmploymentType,
     PayrollStatus,
     TaskStatus,
-    KPIIndicator,
-    KPIReview,
 )
 
 

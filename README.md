@@ -73,6 +73,7 @@ Fokus utama DashAI bukan hanya CRUD. Setiap modul dirancang agar dapat:
 | `docs/12_IMPLEMENTATION_ROADMAP.md` | Urutan implementasi modul dan otomasi |
 | `docs/13_BUSINESS_FLOWS_TO_ADD.md` | Flow ERP tambahan yang disarankan |
 | `docs/14_DEFINITION_OF_DONE.md` | Checklist penyelesaian fitur |
+| `docs/15_PRODUCTION_DEPLOYMENT.md` | Deployment production, migration, worker, audit AI, dan scaling |
 | `docs/adr/0001_MODULAR_MONOLITH.md` | Keputusan arsitektur utama |
 
 ## Quick Start

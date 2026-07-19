@@ -8,7 +8,6 @@ from src.modules.finance.model_finance import (
     AccountType,
     BudgetStatus,
     CashflowActivity,
-    InvoiceStatus,
     JournalStatus,
     NormalBalance,
     PeriodStatus,

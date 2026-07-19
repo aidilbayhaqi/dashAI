@@ -31,8 +31,42 @@ def money(value: Decimal | int | float | str) -> Decimal:
     return Decimal(str(value)).quantize(MONEY_QUANT, rounding=ROUND_HALF_UP)
 
 
-def parse_indonesian_amount(raw_value: str, suffix: str | None) -> Decimal | None:
+def _normalize_number_text(raw_value: str) -> str:
     normalized = raw_value.strip().lower().replace(" ", "")
+    if not re.fullmatch(r"\d[\d.,]*", normalized):
+        raise ValueError("Invalid numeric format")
+
+    dot_positions = [i for i, char in enumerate(normalized) if char == "."]
+    comma_positions = [i for i, char in enumerate(normalized) if char == ","]
+
+    if dot_positions and comma_positions:
+        decimal_position = max(dot_positions[-1], comma_positions[-1])
+        fraction_length = len(normalized) - decimal_position - 1
+        if fraction_length in {1, 2}:
+            integer_part = re.sub(r"[.,]", "", normalized[:decimal_position])
+            fraction_part = normalized[decimal_position + 1 :]
+            return f"{integer_part}.{fraction_part}"
+        return re.sub(r"[.,]", "", normalized)
+
+    separator = "." if dot_positions else "," if comma_positions else None
+    if separator is None:
+        return normalized
+
+    parts = normalized.split(separator)
+    if len(parts) == 2:
+        integer_part, fraction_or_group = parts
+        if len(fraction_or_group) in {1, 2}:
+            return f"{integer_part}.{fraction_or_group}"
+        return f"{integer_part}{fraction_or_group}"
+
+    # Multiple separators are normally thousand groups. The final group is
+    # treated as a decimal only when it contains one or two digits.
+    if len(parts[-1]) in {1, 2}:
+        return f"{''.join(parts[:-1])}.{parts[-1]}"
+    return "".join(parts)
+
+
+def parse_indonesian_amount(raw_value: str, suffix: str | None) -> Decimal | None:
     normalized_suffix = suffix.lower() if suffix else None
     multiplier = Decimal("1")
 
@@ -42,18 +76,8 @@ def parse_indonesian_amount(raw_value: str, suffix: str | None) -> Decimal | Non
         multiplier = Decimal("1000")
 
     try:
-        if multiplier != 1:
-            normalized = normalized.replace(".", "").replace(",", ".")
-            return money(Decimal(normalized) * multiplier)
-
-        # Rupiah biasanya bilangan bulat. Pemisah satu atau dua digit di akhir
-        # dianggap desimal; selain itu titik/koma dianggap pemisah ribuan.
-        if re.fullmatch(r"\d+[,.]\d{1,2}", normalized):
-            normalized = normalized.replace(",", ".")
-        else:
-            normalized = normalized.replace(".", "").replace(",", "")
-
-        return money(Decimal(normalized))
+        normalized = _normalize_number_text(raw_value)
+        return money(Decimal(normalized) * multiplier)
     except (InvalidOperation, ValueError):
         return None
 

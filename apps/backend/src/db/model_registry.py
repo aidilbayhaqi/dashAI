@@ -61,9 +61,12 @@ from src.modules.crm.model_crm import (  # noqa: E402,F401
     CRMCampaign,
 )
 
-from src.modules.admin.model_admin import SystemSetting
+from src.modules.admin.model_admin import SystemSetting  # noqa: E402,F401
+
 from src.modules.automation.model_automation import (  # noqa: E402,F401
     SalesOrder,
     SalesOrderItem,
     DomainEventOutbox,
 )
+
+from src.ai.model_ai import AIActionAudit  # noqa: E402,F401

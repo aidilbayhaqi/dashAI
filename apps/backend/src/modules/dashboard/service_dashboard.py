@@ -119,13 +119,13 @@ def resolve_dashboard_period(
 
     if effective_start > effective_end:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="period_start must be before or equal to period_end",
         )
 
     if (effective_end - effective_start).days > 366:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Dashboard period cannot exceed 367 days",
         )
 

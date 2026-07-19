@@ -5,10 +5,13 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.core.config import settings
+from src.core.http_middleware import RequestContextMiddleware
+from src.core.logging_config import configure_logging
 from src.core.redis import check_redis_connection, close_redis_connection
 from src.db.database import check_database_connection, engine
 from src.ai.route_ai import router as ai_router
@@ -28,10 +31,7 @@ from src.realtime.listener import start_realtime_listener
 from src.realtime.router_realtime import router as realtime_router
 
 
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL),
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-)
+configure_logging(level=settings.LOG_LEVEL, log_format=settings.LOG_FORMAT)
 
 logger = logging.getLogger(__name__)
 
@@ -122,9 +122,15 @@ def create_app() -> FastAPI:
             "Accept",
             "Origin",
             "X-Requested-With",
+            "X-Request-ID",
             "Idempotency-Key",
         ],
+        expose_headers=["X-Request-ID"],
     )
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
+    # Added last so request IDs and security headers wrap every response,
+    # including CORS preflight and error responses.
+    app.add_middleware(RequestContextMiddleware)
 
     register_routes(app)
     register_health_routes(app)

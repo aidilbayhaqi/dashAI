@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from math import ceil
 from uuid import UUID
@@ -444,7 +443,11 @@ class BusinessAutomationService:
                 company_id=company_id,
                 allowed_branch_ids=allowed_branch_ids,
             )
-            assert monitoring is not None
+            if monitoring is None:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Sales automation monitoring record is unavailable",
+                )
             return monitoring
 
         if transaction.cash_account_id is None:
@@ -515,7 +518,11 @@ class BusinessAutomationService:
             company_id=company_id,
             allowed_branch_ids=allowed_branch_ids,
         )
-        assert monitoring is not None
+        if monitoring is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Sales automation monitoring record is unavailable",
+            )
         return monitoring
 
     async def _record_event(
@@ -754,7 +761,11 @@ class BusinessAutomationService:
             company_id=company_id,
             allowed_branch_ids=allowed_branch_ids,
         )
-        assert refreshed is not None
+        if refreshed is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Processed sales order could not be reloaded",
+            )
         return refreshed
 
     async def _process_order(

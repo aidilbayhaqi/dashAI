@@ -10,11 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.modules.finance.model_finance import (
     BudgetStatus,
     FinanceBudget,
-    FinanceBudgetLine,
     FinanceCashAccount,
     FinanceInvoice,
     FinanceJournalEntry,
-    FinanceTaxRecord,
     FinanceTransaction,
     InvoiceStatus,
     JournalStatus,

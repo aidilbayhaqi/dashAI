@@ -3,7 +3,6 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.service.base_domain_service import BaseDomainService
 from src.realtime.events import publish_realtime_event_safe

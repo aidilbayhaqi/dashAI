@@ -14,7 +14,7 @@ WORKDIR /app
 
 FROM base AS deps
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml ./
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile
@@ -30,8 +30,7 @@ ENV NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL}" \
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN pnpm build \
-    && pnpm prune --prod
+RUN pnpm build
 
 
 FROM node:24-alpine AS runtime
@@ -50,10 +49,9 @@ RUN addgroup --system --gid 10001 app \
         --ingroup app \
         app
 
-COPY --from=builder --chown=app:app /app/package.json ./package.json
-COPY --from=builder --chown=app:app /app/node_modules ./node_modules
-COPY --from=builder --chown=app:app /app/.next ./.next
 COPY --from=builder --chown=app:app /app/public ./public
+COPY --from=builder --chown=app:app /app/.next/standalone ./
+COPY --from=builder --chown=app:app /app/.next/static ./.next/static
 
 RUN mkdir -p /app/.next/cache \
     && chown -R app:app /app
@@ -65,4 +63,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD node -e "const p=process.env.PORT||3000; fetch('http://127.0.0.1:'+p).then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 
-CMD ["sh", "-c", "./node_modules/.bin/next start -H 0.0.0.0 -p ${PORT:-3000}"]
+CMD ["node", "server.js"]

@@ -4,7 +4,6 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.time import utc_now_naive
 from src.service.base_domain_service import BaseDomainService

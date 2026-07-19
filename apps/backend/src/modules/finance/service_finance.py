@@ -1,13 +1,13 @@
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import and_, desc, func, or_, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.time import utc_now_naive
 from src.service.base_domain_service import BaseDomainService
-from src.service.domain_integrity import commit_or_raise
+from src.service.domain_integrity import commit_or_raise, flush_or_raise
 from src.modules.finance.model_finance import (
     AccountType,
     BudgetStatus,
@@ -38,6 +38,39 @@ from src.realtime.events import publish_realtime_event_safe
 
 def to_decimal(value) -> Decimal:
     return Decimal(str(value or 0))
+
+
+async def _persist_finance_snapshot(
+    *,
+    db: AsyncSession,
+    snapshot,
+    event_type: str,
+    event_payload_factory,
+    company_id: UUID,
+    commit: bool,
+    publish_event: bool,
+):
+    """Persist a report snapshot with caller-controlled transaction boundary."""
+
+    if publish_event and not commit:
+        raise ValueError(
+            "publish_event requires commit=True to avoid pre-commit events"
+        )
+
+    db.add(snapshot)
+    if commit:
+        await commit_or_raise(db)
+    else:
+        await flush_or_raise(db)
+
+    if publish_event:
+        await publish_realtime_event_safe(
+            event_type,
+            event_payload_factory(),
+            company_id=company_id,
+            module="finance",
+        )
+    return snapshot
 
 
 class FinanceAccountingPeriodService(BaseDomainService):
@@ -730,6 +763,8 @@ class FinanceProfitLossSnapshotService(BaseDomainService):
         start_date: date,
         end_date: date,
         report_date: date,
+        commit: bool = True,
+        publish_event: bool = True,
     ):
         report_service = FinanceReportCalculationService(self.db)
 
@@ -788,22 +823,19 @@ class FinanceProfitLossSnapshotService(BaseDomainService):
             net_margin_percent=net_margin_percent,
         )
 
-        self.db.add(snapshot)
-        await commit_or_raise(self.db)
-        await self.db.refresh(snapshot)
-
-        await publish_realtime_event_safe(
-            "finance.profit_loss.generated",
-            {
+        return await _persist_finance_snapshot(
+            db=self.db,
+            snapshot=snapshot,
+            event_type="finance.profit_loss.generated",
+            event_payload_factory=lambda: {
                 "snapshot_id": str(snapshot.id),
                 "period_id": str(snapshot.period_id) if snapshot.period_id else None,
                 "report_date": snapshot.report_date.isoformat(),
             },
             company_id=company_id,
-            module="finance",
+            commit=commit,
+            publish_event=publish_event,
         )
-
-        return snapshot
 
 
 class FinanceCashflowSnapshotService(BaseDomainService):
@@ -818,6 +850,8 @@ class FinanceCashflowSnapshotService(BaseDomainService):
         end_date: date,
         report_date: date,
         beginning_cash_balance: Decimal = Decimal("0.00"),
+        commit: bool = True,
+        publish_event: bool = True,
     ):
         async def sum_cash(activity: CashflowActivity, types: list[TransactionType]):
             query = select(
@@ -872,21 +906,19 @@ class FinanceCashflowSnapshotService(BaseDomainService):
             ending_cash_balance=ending_cash_balance,
         )
 
-        self.db.add(snapshot)
-        await commit_or_raise(self.db)
-        await self.db.refresh(snapshot)
-        await publish_realtime_event_safe(
-            "finance.cashflow.generated",
-            {
+        return await _persist_finance_snapshot(
+            db=self.db,
+            snapshot=snapshot,
+            event_type="finance.cashflow.generated",
+            event_payload_factory=lambda: {
                 "snapshot_id": str(snapshot.id),
                 "period_id": str(snapshot.period_id) if snapshot.period_id else None,
                 "report_date": snapshot.report_date.isoformat(),
             },
             company_id=company_id,
-            module="finance",
+            commit=commit,
+            publish_event=publish_event,
         )
-
-        return snapshot
 
 
 class FinanceMarginSnapshotService(BaseDomainService):
@@ -945,6 +977,8 @@ class FinanceBalanceSheetSnapshotService(BaseDomainService):
         company_id: UUID,
         period_id: UUID | None,
         report_date: date,
+        commit: bool = True,
+        publish_event: bool = True,
     ):
         report_service = FinanceReportCalculationService(self.db)
 
@@ -978,14 +1012,15 @@ class FinanceBalanceSheetSnapshotService(BaseDomainService):
             is_balanced=is_balanced,
         )
 
-        self.db.add(snapshot)
-        await commit_or_raise(self.db)
-        await self.db.refresh(snapshot)
-        await publish_realtime_event_safe(
-            "finance.balance_sheet.generated",
-            {"snapshot_id": str(snapshot.id), "report_date": snapshot.report_date.isoformat()},
+        return await _persist_finance_snapshot(
+            db=self.db,
+            snapshot=snapshot,
+            event_type="finance.balance_sheet.generated",
+            event_payload_factory=lambda: {
+                "snapshot_id": str(snapshot.id),
+                "report_date": snapshot.report_date.isoformat(),
+            },
             company_id=company_id,
-            module="finance",
+            commit=commit,
+            publish_event=publish_event,
         )
-
-        return snapshot

@@ -40,6 +40,8 @@ class Settings(BaseSettings):
 
     DEBUG: bool = False
 
+    LOG_FORMAT: Literal["text", "json"] = "text"
+
     LOG_LEVEL: Literal[
         "DEBUG",
         "INFO",
@@ -53,6 +55,7 @@ class Settings(BaseSettings):
     # =========================================================
 
     API_PREFIX: str = "/api/v1"
+    FORWARDED_ALLOW_IPS: str = "127.0.0.1"
     ENABLE_DOCS: bool = True
 
     # =========================================================
@@ -300,6 +303,24 @@ class Settings(BaseSettings):
             raise ValueError("Realtime and AI limits must be positive")
         return value
 
+    @field_validator("AI_ACTION_TOKEN_TTL_SECONDS")
+    @classmethod
+    def validate_ai_action_token_ttl(cls, value: int) -> int:
+        if value < 60 or value > 1800:
+            raise ValueError(
+                "AI_ACTION_TOKEN_TTL_SECONDS must be between 60 and 1800"
+            )
+        return value
+
+    @field_validator("AI_INVOICE_DEFAULT_DUE_DAYS")
+    @classmethod
+    def validate_ai_invoice_due_days(cls, value: int) -> int:
+        if value < 1 or value > 180:
+            raise ValueError(
+                "AI_INVOICE_DEFAULT_DUE_DAYS must be between 1 and 180"
+            )
+        return value
+
     @field_validator("DATABASE_URL")
     @classmethod
     def validate_database_url(
@@ -384,6 +405,25 @@ class Settings(BaseSettings):
             raise ValueError(
                 "REALTIME_ALLOW_QUERY_ACCESS_TOKEN harus false di production; "
                 "gunakan one-time realtime ticket"
+            )
+
+        if self.ENABLE_DOCS:
+            raise ValueError(
+                "ENABLE_DOCS harus false di production"
+            )
+
+        insecure_origins = [
+            origin for origin in self.cors_origins_list
+            if origin.startswith("http://")
+        ]
+        if insecure_origins:
+            raise ValueError(
+                "CORS_ORIGINS production harus menggunakan HTTPS"
+            )
+
+        if self.AI_AGENT_ACTIONS_ENABLED and not self.AI_AGENT_ENABLED:
+            raise ValueError(
+                "AI_AGENT_ENABLED harus true ketika AI actions aktif di production"
             )
 
         if self.DEBUG:

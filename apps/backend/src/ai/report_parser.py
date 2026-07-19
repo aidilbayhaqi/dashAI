@@ -22,13 +22,15 @@ untuk neraca. Jangan menghasilkan jenis lain.
 """
 
 
-def fallback_report_type(instruction: str) -> FinancialReportType:
+def fallback_report_type(instruction: str) -> FinancialReportType | None:
     normalized = instruction.lower()
     if any(keyword in normalized for keyword in ("cashflow", "cash flow", "arus kas")):
         return "cashflow"
     if any(keyword in normalized for keyword in ("neraca", "balance sheet", "posisi keuangan")):
         return "balance_sheet"
-    return "profit_loss"
+    if any(keyword in normalized for keyword in ("laba rugi", "profit loss", "pendapatan", "beban")):
+        return "profit_loss"
+    return None
 
 
 def build_report_title(
