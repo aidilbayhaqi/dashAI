@@ -216,7 +216,7 @@ export async function fetchOptionsForField(
   };
   if (companyId && key !== "company_id") params.company_id = companyId;
 
-  let rows = await fetchRows(endpoints, params);
+  const rows = await fetchRows(endpoints, params);
 
   return rowsToOptions(rows, key);
 }
