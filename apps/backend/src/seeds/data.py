@@ -2,7 +2,6 @@ from src.modules.company.model_company import BranchType
 from src.modules.finance.model_finance import AccountType, NormalBalance
 from src.modules.products.model_product import ProductType
 from src.modules.users.model_user import AccessScope
-from src.security.permission_catalog import PERMISSION_MATRIX
 
 
 COMPANIES = [
