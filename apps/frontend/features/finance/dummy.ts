@@ -34,6 +34,12 @@ export const financeDummyData: Record<FinanceModuleKey, ModuleData> = {
     endpoint: "/api/v1/finance/transactions",
   }),
 
+  "cash-accounts": emptyModuleData({
+    label: "Total Cash Accounts",
+    helper: "Belum ada cash account yang tercatat.",
+    endpoint: "/api/v1/finance/cash-accounts",
+  }),
+
   transactions: emptyModuleData({
     label: "Total Transactions",
     helper: "Belum ada transaksi finance yang tercatat.",
