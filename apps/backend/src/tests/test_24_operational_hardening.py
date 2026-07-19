@@ -146,18 +146,37 @@ def test_cors_allows_idempotency_header():
 
 
 @pytest.mark.static
-def test_compose_initializes_upload_ownership_before_api_start():
+def test_upload_ownership_is_initialized_for_each_deployment_mode():
     project_root = _find_project_root()
 
-    for filename in COMPOSE_FILENAMES:
-        compose = (project_root / filename).read_text(
-            encoding="utf-8"
-        )
+    development = (
+        project_root / "docker-compose.yml"
+    ).read_text(encoding="utf-8")
+    production = (
+        project_root / "docker-compose.production.yml"
+    ).read_text(encoding="utf-8")
+    railway_entrypoint = (
+        project_root / "apps/backend/railway-entrypoint.sh"
+    ).read_text(encoding="utf-8")
+    railway_dockerfile = (
+        project_root / "apps/backend/Dockerfile.railway"
+    ).read_text(encoding="utf-8")
 
-        assert "uploads-init:" in compose
-        assert "service_completed_successfully" in compose
-        assert "chown -R 10001:10001 /app/uploads" in compose
-        assert "busybox:1.36.1" in compose
+    # Development keeps the one-shot helper because bind-mounted source and
+    # uploads must be writable by the non-root API container.
+    assert "uploads-init:" in development
+    assert "service_completed_successfully" in development
+    assert "chown -R 10001:10001 /app/uploads" in development
+    assert "busybox:1.36.1" in development
+
+    # Four-service production must not add a fifth helper service. Ownership
+    # is initialized by the API entrypoint before it drops privileges.
+    assert "uploads-init:" not in production
+    assert "dockerfile: Dockerfile.railway" in production
+    assert "uploads_data:/app/uploads" in production
+    assert 'chown -R app:app "$upload_dir"' in railway_entrypoint
+    assert 'exec gosu app "$@"' in railway_entrypoint
+    assert "apt-get install -y --no-install-recommends gosu" in railway_dockerfile
 
 
 @pytest.mark.static

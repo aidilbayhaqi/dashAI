@@ -54,7 +54,7 @@ services:
   api:
     build:
       context: ./apps/backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.railway
     image: dashai-api:${APP_VERSION:-latest}
     restart: unless-stopped
     env_file:
@@ -62,7 +62,6 @@ services:
     environment:
       RUN_MIGRATIONS: "true"
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-dashai}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dashai}
-      REDIS_URL: ""
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -79,7 +78,7 @@ services:
     ports:
       - ${API_PORT:-8000}:8000
     volumes:
-      - ./apps/backend/uploads:/app/uploads
+      - uploads_data:/app/uploads
     read_only: true
     tmpfs:
       - /tmp
@@ -128,3 +127,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  uploads_data:
