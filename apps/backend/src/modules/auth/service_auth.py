@@ -1,4 +1,5 @@
 import logging
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi import (
@@ -27,6 +28,8 @@ from src.modules.auth.schema_auth import (
     RegisterRequest,
     TokenResponse,
 )
+from src.modules.finance.account_catalog import ensure_default_chart_of_accounts
+from src.modules.finance.model_finance import FinanceCashAccount
 from src.modules.company.model_company import (
     BranchType,
     Company,
@@ -709,6 +712,50 @@ class AuthService:
 
         return branch
 
+    async def _create_default_cash_account(
+        self,
+        company_id: UUID,
+    ) -> FinanceCashAccount:
+        """Provision the chart of accounts and one default cash account."""
+
+        existing_result = await self.db.execute(
+            select(FinanceCashAccount)
+            .where(
+                FinanceCashAccount.company_id == company_id,
+                FinanceCashAccount.is_active.is_(True),
+            )
+            .order_by(
+                FinanceCashAccount.is_default.desc(),
+                FinanceCashAccount.created_at.asc(),
+            )
+            .limit(1)
+        )
+        existing = existing_result.scalar_one_or_none()
+        if existing is not None:
+            return existing
+
+        accounts = await ensure_default_chart_of_accounts(
+            self.db,
+            company_id=company_id,
+        )
+        finance_account = accounts["1120"]
+
+        cash_account = FinanceCashAccount(
+            company_id=company_id,
+            account_id=finance_account.id,
+            name="Kas Utama",
+            currency="IDR",
+            opening_balance=Decimal("0.00"),
+            current_balance=Decimal("0.00"),
+            is_active=True,
+            is_default=True,
+        )
+
+        self.db.add(cash_account)
+        await self.db.flush()
+
+        return cash_account
+
     # =========================================================
     # REGISTER ENTRY POINT
     # =========================================================
@@ -939,6 +986,10 @@ class AuthService:
 
             registered_branch_id = (
                 head_office.id
+            )
+
+            await self._create_default_cash_account(
+                registered_company_id
             )
 
             owner_role = (

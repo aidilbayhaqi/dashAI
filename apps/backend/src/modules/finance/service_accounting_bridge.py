@@ -8,6 +8,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.modules.finance.account_catalog import ensure_default_chart_of_accounts
 from src.modules.finance.model_finance import (
     FinanceAccount,
     FinanceAccountingPeriod,
@@ -64,9 +65,17 @@ class AccountingBridgeService:
             )
         )
         account = result.scalar_one_or_none()
+        if account is not None:
+            return account
+
+        accounts = await ensure_default_chart_of_accounts(
+            self.db,
+            company_id=company_id,
+        )
+        account = accounts.get(code)
         if account is None:
             raise _conflict(
-                f"Accounting account {code} is not configured for this company"
+                f"Accounting account {code} could not be provisioned"
             )
         return account
 
