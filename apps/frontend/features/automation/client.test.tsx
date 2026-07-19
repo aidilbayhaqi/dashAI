@@ -449,7 +449,9 @@ describe("SalesAutomationClient", () => {
     );
 
     expect(
-      screen.getByText("Stok Laptop Test tidak mencukupi pada branch yang dipilih."),
+      screen.getByText(
+        /Stok Laptop Test di Gudang Utama hanya 8, sedangkan kebutuhan 9\./,
+      ),
     ).toBeInTheDocument();
     expect(automationApiMock.createSalesOrder).not.toHaveBeenCalled();
   });
