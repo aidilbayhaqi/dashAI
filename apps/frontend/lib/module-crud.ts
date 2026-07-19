@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import { parseLocalizedNumber } from "@/lib/number";
+import { parseFormNumber } from "@/lib/number";
 import { getCurrentCompanyId, isCurrentUserSuperAdmin } from "@/lib/auth-scope";
 import { getSelectedCompanyId } from "@/lib/company-scope";
 import {
@@ -188,7 +188,7 @@ function isValidUuid(value: string) {
 }
 
 function parseNumberValue(value: unknown) {
-  return parseLocalizedNumber(value);
+  return parseFormNumber(value);
 }
 
 

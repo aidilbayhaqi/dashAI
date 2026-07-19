@@ -1,3 +1,5 @@
+import { formatNumberInputValue } from "@/lib/number";
+
 import type {
   ModuleField,
   ModuleFieldOption,
@@ -74,9 +76,11 @@ export function buildInitialValues(
 
   for (const field of fields) {
     const initialValue = initialRow?.[field.key];
-    result[field.key] = initialValue === undefined || initialValue === null
-      ? ""
-      : String(initialValue);
+    result[field.key] = getFieldType(field) === "number"
+      ? formatNumberInputValue(initialValue)
+      : initialValue === undefined || initialValue === null
+        ? ""
+        : String(initialValue);
   }
 
   const defaultCompanyId = getDefaultCompanyId();

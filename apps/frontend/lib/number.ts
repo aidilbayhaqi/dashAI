@@ -65,3 +65,46 @@ export function parseLocalizedNumber(value: unknown): number | undefined {
   const parsed = Number(normalized) * sign;
   return Number.isFinite(parsed) ? parsed : undefined;
 }
+
+
+/**
+ * Parse values coming from HTML number inputs or backend Decimal strings.
+ *
+ * Unlike localized display parsing, a plain dot in a form value is always a
+ * decimal separator. This prevents backend values such as `20.000` from being
+ * interpreted as twenty-thousand when an edit form is submitted.
+ */
+export function parseFormNumber(value: unknown): number | undefined {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  const raw = String(value ?? "").trim();
+  if (!raw) return undefined;
+
+  if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw)) {
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  return parseLocalizedNumber(value);
+}
+
+/** Convert Decimal API strings into compact values suitable for number inputs. */
+export function formatNumberInputValue(value: unknown): string {
+  if (value === undefined || value === null || value === "") return "";
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? String(value) : "";
+  }
+
+  const raw = String(value).trim();
+  if (!raw) return "";
+
+  if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw)) {
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? String(parsed) : raw;
+  }
+
+  return raw;
+}

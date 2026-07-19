@@ -48,6 +48,11 @@ import {
   processSalesOrder,
 } from "./api";
 import {
+  buildAutomationStockIndex,
+  getAvailableAutomationStock,
+  getBranchesWithEnoughAutomationStock,
+} from "./stock";
+import {
   getCompatibleBranchIds,
   isProductAvailableInBranch,
 } from "@/lib/product-branch";
@@ -250,15 +255,10 @@ export function SalesAutomationClient() {
     };
   }, [orders]);
 
-  const stockIndex = useMemo(() => {
-    const map = new Map<string, number>();
-    context.stocks.forEach((stock) => {
-      const available =
-        Number(stock.quantity_on_hand || 0) - Number(stock.reserved_quantity || 0);
-      map.set(`${stock.branch_id}:${stock.product_id}`, available);
-    });
-    return map;
-  }, [context.stocks]);
+  const stockIndex = useMemo(
+    () => buildAutomationStockIndex(context.stocks),
+    [context.stocks],
+  );
 
   const allBranchIds = useMemo(
     () => context.branches.map((branch) => branch.id),
@@ -280,10 +280,28 @@ export function SalesAutomationClient() {
     [allBranchIds, context.products, context.stocks, selectedProductIds],
   );
 
-  const compatibleBranches = useMemo(
-    () => context.branches.filter((branch) => compatibleBranchIds.includes(branch.id)),
-    [compatibleBranchIds, context.branches],
+  const stockReadyBranchIds = useMemo(
+    () => getBranchesWithEnoughAutomationStock({
+      branchIds: compatibleBranchIds,
+      products: context.products,
+      lines,
+      stockIndex,
+    }),
+    [compatibleBranchIds, context.products, lines, stockIndex],
   );
+
+  const selectableBranches = useMemo(() => {
+    const allowedIds = autoProcess && selectedProductIds.length
+      ? stockReadyBranchIds
+      : compatibleBranchIds;
+    return context.branches.filter((branch) => allowedIds.includes(branch.id));
+  }, [
+    autoProcess,
+    compatibleBranchIds,
+    context.branches,
+    selectedProductIds.length,
+    stockReadyBranchIds,
+  ]);
 
   const productsForSelectedBranch = useMemo(() => {
     if (!branchId) {
@@ -308,30 +326,24 @@ export function SalesAutomationClient() {
   }, [allBranchIds, branchId, context.products, context.stocks]);
 
   useEffect(() => {
-    if (!branchId && preferredBranchId) {
-      const preferredExists = compatibleBranches.some(
-        (branch) => branch.id === preferredBranchId,
-      );
-      if (preferredExists) {
-        setBranchId(preferredBranchId);
-        return;
-      }
-    }
+    const selectableIds = new Set(selectableBranches.map((branch) => branch.id));
 
-    if (compatibleBranches.length === 1 && !branchId) {
-      setBranchId(compatibleBranches[0].id);
+    if (branchId && selectableIds.has(branchId)) return;
+
+    if (preferredBranchId && selectableIds.has(preferredBranchId)) {
+      setBranchId(preferredBranchId);
       return;
     }
 
-    if (branchId && !compatibleBranchIds.includes(branchId)) {
+    if (selectableBranches.length === 1) {
+      setBranchId(selectableBranches[0].id);
+      return;
+    }
+
+    if (branchId && !selectableIds.has(branchId)) {
       setBranchId("");
     }
-  }, [
-    branchId,
-    compatibleBranchIds,
-    compatibleBranches,
-    preferredBranchId,
-  ]);
+  }, [branchId, preferredBranchId, selectableBranches]);
 
   const estimatedTotal = useMemo(() => {
     return lines.reduce((sum, line) => {
@@ -390,13 +402,27 @@ export function SalesAutomationClient() {
       if (!autoProcess || !product?.track_stock || product.product_type !== "physical") {
         return false;
       }
-      const available = stockIndex.get(`${branchId}:${line.product_id}`) ?? 0;
+      const available = getAvailableAutomationStock(
+        stockIndex,
+        branchId,
+        line.product_id,
+      );
       return available < Number(line.quantity);
     });
 
     if (insufficientStock) {
       const product = context.products.find((item) => item.id === insufficientStock.product_id);
-      setFormError(`Stok ${product?.name ?? "produk"} tidak mencukupi pada branch yang dipilih.`);
+      const branch = context.branches.find((item) => item.id === branchId);
+      const available = getAvailableAutomationStock(
+        stockIndex,
+        branchId,
+        insufficientStock.product_id,
+      );
+      setFormError(
+        `Stok ${product?.name ?? "produk"} di ${branch?.name ?? "branch terpilih"} `
+        + `hanya ${available}, sedangkan kebutuhan ${insufficientStock.quantity}. `
+        + "Pilih branch yang memiliki stok atau tambah stock pada branch ini.",
+      );
       return;
     }
 
@@ -676,14 +702,16 @@ export function SalesAutomationClient() {
                       ? "Branch belum tersedia"
                       : "Select branch"}
                 </option>
-                {compatibleBranches.map((branch) => (
+                {selectableBranches.map((branch) => (
                   <option key={branch.id} value={branch.id}>
                     {branch.name}{branch.code ? ` (${branch.code})` : ""}
                   </option>
                 ))}
               </select>
               <p className="text-xs font-semibold text-slate-400">
-                {context.branches.length} branch company tersedia.
+                {autoProcess && selectedProductIds.length
+                  ? `${selectableBranches.length} branch memiliki stok yang cukup untuk item terpilih.`
+                  : `${context.branches.length} branch company tersedia.`}
               </p>
             </label>
 
@@ -735,7 +763,7 @@ export function SalesAutomationClient() {
                 (product) => product.id === line.product_id
               );
               const available = branchId && line.product_id
-                ? stockIndex.get(`${branchId}:${line.product_id}`)
+                ? getAvailableAutomationStock(stockIndex, branchId, line.product_id)
                 : undefined;
 
               return (
@@ -792,15 +820,33 @@ export function SalesAutomationClient() {
                           unit_price: String(product?.selling_price ?? ""),
                         });
 
-                        if (
-                          nextProductId
-                          && (!branchId || !nextCompatibleBranchIds.includes(branchId))
-                        ) {
-                          setBranchId(
-                            nextCompatibleBranchIds.length === 1
-                              ? nextCompatibleBranchIds[0]
-                              : "",
-                          );
+                        if (nextProductId) {
+                          const nextLines = lines.map((candidate) => (
+                            candidate.localId === line.localId
+                              ? { ...candidate, product_id: nextProductId }
+                              : candidate
+                          ));
+                          const stockedBranchIds = getBranchesWithEnoughAutomationStock({
+                            branchIds: nextCompatibleBranchIds,
+                            products: context.products,
+                            lines: nextLines,
+                            stockIndex,
+                          });
+                          const preferredIds = autoProcess
+                            ? stockedBranchIds
+                            : nextCompatibleBranchIds;
+
+                          if (!branchId || !preferredIds.includes(branchId)) {
+                            setBranchId(preferredIds.length === 1 ? preferredIds[0] : "");
+                          }
+
+                          if (autoProcess && stockedBranchIds.length === 0) {
+                            setFormError(
+                              `Stok ${product?.name ?? "produk"} belum tersedia pada branch mana pun. `
+                              + "Tambahkan stock atau matikan Auto Process untuk menyimpan draft.",
+                            );
+                            return;
+                          }
                         }
                         setFormError("");
                       }}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import uuid
 from pathlib import Path
 from typing import Annotated
@@ -152,9 +153,17 @@ async def save_upload_stream(
 
 @router.get("/health")
 async def files_health():
+    upload_root = Path(settings.UPLOAD_DIR).resolve()
+    public_root = upload_root / "public"
+    public_root.mkdir(parents=True, exist_ok=True)
+
     return {
         "status": "ok",
         "module": "files",
+        "upload_dir": str(upload_root),
+        "public_dir": str(public_root),
+        "writable": os.access(public_root, os.W_OK),
+        "railway_volume_mount_path": os.getenv("RAILWAY_VOLUME_MOUNT_PATH"),
     }
 
 
@@ -251,6 +260,19 @@ async def upload_file(
         upload=file,
         destination=file_path,
     )
+
+    if (
+        not file_path.is_file()
+        or file_path.stat().st_size != total_size
+    ):
+        file_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                "Upload storage verification failed. Ensure UPLOAD_DIR points "
+                "to a writable persistent volume."
+            ),
+        )
 
     if policy.is_public:
         access_url = build_public_url(
