@@ -1,4 +1,4 @@
-name: DashAI CI
+﻿name: DashAI CI
 
 on:
   push:
@@ -230,10 +230,14 @@ jobs:
 
       - name: Validate production Compose
         run: |
+          cp .env.production.example .env
+
           docker compose \
             --env-file .env.production.example \
             -f docker-compose.production.yml \
             config -q
+
+          rm -f .env
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -255,3 +259,4 @@ jobs:
           tags: dashai-frontend:ci
           build-args: |
             NEXT_PUBLIC_API_URL=http://localhost:8000
+
