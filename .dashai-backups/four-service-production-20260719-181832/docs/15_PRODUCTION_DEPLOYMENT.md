@@ -1,9 +1,5 @@
 # Production Deployment
 
-> Canonical deployment untuk Railway/trial sekarang menggunakan empat service.
-> Lihat `RAILWAY_4_SERVICE_DEPLOYMENT.md`. Konfigurasi production penuh lama
-> tetap tersedia di `docker-compose.production.full.yml`.
-
 Dokumen ini menjelaskan baseline deployment production DashAI setelah AI action hardening.
 
 ## Perubahan Runtime Production

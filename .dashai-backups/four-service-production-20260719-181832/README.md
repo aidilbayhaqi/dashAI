@@ -174,21 +174,3 @@ DashAI saat ini cocok dikembangkan sebagai:
 ## AI Agent Demo
 
 DashAI menyediakan analyst read-only, AI-assisted invoice draft, dan AI-assisted financial report dengan human confirmation serta rule fallback. Panduan konfigurasi dan flow ada di [`docs/AI_AGENT_DEMO.md`](docs/AI_AGENT_DEMO.md).
-
-## Deployment modes
-
-DashAI tetap memakai satu source code untuk development dan production:
-
-- **Development lokal:** `docker-compose.yml` + `docker-compose.hardened.yml`.
-  PostgreSQL, Redis, Qdrant, pgAdmin opsional, hot reload, dan tooling developer
-  tetap tersedia.
-- **Production 4-service:** `docker-compose.production.yml` atau Railway dengan
-  frontend, API+worker internal, PostgreSQL, dan Redis.
-- **Production full/legacy:** `docker-compose.production.full.yml` tetap
-  disimpan untuk kebutuhan worker terpisah dan Qdrant/RAG di masa depan.
-
-Fitur AI Analyst, AI Invoice, Financial Report, automation, dan realtime tidak
-membutuhkan Qdrant. Qdrant baru diperlukan ketika RAG/embedding dokumen mulai
-diaktifkan.
-
-Panduan Railway: `docs/RAILWAY_4_SERVICE_DEPLOYMENT.md`.

@@ -115,4 +115,3 @@ apps/backend/uploads/*
 .patch-backups/
 
 !.env.production.example
-!.env.production.full.example

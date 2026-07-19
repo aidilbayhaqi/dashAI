@@ -1,0 +1,270 @@
+name: dashai-production
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dashai}
+      POSTGRES_USER: ${POSTGRES_USER:-dashai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+    - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+    - backend
+    security_opt:
+    - no-new-privileges:true
+    logging: &id001
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    command:
+    - sh
+    - -c
+    - exec redis-server --appendonly yes --requirepass "$${REDIS_PASSWORD}"
+    volumes:
+    - redis_data:/data
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - redis-cli -a "$${REDIS_PASSWORD}" ping | grep PONG
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+    - backend
+    security_opt:
+    - no-new-privileges:true
+    logging: *id001
+  qdrant:
+    image: ${QDRANT_IMAGE:-qdrant/qdrant:v1.18.0}
+    restart: unless-stopped
+    volumes:
+    - qdrant_data:/qdrant/storage
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - bash -c ':> /dev/tcp/127.0.0.1/6333'
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks:
+    - backend
+    security_opt:
+    - no-new-privileges:true
+    logging: *id001
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?QDRANT_API_KEY is required}
+  uploads-init:
+    image: busybox:1.36.1
+    restart: 'no'
+    user: 0:0
+    network_mode: none
+    command:
+    - sh
+    - -c
+    - set -eu; mkdir -p /app/uploads/public /app/uploads/private; chown -R 10001:10001 /app/uploads; find /app/uploads -type d -exec chmod 0770 {} \;; find /app/uploads -type f -exec chmod 0660 {} \;
+    volumes:
+    - uploads_data:/app/uploads
+    read_only: true
+    cap_drop:
+    - ALL
+    cap_add:
+    - CHOWN
+    - FOWNER
+    - DAC_OVERRIDE
+    security_opt:
+    - no-new-privileges:true
+    logging: *id001
+  migrate:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    image: dashai-api:${APP_VERSION:-latest}
+    restart: 'no'
+    env_file:
+    - .env
+    environment:
+      RUN_MIGRATIONS: 'false'
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-dashai}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dashai}
+      REDIS_HOST: redis
+      REDIS_PORT: '6379'
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: '0'
+      QDRANT_URL: http://qdrant:6333
+      REALTIME_ALLOW_QUERY_ACCESS_TOKEN: 'false'
+    command:
+    - alembic
+    - upgrade
+    - head
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+    - /tmp
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    networks:
+    - backend
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+  api:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    image: dashai-api:${APP_VERSION:-latest}
+    restart: unless-stopped
+    env_file:
+    - .env
+    environment:
+      RUN_MIGRATIONS: 'false'
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-dashai}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dashai}
+      REDIS_HOST: redis
+      REDIS_PORT: '6379'
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: '0'
+      QDRANT_URL: http://qdrant:6333
+      REALTIME_ALLOW_QUERY_ACCESS_TOKEN: 'false'
+      ENABLE_OUTBOX_WORKER: 'false'
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      uploads-init:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
+    ports:
+    - ${API_PORT:-8000}:8000
+    volumes:
+    - uploads_data:/app/uploads
+    read_only: true
+    tmpfs:
+    - /tmp
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    networks:
+    - backend
+    - edge
+    logging: *id001
+  worker:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    image: dashai-api:${APP_VERSION:-latest}
+    restart: unless-stopped
+    env_file:
+    - .env
+    environment:
+      RUN_MIGRATIONS: 'false'
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-dashai}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dashai}
+      REDIS_HOST: redis
+      REDIS_PORT: '6379'
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: '0'
+      QDRANT_URL: http://qdrant:6333
+      REALTIME_ALLOW_QUERY_ACCESS_TOKEN: 'false'
+    command:
+    - python
+    - -m
+    - src.modules.automation.worker_main
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+    - /tmp
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    networks:
+    - backend
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    image: dashai-frontend:${APP_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+    - ${FRONTEND_PORT:-3000}:3000
+    read_only: true
+    tmpfs:
+    - /tmp
+    - /app/.next/cache
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    networks:
+    - edge
+    logging: *id001
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    profiles:
+    - tools
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:?PGADMIN_EMAIL is required}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?PGADMIN_PASSWORD is required}
+    ports:
+    - ${PGADMIN_PORT:-5050}:80
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+    - pgadmin_data:/var/lib/pgadmin
+    networks:
+    - backend
+    security_opt:
+    - no-new-privileges:true
+    logging: *id001
+networks:
+  backend:
+    internal: true
+  edge: null
+volumes:
+  postgres_data: null
+  redis_data: null
+  qdrant_data: null
+  uploads_data: null
+  pgadmin_data: null
