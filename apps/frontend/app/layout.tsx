@@ -11,6 +11,13 @@ export const metadata: Metadata = {
   },
   description: "Professional ERP, automation, realtime dashboard, and read-only AI analytics.",
   applicationName: "DashAI",
+  icons: {
+    icon: [
+      { url: "/icons/dashai-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/dashai-icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/icons/dashai-icon-192.png",
+  },
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,

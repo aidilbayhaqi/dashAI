@@ -27,11 +27,12 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
-  Sparkles,
   UserPlus,
   UserRound,
   Users,
 } from "lucide-react";
+
+import { DashAILogo } from "@/components/brand/dashai-logo";
 
 import {
   getAuthApiError,
@@ -453,7 +454,7 @@ export default function RegisterPage() {
 
 
   return (
-    <main className="safe-area-top safe-area-bottom min-h-screen overflow-x-hidden bg-[#02040a] text-white">
+    <main className="auth-page safe-area-top safe-area-bottom min-h-screen overflow-x-hidden bg-[#02040a] text-white">
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute left-[-160px] top-[-160px] h-[440px] w-[440px] rounded-full bg-blue-700/20 blur-3xl" />
 
@@ -465,20 +466,8 @@ export default function RegisterPage() {
       <section className="relative grid min-h-screen lg:grid-cols-[0.95fr_1.05fr]">
         <aside className="hidden flex-col justify-between border-r border-white/10 bg-white/[0.03] p-10 backdrop-blur-2xl lg:flex">
           <div>
-            <div className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-slate-950">
-                <Sparkles size={21} />
-              </div>
-
-              <div>
-                <h1 className="text-xl font-black tracking-tight">
-                  DashAI
-                </h1>
-
-                <p className="text-xs font-semibold text-slate-500">
-                  ERP + AI Business Workspace
-                </p>
-              </div>
+            <div className="inline-flex rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3">
+              <DashAILogo showText priority />
             </div>
 
             <div className="mt-24 max-w-xl">
@@ -552,23 +541,19 @@ export default function RegisterPage() {
 
         <div className="flex items-start justify-center px-4 py-6 sm:px-5 sm:py-10 lg:items-center">
           <div className="w-full max-w-2xl">
-            <div className="mb-8 text-center lg:hidden">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-slate-950">
-                <Sparkles size={24} />
-              </div>
-
-              <h1 className="text-3xl font-black">
-                DashAI
-              </h1>
-
-              <p className="mt-2 text-sm text-slate-500">
-                Company-based ERP Registration
-              </p>
+            <div className="mb-7 flex justify-center lg:hidden">
+              <DashAILogo
+                size={56}
+                showText
+                priority
+                subtitle="Company-based ERP Registration"
+                className="rounded-2xl border border-white/10 bg-white/[0.055] px-4 py-3"
+              />
             </div>
 
             <form
               onSubmit={handleSubmit}
-              className="rounded-[2rem] border border-white/10 bg-white/[0.07] p-5 shadow-2xl shadow-black/40 backdrop-blur-2xl sm:p-6"
+              className="auth-card rounded-[2rem] border border-white/10 bg-slate-950/[0.72] p-5 shadow-2xl shadow-black/40 backdrop-blur-2xl sm:p-6"
             >
               <div className="mb-7 flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
                 <div>
@@ -755,7 +740,7 @@ export default function RegisterPage() {
                             event.target.value
                           )
                         }
-                        className="h-12 w-full rounded-2xl border border-white/10 bg-[#02040a] px-4 text-sm font-semibold text-white outline-none transition focus:border-blue-500/70"
+                        className="auth-select h-12 w-full rounded-2xl border border-white/10 px-4 text-sm font-semibold text-white outline-none transition"
                       >
                         {industries.map(
                           (industry) => (
@@ -786,7 +771,7 @@ export default function RegisterPage() {
                             event.target.value
                           )
                         }
-                        className="h-12 w-full rounded-2xl border border-white/10 bg-[#02040a] px-4 text-sm font-semibold text-white outline-none transition focus:border-blue-500/70"
+                        className="auth-select h-12 w-full rounded-2xl border border-white/10 px-4 text-sm font-semibold text-white outline-none transition"
                       >
                         {companySizes.map(
                           (size) => (
@@ -1019,7 +1004,7 @@ export default function RegisterPage() {
                             event.target.value
                           )
                         }
-                        className="h-12 w-full rounded-2xl border border-white/10 bg-[#02040a] px-4 text-sm font-semibold text-white outline-none transition focus:border-blue-500/70"
+                        className="auth-select h-12 w-full rounded-2xl border border-white/10 px-4 text-sm font-semibold text-white outline-none transition"
                       >
                         <option value="">
                           Pilih company

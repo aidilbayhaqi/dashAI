@@ -33,16 +33,17 @@ export function RegisterTextInput({
   autoComplete?: string;
 }) {
   return (
-    <div className="flex h-12 items-center gap-3 rounded-2xl border border-white/10 bg-[#02040a] px-4 transition focus-within:border-blue-500/70 focus-within:ring-4 focus-within:ring-blue-500/10">
+    <div className="auth-field flex h-12 items-center gap-3 rounded-2xl border border-white/10 px-4 transition">
       {icon ? <span className="shrink-0 text-slate-600">{icon}</span> : null}
       <input
+        data-auth-input
         type={type}
         value={value}
         required={required}
         autoComplete={autoComplete}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full min-w-0 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-slate-700"
+        className="auth-input h-full w-full min-w-0 border-0 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-slate-700"
       />
     </div>
   );
@@ -64,9 +65,10 @@ export function RegisterPasswordInput({
   onToggle: () => void;
 }) {
   return (
-    <div className="flex h-12 items-center gap-3 rounded-2xl border border-white/10 bg-[#02040a] px-4 transition focus-within:border-blue-500/70 focus-within:ring-4 focus-within:ring-blue-500/10">
+    <div className="auth-field flex h-12 items-center gap-3 rounded-2xl border border-white/10 px-4 transition">
       <LockKeyhole size={18} className="shrink-0 text-slate-600" />
       <input
+        data-auth-input
         type={visible ? "text" : "password"}
         value={value}
         required
@@ -74,7 +76,7 @@ export function RegisterPasswordInput({
         autoComplete={autoComplete}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full min-w-0 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-slate-700"
+        className="auth-input h-full w-full min-w-0 border-0 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-slate-700"
       />
       <button
         type="button"

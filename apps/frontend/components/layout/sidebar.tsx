@@ -4,8 +4,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Sparkles, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 
+import { DashAILogo } from "@/components/brand/dashai-logo";
 import { CurrentCompanyCard } from "@/components/layout/current-company-card";
 import { dashboardNavigation } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -91,17 +92,12 @@ export function Sidebar({
               href="/dashboard"
               className="group flex items-center gap-3 rounded-[1.45rem] border border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 p-3.5 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md dark:border-slate-800 dark:from-slate-900 dark:to-slate-900/60 dark:hover:border-slate-700"
             >
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white shadow-lg shadow-slate-900/20 transition group-hover:scale-[1.03] dark:from-white dark:via-slate-100 dark:to-indigo-100 dark:text-slate-950">
-                <Sparkles size={21} />
-              </div>
-              <div className="min-w-0">
-                <h1 className="truncate text-xl font-black tracking-tight text-slate-950 dark:text-white">
-                  DashAI
-                </h1>
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                  Enterprise OS
-                </p>
-              </div>
+              <DashAILogo
+                size={48}
+                showText
+                subtitle="Enterprise OS"
+                className="min-w-0 text-slate-950 dark:text-white"
+              />
             </Link>
 
             <div className="mt-3">

@@ -208,3 +208,116 @@ select:-webkit-autofill {
   -webkit-text-fill-color: #e2e8f0;
   caret-color: #e2e8f0;
 }
+
+/* Auth surfaces are always dark, independent from the dashboard theme.
+   This prevents browser autofill/global input styles from creating white or
+   blue blocks inside login and registration fields. */
+.auth-page {
+  color-scheme: dark;
+  background-color: #02040a;
+}
+
+.auth-card {
+  isolation: isolate;
+}
+
+.auth-field,
+.auth-select {
+  background-color: #050816 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.auth-field:focus-within,
+.auth-select:focus {
+  border-color: rgba(59, 130, 246, 0.72) !important;
+  box-shadow:
+    0 0 0 4px rgba(59, 130, 246, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.auth-page .auth-input,
+.auth-page input[data-auth-input] {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  height: 100%;
+  min-height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: #050816 !important;
+  background-color: #050816 !important;
+  background-image: none !important;
+  background-clip: padding-box !important;
+  -webkit-background-clip: padding-box !important;
+  box-shadow: none !important;
+  color: #f8fafc !important;
+  caret-color: #93c5fd;
+  color-scheme: dark;
+  outline: none !important;
+}
+
+.auth-page .auth-input:focus,
+.auth-page input[data-auth-input]:focus {
+  background: #050816 !important;
+  background-color: #050816 !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.auth-page .auth-input::placeholder,
+.auth-page input[data-auth-input]::placeholder {
+  color: #475569;
+  opacity: 1;
+}
+
+.auth-page .auth-input:-webkit-autofill,
+.auth-page .auth-input:-webkit-autofill:hover,
+.auth-page .auth-input:-webkit-autofill:focus,
+.auth-page .auth-input:-webkit-autofill:active,
+.auth-page input[data-auth-input]:-webkit-autofill,
+.auth-page input[data-auth-input]:-webkit-autofill:hover,
+.auth-page input[data-auth-input]:-webkit-autofill:focus,
+.auth-page input[data-auth-input]:-webkit-autofill:active {
+  -webkit-text-fill-color: #f8fafc !important;
+  caret-color: #93c5fd !important;
+  background: #050816 !important;
+  background-color: #050816 !important;
+  background-image: none !important;
+  -webkit-box-shadow: 0 0 0 1000px #050816 inset !important;
+  box-shadow: 0 0 0 1000px #050816 inset !important;
+  filter: none !important;
+  transition:
+    background-color 9999s ease-out 0s,
+    color 9999s ease-out 0s;
+}
+
+.auth-page .auth-select {
+  color: #f8fafc !important;
+}
+
+.auth-page .auth-select option {
+  background: #050816;
+  color: #f8fafc;
+}
+
+.auth-page .auth-checkbox {
+  accent-color: #2563eb;
+  background-color: #02040a !important;
+  color-scheme: dark;
+}
+
+.auth-page input::selection,
+.auth-page textarea::selection {
+  background: rgba(71, 85, 105, 0.72);
+  color: #ffffff;
+}
+
+
+
+.auth-page .auth-input:autofill,
+.auth-page input[data-auth-input]:autofill {
+  background: #050816 !important;
+  background-color: #050816 !important;
+  color: #f8fafc !important;
+  box-shadow: 0 0 0 1000px #050816 inset !important;
+}
